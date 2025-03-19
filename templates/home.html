@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Your Journal</h2>
+        <div class="d-flex mb-4">
+            <a href="{{ url_for('journal.quick_journal') }}" class="btn btn-primary me-2">Quick Journal</a>
+            <a href="{{ url_for('journal.guided_journal') }}" class="btn btn-success">Guided Journal</a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <h3>Recent Entries</h3>
+        {% if entries %}
+            <div class="list-group">
+                {% for entry in entries %}
+                <a href="{{ url_for('journal.view_entry', entry_id=entry.id) }}" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">
+                            {% if entry.entry_type == 'quick' %}
+                            Quick Entry
+                            {% else %}
+                            Guided Entry
+                            {% endif %}
+                        </h5>
+                        <small>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </div>
+                    {% if entry.entry_type == 'quick' %}
+                    <p class="mb-1">{{ entry.content|truncate(100) }}</p>
+                    {% else %}
+                    <p class="mb-1">Guided journal entry</p>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                You haven't created any journal entries yet.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

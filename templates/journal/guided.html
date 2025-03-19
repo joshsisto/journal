@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Guided Journal - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Guided Journal Entry</h2>
+        <p class="text-muted">Answer the prompts to complete your journal entry.</p>
+        
+        <form method="post" id="guidedJournalForm">
+            {% for question in questions %}
+            <div class="mb-4 card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ question.text }}</h5>
+                    
+                    {% if question.type == 'number' %}
+                    <div class="mb-3">
+                        <input type="range" class="form-range" min="{{ question.min }}" max="{{ question.max }}" 
+                               id="{{ question.id }}_range" name="question_{{ question.id }}" value="{{ (question.max - question.min) // 2 + question.min }}">
+                        <div class="d-flex justify-content-between">
+                            <span>{{ question.min }}</span>
+                            <span id="{{ question.id }}_value">{{ (question.max - question.min) // 2 + question.min }}</span>
+                            <span>{{ question.max }}</span>
+                        </div>
+                    </div>
+                    <script>
+                        document.getElementById('{{ question.id }}_range').addEventListener('input', function() {
+                            document.getElementById('{{ question.id }}_value').textContent = this.value;
+                        });
+                    </script>
+                    
+                    {% elif question.type == 'boolean' %}
+                    <div class="mb-3">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}" 
+                                   id="{{ question.id }}_yes" value="Yes" required>
+                            <label class="form-check-label" for="{{ question.id }}_yes">Yes</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}" 
+                                   id="{{ question.id }}_no" value="No" required>
+                            <label class="form-check-label" for="{{ question.id }}_no">No</label>
+                        </div>
+                    </div>
+                    
+                    {% elif question.type == 'text' %}
+                    <div class="mb-3">
+                        <textarea class="form-control" name="question_{{ question.id }}" 
+                                  id="{{ question.id }}_text" rows="3" required></textarea>
+                    </div>
+                    
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if question.id == 'exercise' %}
+            <div class="mb-4 card" id="exerciseTypeCard" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">What type of workout did you do?</h5>
+                    <div class="mb-3">
+                        <textarea class="form-control" name="question_exercise_type" 
+                                  id="exercise_type_text" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+            <script>
+                // Show/hide exercise type question based on exercise response
+                const exerciseYesRadio = document.getElementById('exercise_yes');
+                const exerciseNoRadio = document.getElementById('exercise_no');
+                const exerciseTypeCard = document.getElementById('exerciseTypeCard');
+                
+                if (exerciseYesRadio && exerciseNoRadio && exerciseTypeCard) {
+                    exerciseYesRadio.addEventListener('change', function() {
+                        if (this.checked) {
+                            exerciseTypeCard.style.display = 'block';
+                            document.getElementById('exercise_type_text').required = true;
+                        }
+                    });
+                    
+                    exerciseNoRadio.addEventListener('change', function() {
+                        if (this.checked) {
+                            exerciseTypeCard.style.display = 'none';
+                            document.getElementById('exercise_type_text').required = false;
+                        }
+                    });
+                }
+            </script>
+            {% endif %}
+            
+            {% endfor %}
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('journal.index') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Entry</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

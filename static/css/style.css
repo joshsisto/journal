@@ -1,0 +1,52 @@
+/* Journal App Custom Styles */
+
+/* Textarea auto-resize */
+textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Entry content formatting */
+.entry-content {
+    white-space: pre-line;
+    line-height: 1.6;
+}
+
+/* Card hover effect for journal entries */
+.list-group-item {
+    transition: all 0.2s ease;
+}
+
+.list-group-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Guided journal specific styles */
+.guided-responses h5 {
+    color: #495057;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 0.5rem;
+}
+
+.guided-responses p {
+    margin-bottom: 1.5rem;
+    padding-left: 0.5rem;
+}
+
+/* Custom range input styling */
+.form-range::-webkit-slider-thumb {
+    background-color: #0d6efd;
+}
+
+.form-range::-moz-range-thumb {
+    background-color: #0d6efd;
+}
+
+/* Time display formatting */
+.time-display {
+    font-weight: 500;
+    color: #6c757d;
+}

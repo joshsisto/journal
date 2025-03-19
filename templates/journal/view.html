@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}View Entry - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>
+                {% if entry.entry_type == 'quick' %}
+                Quick Journal Entry
+                {% else %}
+                Guided Journal Entry
+                {% endif %}
+            </h2>
+            <div>
+                <a href="{{ url_for('journal.index') }}" class="btn btn-secondary">Back</a>
+                <form method="post" action="{{ url_for('journal.delete_entry', entry_id=entry.id) }}" class="d-inline" 
+                      onsubmit="return confirm('Are you sure you want to delete this entry?');">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>
+                        <strong>Date:</strong> {{ entry.created_at.strftime('%Y-%m-%d') }}
+                    </span>
+                    <span>
+                        <strong>Time:</strong> {{ entry.created_at.strftime('%H:%M') }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                {% if entry.entry_type == 'quick' %}
+                <div class="entry-content">
+                    {% for line in entry.content.split('\n') %}
+                        {{ line }}<br>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <h4>Guided Journal Responses</h4>
+                <div class="guided-responses">
+                    {% for response in guided_responses %}
+                    <div class="mb-3">
+                        <h5>{{ response.question_text }}</h5>
+                        <p>{{ response.response }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Custom filter for nl2br not implemented in this example
+    // You would need to implement this in Flask
+</script>
+{% endblock %}

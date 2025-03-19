@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Quick Journal - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Quick Journal Entry</h2>
+        <p class="text-muted">Write freely about whatever is on your mind.</p>
+        
+        <form method="post">
+            <div class="mb-3">
+                <textarea class="form-control" name="content" id="content" rows="10" placeholder="Start writing..." required></textarea>
+            </div>
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('journal.index') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Entry</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
