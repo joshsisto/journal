@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Journal App{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">User Settings</h3>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label for="timezone" class="form-label">Your Timezone</label>
+                        <select class="form-select" id="timezone" name="timezone" required>
+                            {% for tz in timezones %}
+                                <option value="{{ tz }}" {% if tz == current_timezone %}selected{% endif %}>
+                                    {{ tz }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            Select your timezone to ensure journal entries display the correct time.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h3 class="card-title">Time Information</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    <strong>Your current timezone:</strong> {{ user_timezone }}
+                </p>
+                <p>
+                    <strong>Current time in your timezone:</strong> {{ format_datetime(None|default(now(), True), '%Y-%m-%d %H:%M:%S') }}
+                </p>
+                <p class="text-muted">
+                    All journal entries will be displayed in your local time, but stored in UTC for consistency.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Filter the timezone dropdown as user types
+    document.addEventListener('DOMContentLoaded', function() {
+        const timezoneSelect = document.getElementById('timezone');
+        const originalOptions = Array.from(timezoneSelect.options);
+        
+        // Add a search input before the select
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'form-control mb-2';
+        searchInput.placeholder = 'Search for your timezone...';
+        timezoneSelect.parentNode.insertBefore(searchInput, timezoneSelect);
+        
+        searchInput.addEventListener('input', function() {
+            const searchText = this.value.toLowerCase();
+            
+            // Clear existing options
+            timezoneSelect.innerHTML = '';
+            
+            // Filter and add matching options
+            const matchingOptions = originalOptions.filter(option => 
+                option.value.toLowerCase().includes(searchText)
+            );
+            
+            matchingOptions.forEach(option => {
+                timezoneSelect.appendChild(option.cloneNode(true));
+            });
+            
+            if (matchingOptions.length === 0) {
+                const noMatchOption = document.createElement('option');
+                noMatchOption.text = 'No matches found';
+                noMatchOption.disabled = true;
+                timezoneSelect.appendChild(noMatchOption);
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from models import JournalEntry, ExerciseLog, GuidedResponse
 from flask_login import current_user
 from sqlalchemy import func
+from time_utils import TimeUtils
 import pytz
 
 
@@ -52,33 +53,31 @@ def format_time_since(delta):
 
 
 def has_exercised_today():
-    """Check if the user has already logged exercise today.
+    """Check if the user has already logged exercise today."""
+    today = TimeUtils.get_local_today()
+    day_start_utc, day_end_utc = TimeUtils.get_day_start_end_utc(today)
     
-    Returns:
-        bool: True if exercised today, False otherwise.
-    """
-    today = datetime.utcnow().date()
     exercise_log = ExerciseLog.query.filter_by(
         user_id=current_user.id,
-        date=today,
         has_exercised=True
+    ).filter(
+        ExerciseLog.date >= day_start_utc.date(),
+        ExerciseLog.date <= day_end_utc.date()
     ).first()
     
     return bool(exercise_log)
 
 
 def has_set_goals_today():
-    """Check if the user has already set goals today.
+    """Check if the user has already set goals today."""
+    day_start_utc, day_end_utc = TimeUtils.get_day_start_end_utc()
     
-    Returns:
-        bool: True if goals set today, False otherwise.
-    """
-    today = datetime.utcnow().date()
     goals_entry = JournalEntry.query.join(
         GuidedResponse
     ).filter(
         JournalEntry.user_id == current_user.id,
-        func.date(JournalEntry.created_at) == today,
+        JournalEntry.created_at >= day_start_utc,
+        JournalEntry.created_at <= day_end_utc,
         GuidedResponse.question_id == 'goals',
         GuidedResponse.response.isnot(None),
         GuidedResponse.response != ''
@@ -88,14 +87,8 @@ def has_set_goals_today():
 
 
 def is_before_noon():
-    """Check if the current time is before noon.
-    
-    Returns:
-        bool: True if before noon, False otherwise.
-    """
-    # Assuming user's local timezone or UTC
-    now = datetime.utcnow()
-    return now.hour < 12
+    """Check if the current time is before noon."""
+    return TimeUtils.is_before_noon()
 
 
 def prepare_guided_journal_context():

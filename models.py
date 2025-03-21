@@ -9,6 +9,8 @@ class User(UserMixin, db.Model):
     """User model for authentication."""
     __tablename__ = 'users'
     
+    timezone = db.Column(db.String(50), default='UTC')  # User's timezone
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
