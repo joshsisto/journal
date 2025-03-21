@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy import func
+import pytz
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager
 from helpers import (
@@ -24,18 +25,28 @@ def register():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+        timezone = request.form.get('timezone', 'UTC')
         
+        # Validate timezone
+        try:
+            pytz.timezone(timezone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            timezone = 'UTC'  # Default to UTC if invalid
+        
+        # Check if username exists
         user = User.query.filter_by(username=username).first()
         if user:
             flash('Username already exists.')
             return redirect(url_for('auth.register'))
         
+        # Check if email exists
         user = User.query.filter_by(email=email).first()
         if user:
             flash('Email already registered.')
             return redirect(url_for('auth.register'))
         
-        new_user = User(username=username, email=email)
+        # Create new user with timezone
+        new_user = User(username=username, email=email, timezone=timezone)
         new_user.set_password(password)
         
         db.session.add(new_user)
@@ -44,7 +55,10 @@ def register():
         flash('Registration successful. Please log in.')
         return redirect(url_for('auth.login'))
     
-    return render_template('register.html')
+    # Get common timezones
+    common_timezones = pytz.common_timezones
+    
+    return render_template('register.html', timezones=common_timezones)
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -226,3 +240,33 @@ def check_exercise():
     return jsonify({
         'exercised_today': has_exercised_today()
     })
+
+
+@auth_bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    if request.method == 'POST':
+        timezone = request.form.get('timezone')
+        
+        try:
+            # Validate timezone
+            pytz.timezone(timezone)
+            
+            # Update user's timezone
+            current_user.timezone = timezone
+            db.session.commit()
+            
+            flash('Timezone updated successfully.')
+        except pytz.exceptions.UnknownTimeZoneError:
+            flash('Invalid timezone selected.')
+        
+        return redirect(url_for('auth.settings'))
+    
+    # Get list of common timezones for the form
+    common_timezones = pytz.common_timezones
+    
+    return render_template(
+        'settings.html', 
+        timezones=common_timezones, 
+        current_timezone=current_user.timezone
+    )

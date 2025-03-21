@@ -28,7 +28,7 @@
                             Guided Entry
                             {% endif %}
                         </h5>
-                        <small>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        <small>{{ format_datetime(entry.created_at) }}</small>
                     </div>
                     {% if entry.entry_type == 'quick' %}
                     <p class="mb-1">{{ entry.content|truncate(100) }}</p>

@@ -2,6 +2,7 @@ from flask import Flask
 from flask_login import LoginManager
 from config import Config
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog
+from time_utils import register_template_utils
 import os
 import jinja2
 import markupsafe
@@ -34,6 +35,9 @@ def create_app(config_class=Config):
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
+
+    # Register time utilities for templates
+    register_template_utils(app)    
     
     # Register blueprints
     from routes import auth_bp, journal_bp

@@ -23,6 +23,17 @@
                         <label for="password" class="form-label">Password</label>
                         <input type="password" class="form-control" id="password" name="password" required>
                     </div>
+                    <div class="mb-3">
+                        <label for="timezone" class="form-label">Your Timezone</label>
+                        <select class="form-select" id="timezone" name="timezone" required>
+                            {% for tz in timezones %}
+                                <option value="{{ tz }}">{{ tz }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            Select your timezone to ensure journal entries display the correct time.
+                        </div>
+                    </div>
                     <button type="submit" class="btn btn-primary">Register</button>
                 </form>
             </div>
@@ -32,4 +43,26 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Try to detect and preselect the user's timezone
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const timezoneSelect = document.getElementById('timezone');
+            
+            // Find the option with this timezone value
+            for (let i = 0; i < timezoneSelect.options.length; i++) {
+                if (timezoneSelect.options[i].value === timezone) {
+                    timezoneSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        } catch (e) {
+            console.error('Error auto-detecting timezone:', e);
+        }
+    });
+</script>
 {% endblock %}
