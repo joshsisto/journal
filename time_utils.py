@@ -99,5 +99,6 @@ def register_template_utils(app):
         return {
             'format_datetime': TimeUtils.format_datetime,
             'user_timezone': TimeUtils.get_user_timezone().zone,
-            'now': datetime.utcnow  # Function to get current time
+            'now': datetime.now,  # Current time function
+            'strftime': lambda dt, fmt: dt.strftime(fmt)  # Strftime helper for templates
         }

@@ -1,0 +1,615 @@
+{% extends "base.html" %}
+
+{% block title %}Journal Dashboard{% endblock %}
+
+{% block styles %}
+<style>
+    /* Dashboard specific styles */
+    .month-card {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .month-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .timeline-year {
+        font-weight: bold;
+        margin-top: 10px;
+    }
+    .timeline-month {
+        display: inline-block;
+        margin: 0 2px;
+        width: 24px;
+        text-align: center;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    .timeline-indicator {
+        display: block;
+        height: 20px;
+        background-color: #6c757d;
+        border-radius: 3px;
+        transition: all 0.2s ease;
+    }
+    .timeline-indicator:hover {
+        opacity: 0.8;
+    }
+    .timeline-month-label {
+        font-size: 0.7rem;
+        color: #6c757d;
+    }
+    .calendar-day {
+        width: 38px;
+        height: 38px;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 50%;
+        font-size: 0.9rem;
+    }
+    .calendar-day.has-entries {
+        background-color: #e9ecef;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    .calendar-day.has-entries:hover {
+        background-color: #ced4da;
+    }
+    .calendar-day.today {
+        border: 2px solid #0d6efd;
+    }
+    .feeling-data-chart {
+        height: 200px;
+    }
+    .archive-year {
+        cursor: pointer;
+    }
+    .archive-months {
+        display: none;
+        padding-left: 20px;
+    }
+    .archive-months.show {
+        display: block;
+    }
+    .highlight-current-page {
+        background-color: #0d6efd;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Journal Dashboard</h2>
+            <div>
+                <a href="{{ url_for('journal.search') }}" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-search"></i> Advanced Search
+                </a>
+                <a href="{{ url_for('export.export_all_entries') }}" class="btn btn-outline-success me-2">
+                    <i class="bi bi-download"></i> Export All
+                </a>
+                <a href="{{ url_for('tag.manage_tags') }}" class="btn btn-outline-secondary">Manage Tags</a>
+            </div>
+        </div>
+        <div class="d-flex mt-3">
+            <a href="{{ url_for('journal.quick_journal') }}" class="btn btn-primary me-2">Quick Journal</a>
+            <a href="{{ url_for('journal.guided_journal') }}" class="btn btn-success">Guided Journal</a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Sidebar - Navigation Options -->
+    <div class="col-md-3">
+        <!-- Statistics Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Statistics</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Total Entries:</strong> {{ total_entries }}</p>
+                
+                <!-- Show entry type breakdown -->
+                {% set quick_count = 0 %}
+                {% set guided_count = 0 %}
+                {% for entry in entries %}
+                    {% if entry.entry_type == 'quick' %}
+                        {% set quick_count = quick_count + 1 %}
+                    {% elif entry.entry_type == 'guided' %}
+                        {% set guided_count = guided_count + 1 %}
+                    {% endif %}
+                {% endfor %}
+                
+                <div class="mb-3">
+                    <small class="text-muted">Entry Types (Current Page)</small>
+                    <div class="progress" style="height: 20px;">
+                        {% if entries|length > 0 %}
+                            {% set quick_percent = (quick_count / entries|length * 100)|int %}
+                            {% set guided_percent = (guided_count / entries|length * 100)|int %}
+                            <div class="progress-bar bg-info" style="width: {{ quick_percent }}%" 
+                                 data-bs-toggle="tooltip" title="Quick: {{ quick_count }}">
+                                {{ quick_percent }}%
+                            </div>
+                            <div class="progress-bar bg-success" style="width: {{ guided_percent }}%" 
+                                 data-bs-toggle="tooltip" title="Guided: {{ guided_count }}">
+                                {{ guided_percent }}%
+                            </div>
+                        {% else %}
+                            <div class="progress-bar" style="width: 0%">No entries</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Average entries per month -->
+                {% if archive_data %}
+                    {% set total_months = 0 %}
+                    {% for year, months in archive_data.items() %}
+                        {% set total_months = total_months + months|length %}
+                    {% endfor %}
+                    
+                    {% if total_months > 0 %}
+                        {% set avg_entries = total_entries / total_months %}
+                        <p><small class="text-muted">Avg. {{ "%.1f"|format(avg_entries) }} entries per month</small></p>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Filter Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Filters</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('journal.dashboard') }}" method="get" id="filterForm">
+                    <div class="mb-3">
+                        <label for="tag" class="form-label">Filter by Tag</label>
+                        <select class="form-select" id="tag" name="tag">
+                            <option value="">All Tags</option>
+                            {% for tag in tags %}
+                            <option value="{{ tag.id }}" {% if selected_tag and selected_tag.id == tag.id %}selected{% endif %}>
+                                {{ tag.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="per_page" class="form-label">Entries per page</label>
+                        <select class="form-select" id="per_page" name="per_page">
+                            <option value="10" {% if entries_per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="25" {% if entries_per_page == 25 %}selected{% endif %}>25</option>
+                            <option value="50" {% if entries_per_page == 50 %}selected{% endif %}>50</option>
+                        </select>
+                    </div>
+                    
+                    <input type="hidden" name="page" value="1">
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clearFilters">Clear</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Archive Navigation -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Archives</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for year, months in archive_data.items()|sort(reverse=true) %}
+                    <div class="archive-entry">
+                        <a href="#" class="list-group-item list-group-item-action archive-year" 
+                           data-year="{{ year }}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{{ year }}</span>
+                                <span class="badge bg-secondary rounded-pill">
+                                    {% set year_total = 0 %}
+                                    {% for month in months %}
+                                        {% set year_total = year_total + month.count %}
+                                    {% endfor %}
+                                    {{ year_total }}
+                                </span>
+                            </div>
+                        </a>
+                        <div class="archive-months {% if selected_year == year %}show{% endif %}" data-year="{{ year }}">
+                            {% for month_data in months %}
+                                {% set month_num = month_data.month|int %}
+                                {% set month_name = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][month_num - 1] %}
+                                <a href="{{ url_for('journal.dashboard', year=year, month=month_data.month) }}" 
+                                   class="list-group-item list-group-item-action {% if selected_year == year and selected_month == month_data.month %}active{% endif %}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>{{ month_name }}</span>
+                                        <span class="badge bg-primary rounded-pill">{{ month_data.count }}</span>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="col-md-9">
+        <!-- Timeline Visualization -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Entry Timeline</h5>
+            </div>
+            <div class="card-body">
+                {% if timeline_data %}
+                    <div class="timeline-container">
+                        {% if selected_year and selected_month %}
+                            <!-- Calendar view for specific month -->
+                            <h6>{{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][selected_month|int - 1] }} {{ selected_year }}</h6>
+                            
+                            <!-- Define calendar days -->
+                            {% set month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] %}
+                            
+                            <!-- Check for leap year -->
+                            {% if selected_month|int == 2 %}
+                                {% set year_int = selected_year|int %}
+                                {% if (year_int % 4 == 0 and year_int % 100 != 0) or year_int % 400 == 0 %}
+                                    {% set month_days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] %}
+                                {% endif %}
+                            {% endif %}
+                            
+                            <!-- Manually set first day of week (Sunday = 0) -->
+                            {% set first_day_of_week = 0 %}
+                            
+                            <!-- Day names -->
+                            <div class="d-flex justify-content-between mb-2">
+                                {% for day in ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] %}
+                                <div class="calendar-day-header">{{ day }}</div>
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- Calendar grid -->
+                            <div class="calendar-grid">
+                                {% for i in range(42) %}  <!-- 6 weeks max -->
+                                    {% if i < first_day_of_week %}
+                                        <div class="calendar-day"></div>
+                                    {% elif i - first_day_of_week < month_days[selected_month|int - 1] %}
+                                        {% set day_num = i - first_day_of_week + 1 %}
+                                        {% set current_date = selected_year ~ '-' ~ '%02d'|format(selected_month|int) ~ '-' ~ '%02d'|format(day_num) %}
+                                        
+                                        <!-- Check if day has entries -->
+                                        {% set has_entries = false %}
+                                        {% for entry_data in timeline_data %}
+                                            {% if entry_data.day|int == day_num %}
+                                                {% set has_entries = true %}
+                                                {% set entry_count = entry_data.count %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        
+                                        <!-- Check if today -->
+                                        {% set is_today = current_date == now().strftime('%Y-%m-%d') %}
+                                        
+                                        <div class="calendar-day {% if has_entries %}has-entries{% endif %} {% if is_today %}today{% endif %}"
+                                            {% if has_entries %}data-bs-toggle="tooltip" title="{{ entry_count }} entries"
+                                            onclick="window.location.href='{{ url_for('journal.dashboard', year=selected_year, month=selected_month, day=day_num) }}'"{% endif %}>
+                                            {{ day_num }}
+                                        </div>
+                                    {% else %}
+                                        <div class="calendar-day"></div>
+                                    {% endif %}
+                                    
+                                    <!-- Break row after 7 days -->
+                                    {% if (i + 1) % 7 == 0 and i > 0 %}
+                                        </div><div class="d-flex justify-content-between mb-2">
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- Back to Timeline Link -->
+                            <div class="text-center mt-3">
+                                <a href="{{ url_for('journal.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Back to Timeline
+                                </a>
+                            </div>
+                            
+                        {% else %}
+                            <!-- Timeline visualization for all entries -->
+                            {% set grouped_by_year = {} %}
+                            {% for item in timeline_data %}
+                                {% if item.year not in grouped_by_year %}
+                                    {% set _ = grouped_by_year.__setitem__(item.year, []) %}
+                                {% endif %}
+                                {% set _ = grouped_by_year[item.year].append(item) %}
+                            {% endfor %}
+                            
+                            {% for year, months in grouped_by_year.items()|sort %}
+                                <div class="timeline-year">{{ year }}</div>
+                                <div class="d-flex align-items-end">
+                                    {% for month_data in months %}
+                                        {% set month_num = month_data.month|int %}
+                                        {% set month_name = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][month_num - 1] %}
+                                        {% set max_entries = 30 %}
+                                        {% set height_percent = (month_data.count / max_entries * 100)|round %}
+                                        {% if height_percent > 100 %}
+                                            {% set height_percent = 100 %}
+                                        {% endif %}
+                                        {% set intensity = height_percent %}
+                                        
+                                        <div class="timeline-month" 
+                                            data-bs-toggle="tooltip" 
+                                            title="{{ month_data.count }} entries in {{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][month_num - 1] }} {{ year }}"
+                                            onclick="window.location.href='{{ url_for('journal.dashboard', year=year, month=month_data.month) }}'">
+                                            <div class="timeline-indicator" style="height: {{ height_percent }}%; background-color: rgba(13, 110, 253, {{ 0.3 + (intensity * 0.007 / 100) }});"></div>
+                                            <div class="timeline-month-label">{{ month_name }}</div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No entries available for timeline visualization.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Journal Entries -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    {% if selected_year and selected_month %}
+                        Entries from {{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][selected_month|int - 1] }} {{ selected_year }}
+                    {% elif selected_tag %}
+                        Entries tagged with "{{ selected_tag.name }}"
+                    {% elif start_date or end_date %}
+                        Filtered Entries
+                    {% else %}
+                        Recent Entries
+                    {% endif %}
+                </h5>
+                
+                <!-- View toggle buttons -->
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary active" data-view="card">
+                        <i class="bi bi-card-text"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-view="list">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Card View (default) -->
+            <div class="entries-container" id="cardView">
+                {% if entries %}
+                    <div class="row p-3">
+                        {% for entry in entries %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between">
+                                    <span>
+                                        {% if entry.entry_type == 'quick' %}
+                                            <i class="bi bi-pencil-fill text-primary"></i> Quick
+                                        {% else %}
+                                            <i class="bi bi-journal-text text-success"></i> Guided
+                                            {% if feeling_data and entry.id in feeling_data %}
+                                                <span class="ms-2">{{ feeling_data[entry.id]|feeling_emoji }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </span>
+                                    <small>{{ format_datetime(entry.created_at) }}</small>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Display tags -->
+                                    {% if entry.tags %}
+                                        <div class="mb-2">
+                                            {% for tag in entry.tags %}
+                                                <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {% if entry.entry_type == 'quick' %}
+                                        <p class="card-text">{{ entry.content|truncate(100) }}</p>
+                                    {% else %}
+                                        <p class="card-text">
+                                            {% if feeling_data and entry.id in feeling_data %}
+                                                Feeling: {{ feeling_data[entry.id] }}/10
+                                            {% else %}
+                                                Guided journal entry
+                                            {% endif %}
+                                        </p>
+                                    {% endif %}
+                                </div>
+                                <div class="card-footer">
+                                    <a href="{{ url_for('journal.view_entry', entry_id=entry.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                    <a href="{{ url_for('export.export_entry', entry_id=entry.id) }}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info m-3">
+                        No entries match your current criteria.
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- List View (alternative) -->
+            <div class="entries-container" id="listView" style="display: none;">
+                {% if entries %}
+                    <div class="list-group list-group-flush">
+                        {% for entry in entries %}
+                        <a href="{{ url_for('journal.view_entry', entry_id=entry.id) }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">
+                                    {% if entry.entry_type == 'quick' %}
+                                        <i class="bi bi-pencil-fill text-primary"></i> Quick Entry
+                                    {% else %}
+                                        <i class="bi bi-journal-text text-success"></i> Guided Entry
+                                        {% if feeling_data and entry.id in feeling_data %}
+                                            <span class="ms-2">{{ feeling_data[entry.id]|feeling_emoji }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </h5>
+                                <small>{{ format_datetime(entry.created_at) }}</small>
+                            </div>
+                            
+                            <!-- Display tags -->
+                            <div class="mb-2">
+                                {% for tag in entry.tags %}
+                                    <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                                {% endfor %}
+                            </div>
+                            
+                            {% if entry.entry_type == 'quick' %}
+                                <p class="mb-1">{{ entry.content|truncate(100) }}</p>
+                            {% else %}
+                                <p class="mb-1">
+                                    {% if feeling_data and entry.id in feeling_data %}
+                                        Feeling: {{ feeling_data[entry.id] }}/10
+                                    {% else %}
+                                        Guided journal entry
+                                    {% endif %}
+                                </p>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info m-3">
+                        No entries match your current criteria.
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Pagination -->
+            {% if paginated_entries.pages > 1 %}
+            <div class="card-footer">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mb-0">
+                        <!-- Previous page link -->
+                        <li class="page-item {% if not paginated_entries.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('journal.dashboard', page=paginated_entries.prev_num, tag=tag_id, start_date=start_date, end_date=end_date, year=selected_year, month=selected_month, per_page=entries_per_page) }}">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+                        
+                        <!-- Display page numbers -->
+                        {% for page_num in paginated_entries.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                <li class="page-item {% if page_num == paginated_entries.page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('journal.dashboard', page=page_num, tag=tag_id, start_date=start_date, end_date=end_date, year=selected_year, month=selected_month, per_page=entries_per_page) }}">
+                                        {{ page_num }}
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <!-- Next page link -->
+                        <li class="page-item {% if not paginated_entries.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('journal.dashboard', page=paginated_entries.next_num, tag=tag_id, start_date=start_date, end_date=end_date, year=selected_year, month=selected_month, per_page=entries_per_page) }}">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
+        // Archive year toggle
+        const yearHeaders = document.querySelectorAll('.archive-year');
+        yearHeaders.forEach(header => {
+            header.addEventListener('click', function(e) {
+                e.preventDefault();
+                const year = this.getAttribute('data-year');
+                const monthsDiv = document.querySelector(`.archive-months[data-year="${year}"]`);
+                monthsDiv.classList.toggle('show');
+            });
+        });
+        
+        // View toggle
+        const viewButtons = document.querySelectorAll('[data-view]');
+        viewButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                viewButtons.forEach(btn => btn.classList.remove('active'));
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Hide all views
+                document.querySelectorAll('.entries-container').forEach(container => {
+                    container.style.display = 'none';
+                });
+                
+                // Show selected view
+                const viewType = this.getAttribute('data-view');
+                document.getElementById(`${viewType}View`).style.display = 'block';
+            });
+        });
+        
+        // Clear filters button
+        document.getElementById('clearFilters').addEventListener('click', function() {
+            const form = document.getElementById('filterForm');
+            const elements = form.elements;
+            
+            for (let i = 0; i < elements.length; i++) {
+                const element = elements[i];
+                if (element.type === 'text' || element.type === 'date' || element.tagName === 'SELECT') {
+                    if (element.name === 'per_page') {
+                        element.value = '10'; // Reset to default
+                    } else {
+                        element.value = '';
+                    }
+                }
+            }
+            
+            form.submit();
+        });
+        
+        // Auto-submit form when filters change
+        const autoSubmitElements = document.querySelectorAll('#tag, #per_page');
+        autoSubmitElements.forEach(el => {
+            el.addEventListener('change', function() {
+                document.getElementById('filterForm').submit();
+            });
+        });
+    });
+</script>
+{% endblock %}
