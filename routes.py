@@ -118,7 +118,19 @@ def index():
     # Get all user tags for filter menu
     tags = Tag.query.filter_by(user_id=current_user.id).all()
     
-    return render_template('home.html', entries=entries, tags=tags, selected_tag=selected_tag)
+    # Get feeling data for guided entries
+    feeling_data = {}
+    guided_entry_ids = [entry.id for entry in entries if entry.entry_type == 'guided']
+    if guided_entry_ids:
+        feeling_responses = GuidedResponse.query.filter(
+            GuidedResponse.journal_entry_id.in_(guided_entry_ids),
+            GuidedResponse.question_id == 'feeling_scale'
+        ).all()
+        
+        for resp in feeling_responses:
+            feeling_data[resp.journal_entry_id] = resp.response
+    
+    return render_template('home.html', entries=entries, tags=tags, selected_tag=selected_tag, feeling_data=feeling_data)
 
 
 @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
@@ -393,12 +405,23 @@ def search():
     if tag_id:
         selected_tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first()
     
-    # For guided entries, fetch the responses that match the search query
-    if query:
-        matched_responses = {}
-        guided_entry_ids = [entry.id for entry in entries if entry.entry_type == 'guided']
+    # For guided entries, fetch the responses
+    matched_responses = {}
+    feeling_data = {}
+    guided_entry_ids = [entry.id for entry in entries if entry.entry_type == 'guided']
+    
+    if guided_entry_ids:
+        # Get all feeling scale responses for display
+        feeling_responses = GuidedResponse.query.filter(
+            GuidedResponse.journal_entry_id.in_(guided_entry_ids),
+            GuidedResponse.question_id == 'feeling_scale'
+        ).all()
         
-        if guided_entry_ids:
+        for resp in feeling_responses:
+            feeling_data[resp.journal_entry_id] = resp.response
+        
+        # If searching, also get matching responses
+        if query:
             responses = GuidedResponse.query.filter(
                 GuidedResponse.journal_entry_id.in_(guided_entry_ids),
                 GuidedResponse.response.ilike(f'%{query}%')
@@ -416,8 +439,6 @@ def search():
                     matched_responses[resp.journal_entry_id] = []
                 
                 matched_responses[resp.journal_entry_id].append(resp)
-    else:
-        matched_responses = {}
     
     return render_template(
         'search.html', 
@@ -429,7 +450,8 @@ def search():
         end_date=request.args.get('end_date', ''),
         entry_type=entry_type,
         sort_by=sort_by,
-        matched_responses=matched_responses
+        matched_responses=matched_responses,
+        feeling_data=feeling_data
     )
 
 

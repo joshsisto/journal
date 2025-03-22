@@ -16,17 +16,38 @@
                     
                     {% if question.type == 'number' %}
                     <div class="mb-3">
+                        {% set default_value = (question.max - question.min) // 2 + question.min %}
                         <input type="range" class="form-range" min="{{ question.min }}" max="{{ question.max }}" 
-                               id="{{ question.id }}_range" name="question_{{ question.id }}" value="{{ (question.max - question.min) // 2 + question.min }}">
-                        <div class="d-flex justify-content-between">
-                            <span>{{ question.min }}</span>
-                            <span id="{{ question.id }}_value">{{ (question.max - question.min) // 2 + question.min }}</span>
-                            <span>{{ question.max }}</span>
+                               id="{{ question.id }}_range" name="question_{{ question.id }}" value="{{ default_value }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>{{ question.min }} {{ question.min|feeling_emoji }}</span>
+                            <div>
+                                <span id="{{ question.id }}_value">{{ default_value }}</span>
+                                <span id="{{ question.id }}_emoji" class="fs-4">{{ default_value|feeling_emoji }}</span>
+                            </div>
+                            <span>{{ question.max }} {{ question.max|feeling_emoji }}</span>
                         </div>
                     </div>
                     <script>
                         document.getElementById('{{ question.id }}_range').addEventListener('input', function() {
-                            document.getElementById('{{ question.id }}_value').textContent = this.value;
+                            var value = this.value;
+                            document.getElementById('{{ question.id }}_value').textContent = value;
+                            
+                            // Update emoji based on value
+                            var emoji = '';
+                            if (value == 1) emoji = '😭';
+                            else if (value == 2) emoji = '😢';
+                            else if (value == 3) emoji = '😞';
+                            else if (value == 4) emoji = '😔';
+                            else if (value == 5) emoji = '😐';
+                            else if (value == 6) emoji = '🙂';
+                            else if (value == 7) emoji = '😊';
+                            else if (value == 8) emoji = '😄';
+                            else if (value == 9) emoji = '😁';
+                            else if (value == 10) emoji = '🤩';
+                            else emoji = '❓';
+                            
+                            document.getElementById('{{ question.id }}_emoji').textContent = emoji;
                         });
                     </script>
                     

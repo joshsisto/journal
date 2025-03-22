@@ -91,6 +91,45 @@ def is_before_noon():
     return TimeUtils.is_before_noon()
 
 
+def get_feeling_emoji(feeling_value):
+    """Convert a feeling scale value to an appropriate emoji.
+    
+    Args:
+        feeling_value: Integer value from 1-10 representing feeling scale.
+        
+    Returns:
+        str: Emoji character representing the feeling value.
+    """
+    try:
+        feeling = int(feeling_value)
+    except (ValueError, TypeError):
+        return "❓"  # Question mark for invalid values
+    
+    # Map feeling scale values to emojis
+    if feeling == 1:
+        return "😭"  # Crying with tears
+    elif feeling == 2:
+        return "😢"  # Crying with single tear
+    elif feeling == 3:
+        return "😞"  # Sad face
+    elif feeling == 4:
+        return "😔"  # Pensive face
+    elif feeling == 5:
+        return "😐"  # Neutral face
+    elif feeling == 6:
+        return "🙂"  # Slightly smiling face
+    elif feeling == 7:
+        return "😊"  # Smiling face
+    elif feeling == 8:
+        return "😄"  # Grinning face 
+    elif feeling == 9:
+        return "😁"  # Beaming face
+    elif feeling == 10:
+        return "🤩"  # Star-struck face
+    else:
+        return "❓"  # Question mark for out of range values
+
+
 def prepare_guided_journal_context():
     """Prepare context data for guided journal entry form.
     

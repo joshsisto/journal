@@ -53,6 +53,12 @@ def create_app(config_class=Config):
             return ""
         return markupsafe.Markup(s.replace('\n', '<br>'))
     
+    # Add feeling emoji filter
+    from helpers import get_feeling_emoji
+    @app.template_filter('feeling_emoji')
+    def feeling_emoji_filter(value):
+        return get_feeling_emoji(value)
+    
     # Add Python's built-in functions to templates
     app.jinja_env.globals.update(max=max)
     app.jinja_env.globals.update(min=min)

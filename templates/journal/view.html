@@ -70,7 +70,14 @@
                     {% for response in guided_responses %}
                     <div class="mb-3">
                         <h5>{{ response.question_text }}</h5>
-                        <p>{{ response.response }}</p>
+                        {% if response.question_id == 'feeling_scale' %}
+                            <p>
+                                <span class="fs-4">{{ response.response|feeling_emoji }}</span>
+                                <span class="ms-2">{{ response.response }} / 10</span>
+                            </p>
+                        {% else %}
+                            <p>{{ response.response }}</p>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
