@@ -222,35 +222,45 @@ def dashboard():
                 'count': entry_counts[year][month]
             })
     
-    # If a specific month is selected, add daily data
-    if selected_year and selected_month:
-        # Manual processing for daily counts
-        daily_counts = {}
-        year_int = int(selected_year)
-        month_int = int(selected_month)
+    # If no month selected, default to current month for calendar
+    if not selected_year or not selected_month:
+        current_datetime = datetime.now()
+        selected_year = current_datetime.strftime('%Y')
+        selected_month = current_datetime.strftime('%m')
         
-        start_of_month = datetime(year_int, month_int, 1)
-        if month_int == 12:
-            end_of_month = datetime(year_int + 1, 1, 1)
-        else:
-            end_of_month = datetime(year_int, month_int + 1, 1)
-        
-        for entry in all_entries:
-            if start_of_month <= entry.created_at < end_of_month:
-                day = entry.created_at.strftime('%d')
-                if day not in daily_counts:
-                    daily_counts[day] = 0
-                daily_counts[day] += 1
-        
-        # Format daily data
-        timeline_data = []
-        for day in sorted(daily_counts.keys()):
-            timeline_data.append({
-                'year': selected_year,
-                'month': selected_month,
-                'day': day,
-                'count': daily_counts[day]
-            })
+    # Calculate first day of month (0 = Sunday, ... 6 = Saturday)
+    # This calculation is done here instead of in the template
+    first_date = datetime(int(selected_year), int(selected_month), 1)
+    weekday = first_date.weekday()  # Monday=0...Sunday=6
+    first_day_of_week = (weekday + 1) % 7  # Convert to Sunday-based (Sunday=0)
+    
+    # Get daily data for the selected month or current month
+    year_int = int(selected_year)
+    month_int = int(selected_month)
+    
+    start_of_month = datetime(year_int, month_int, 1)
+    if month_int == 12:
+        end_of_month = datetime(year_int + 1, 1, 1)
+    else:
+        end_of_month = datetime(year_int, month_int + 1, 1)
+    
+    # Manual processing for daily counts
+    daily_counts = {}
+    for entry in all_entries:
+        if start_of_month <= entry.created_at < end_of_month:
+            day = entry.created_at.strftime('%d')
+            if day not in daily_counts:
+                daily_counts[day] = 0
+            daily_counts[day] += 1
+    
+    # Format daily data
+    for day in sorted(daily_counts.keys()):
+        timeline_data.append({
+            'year': selected_year,
+            'month': selected_month,
+            'day': day,
+            'count': daily_counts[day]
+        })
     
     return render_template(
         'dashboard.html', 
@@ -264,6 +274,7 @@ def dashboard():
         archive_data=archive_data,
         selected_year=selected_year,
         selected_month=selected_month,
+        first_day_of_week=first_day_of_week,
         start_date=start_date,
         end_date=end_date,
         page=page,

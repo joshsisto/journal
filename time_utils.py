@@ -100,5 +100,6 @@ def register_template_utils(app):
             'format_datetime': TimeUtils.format_datetime,
             'user_timezone': TimeUtils.get_user_timezone().zone,
             'now': datetime.now,  # Current time function
-            'strftime': lambda dt, fmt: dt.strftime(fmt)  # Strftime helper for templates
+            'strftime': lambda dt, fmt: dt.strftime(fmt),  # Strftime helper for templates
+            'datetime': datetime  # Make datetime class available in templates
         }
