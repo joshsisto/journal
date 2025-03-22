@@ -48,7 +48,7 @@
         border-radius: 50%;
         font-size: 0.9rem;
         transition: all 0.2s ease;
-        color: #6c757d;
+        color: #adb5bd;  /* Lighter color for days without entries */
     }
     .calendar-day.has-entries {
         background-color: #e9ecef;
@@ -65,6 +65,15 @@
         border: 2px solid #0d6efd;
         color: #0d6efd;
         font-weight: bold;
+    }
+    .calendar-day.selected {
+        background-color: #0d6efd;
+        color: white;
+        font-weight: bold;
+        box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+    }
+    .calendar-day.selected:hover {
+        background-color: #0b5ed7;
     }
     .feeling-data-chart {
         height: 200px;
@@ -182,13 +191,13 @@
                     {% set next_year = current_year if current_month < 12 else current_year + 1 %}
                     
                     <div class="btn-group btn-group-sm">
-                        <a href="{{ url_for('journal.dashboard', year=prev_year, month=prev_month) }}" class="btn btn-outline-secondary">
+                        <a href="{{ url_for('journal.dashboard', year=prev_year, month=prev_month, tag=selected_tag.id if selected_tag else None) }}" class="btn btn-outline-secondary">
                             <i class="bi bi-chevron-left"></i>
                         </a>
                         <button type="button" class="btn btn-outline-secondary" disabled>
                             {{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][current_month - 1] }} {{ current_year }}
                         </button>
-                        <a href="{{ url_for('journal.dashboard', year=next_year, month=next_month) }}" class="btn btn-outline-secondary">
+                        <a href="{{ url_for('journal.dashboard', year=next_year, month=next_month, tag=selected_tag.id if selected_tag else None) }}" class="btn btn-outline-secondary">
                             <i class="bi bi-chevron-right"></i>
                         </a>
                     </div>
@@ -208,13 +217,7 @@
                 <!-- First day of week is calculated in the route -->
                 <!-- first_day_of_week is passed from the route (0 = Sunday) -->
                 
-                <!-- Get entries for this month -->
-                {% set days_with_entries = [] %}
-                {% for item in timeline_data %}
-                    {% if item.year|int == current_year and item.month|int == current_month and item.day is defined %}
-                        {% set days_with_entries = days_with_entries + [item.day|int] %}
-                    {% endif %}
-                {% endfor %}
+                <!-- days_with_entries is passed from the route -->
                 
                 <!-- Day names -->
                 <div class="d-flex justify-content-between mb-2">
@@ -232,14 +235,29 @@
                             <!-- Check if day has entries -->
                             {% set has_entries = day_num in days_with_entries %}
                             
-                            <!-- Check if today -->
-                            {% set is_today = current_year == now().year and current_month == now().month and day_num == now().day %}
+                            <!-- Check if today (using user's timezone) -->
+                            {% set current_datetime = now() %}
+                            {% set current_day = current_datetime.day %}
+                            {% set current_month_num = current_datetime.month %}
+                            {% set current_year_num = current_datetime.year %}
+                            {% set is_today = current_year|int == current_year_num and current_month|int == current_month_num and day_num == current_day %}
                             
-                            <div class="calendar-day {% if has_entries %}has-entries{% endif %} {% if is_today %}today{% endif %}"
-                                {% if has_entries %}data-bs-toggle="tooltip" title="View entries"
-                                onclick="window.location.href='{{ url_for('journal.dashboard', year=current_year, month=current_month, day=day_num) }}'"{% endif %}>
-                                {{ day_num }}
-                            </div>
+                            <!-- Check if this is the selected day -->
+                            {% set is_selected = selected_day and day_num == selected_day|int %}
+                            
+                            {% if has_entries %}
+                                <!-- Days with entries are clickable and bold -->
+                                <div class="calendar-day has-entries {% if is_today %}today{% endif %} {% if is_selected %}selected{% endif %}"
+                                    data-bs-toggle="tooltip" title="View entries from this day"
+                                    onclick="window.location.href='{{ url_for('journal.dashboard', year=current_year, month=current_month, day=day_num, tag=selected_tag.id if selected_tag else None) }}'">
+                                    {{ day_num }}
+                                </div>
+                            {% else %}
+                                <!-- Days without entries are not clickable and regular weight -->
+                                <div class="calendar-day {% if is_today %}today{% endif %} {% if is_selected %}selected{% endif %}">
+                                    {{ day_num }}
+                                </div>
+                            {% endif %}
                         {% else %}
                             <div class="calendar-day" style="visibility: hidden;">0</div>
                         {% endif %}
@@ -347,7 +365,10 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    {% if selected_year and selected_month %}
+                    {% if selected_day and selected_year and selected_month %}
+                        Entries for {{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][selected_month|int - 1] }} {{ selected_day }}, {{ selected_year }}
+                        <small class="text-muted">({{ user_timezone }} time)</small>
+                    {% elif selected_year and selected_month %}
                         Entries from {{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][selected_month|int - 1] }} {{ selected_year }}
                     {% elif selected_tag %}
                         Entries tagged with "{{ selected_tag.name }}"
