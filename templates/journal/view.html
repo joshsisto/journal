@@ -35,6 +35,25 @@
                 </div>
             </div>
             
+            <!-- Tags Display -->
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>Tags:</strong>
+                        {% if entry.tags %}
+                            {% for tag in entry.tags %}
+                                <span class="badge mx-1" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">No tags</span>
+                        {% endif %}
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editTagsModal">
+                        Edit Tags
+                    </button>
+                </div>
+            </div>
+            
             <div class="card-body">
                 {% if entry.entry_type == 'quick' %}
                 <div class="entry-content">
@@ -53,6 +72,43 @@
                     {% endfor %}
                 </div>
                 {% endif %}
+            </div>
+        </div>
+        
+        <!-- Edit Tags Modal -->
+        <div class="modal fade" id="editTagsModal" tabindex="-1" aria-labelledby="editTagsModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editTagsModalLabel">Edit Entry Tags</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" action="{{ url_for('journal.update_entry_tags', entry_id=entry.id) }}">
+                        <div class="modal-body">
+                            <div class="d-flex flex-wrap gap-2">
+                                {% if all_tags %}
+                                    {% for tag in all_tags %}
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" name="tags" id="edit-tag-{{ tag.id }}" 
+                                               value="{{ tag.id }}" {% if tag in entry.tags %}checked{% endif %}>
+                                        <label class="form-check-label" for="edit-tag-{{ tag.id }}">
+                                            <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-muted">
+                                        No tags available. <a href="{{ url_for('tag.manage_tags') }}" target="_blank">Create tags</a> first.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

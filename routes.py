@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash
 from sqlalchemy import func
 import pytz
 
-from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager
+from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag
 from helpers import (
     get_time_since_last_entry, format_time_since, has_exercised_today,
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
@@ -14,6 +14,7 @@ from helpers import (
 # Blueprints
 auth_bp = Blueprint('auth', __name__)
 journal_bp = Blueprint('journal', __name__)
+tag_bp = Blueprint('tag', __name__)
 
 # Authentication routes
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -95,11 +96,27 @@ def logout():
 @journal_bp.route('/')
 @login_required
 def index():
-    entries = JournalEntry.query.filter_by(
-        user_id=current_user.id
-    ).order_by(JournalEntry.created_at.desc()).limit(10).all()
+    # Get tag filter if present
+    tag_id = request.args.get('tag')
     
-    return render_template('home.html', entries=entries)
+    # Base query
+    query = JournalEntry.query.filter_by(user_id=current_user.id)
+    
+    # Apply tag filter if provided
+    if tag_id:
+        tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first_or_404()
+        query = query.filter(JournalEntry.tags.any(Tag.id == tag_id))
+        selected_tag = tag
+    else:
+        selected_tag = None
+    
+    # Get entries
+    entries = query.order_by(JournalEntry.created_at.desc()).limit(10).all()
+    
+    # Get all user tags for filter menu
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template('home.html', entries=entries, tags=tags, selected_tag=selected_tag)
 
 
 @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
@@ -107,6 +124,7 @@ def index():
 def quick_journal():
     if request.method == 'POST':
         content = request.form.get('content')
+        tag_ids = request.form.getlist('tags')
         
         if not content:
             flash('Journal entry cannot be empty.')
@@ -118,24 +136,47 @@ def quick_journal():
             entry_type='quick'
         )
         
+        # Add selected tags
+        if tag_ids:
+            tags = Tag.query.filter(
+                Tag.id.in_(tag_ids), 
+                Tag.user_id == current_user.id
+            ).all()
+            entry.tags = tags
+        
         db.session.add(entry)
         db.session.commit()
         
         flash('Journal entry saved successfully.')
         return redirect(url_for('journal.index'))
     
-    return render_template('journal/quick.html')
+    # Get user's tags
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template('journal/quick.html', tags=tags)
 
 
 @journal_bp.route('/journal/guided', methods=['GET', 'POST'])
 @login_required
 def guided_journal():
     if request.method == 'POST':
+        # Get tag IDs from form
+        tag_ids = request.form.getlist('tags')
+        
         # First, create the journal entry
         entry = JournalEntry(
             user_id=current_user.id,
             entry_type='guided'
         )
+        
+        # Add selected tags
+        if tag_ids:
+            tags = Tag.query.filter(
+                Tag.id.in_(tag_ids), 
+                Tag.user_id == current_user.id
+            ).all()
+            entry.tags = tags
+        
         db.session.add(entry)
         db.session.flush()  # Get the ID without committing
         
@@ -190,7 +231,10 @@ def guided_journal():
         if '{time_since}' in q.get('text', ''):
             q['text'] = q['text'].format(time_since=context['time_since'])
     
-    return render_template('journal/guided.html', questions=questions)
+    # Get user's tags
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template('journal/guided.html', questions=questions, tags=tags)
 
 
 @journal_bp.route('/journal/view/<int:entry_id>')
@@ -215,7 +259,10 @@ def view_entry(entry_id):
         for resp in guided_responses:
             resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
     
-    return render_template('journal/view.html', entry=entry, guided_responses=guided_responses)
+    # Get all user tags for adding/removing tags
+    all_tags = Tag.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template('journal/view.html', entry=entry, guided_responses=guided_responses, all_tags=all_tags)
 
 
 @journal_bp.route('/journal/delete/<int:entry_id>', methods=['POST'])
@@ -231,6 +278,33 @@ def delete_entry(entry_id):
     
     flash('Journal entry deleted successfully.')
     return redirect(url_for('journal.index'))
+
+
+@journal_bp.route('/journal/update_tags/<int:entry_id>', methods=['POST'])
+@login_required
+def update_entry_tags(entry_id):
+    entry = JournalEntry.query.filter_by(
+        id=entry_id,
+        user_id=current_user.id
+    ).first_or_404()
+    
+    # Get the selected tag IDs from the form
+    tag_ids = request.form.getlist('tags')
+    
+    # Get the corresponding Tag objects
+    if tag_ids:
+        tags = Tag.query.filter(
+            Tag.id.in_(tag_ids),
+            Tag.user_id == current_user.id
+        ).all()
+        entry.tags = tags
+    else:
+        entry.tags = []  # Remove all tags if none selected
+    
+    db.session.commit()
+    
+    flash('Entry tags updated successfully.')
+    return redirect(url_for('journal.view_entry', entry_id=entry.id))
 
 
 @journal_bp.route('/journal/exercise/check')
@@ -265,8 +339,89 @@ def settings():
     # Get list of common timezones for the form
     common_timezones = pytz.common_timezones
     
+    # Get user's tags for the settings page
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    
     return render_template(
         'settings.html', 
         timezones=common_timezones, 
-        current_timezone=current_user.timezone
+        current_timezone=current_user.timezone,
+        tags=tags
     )
+
+
+# Tag Management Routes
+@tag_bp.route('/tags', methods=['GET'])
+@login_required
+def manage_tags():
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    return render_template('tags/manage.html', tags=tags)
+
+
+@tag_bp.route('/tags/add', methods=['POST'])
+@login_required
+def add_tag():
+    name = request.form.get('name', '').strip()
+    color = request.form.get('color', '#6c757d')
+    
+    if not name:
+        flash('Tag name is required.', 'danger')
+        return redirect(url_for('tag.manage_tags'))
+    
+    # Check if tag already exists
+    existing_tag = Tag.query.filter_by(user_id=current_user.id, name=name).first()
+    if existing_tag:
+        flash(f'A tag named "{name}" already exists.', 'danger')
+        return redirect(url_for('tag.manage_tags'))
+    
+    # Create new tag
+    tag = Tag(name=name, color=color, user_id=current_user.id)
+    db.session.add(tag)
+    db.session.commit()
+    
+    flash(f'Tag "{name}" created successfully.', 'success')
+    return redirect(url_for('tag.manage_tags'))
+
+
+@tag_bp.route('/tags/edit/<int:tag_id>', methods=['POST'])
+@login_required
+def edit_tag(tag_id):
+    tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first_or_404()
+    
+    name = request.form.get('name', '').strip()
+    color = request.form.get('color', '#6c757d')
+    
+    if not name:
+        flash('Tag name is required.', 'danger')
+        return redirect(url_for('tag.manage_tags'))
+    
+    # Check if a different tag with the same name exists
+    existing_tag = Tag.query.filter_by(user_id=current_user.id, name=name).first()
+    if existing_tag and existing_tag.id != tag.id:
+        flash(f'A tag named "{name}" already exists.', 'danger')
+        return redirect(url_for('tag.manage_tags'))
+    
+    # Update tag
+    tag.name = name
+    tag.color = color
+    db.session.commit()
+    
+    flash(f'Tag "{name}" updated successfully.', 'success')
+    return redirect(url_for('tag.manage_tags'))
+
+
+@tag_bp.route('/tags/delete/<int:tag_id>', methods=['POST'])
+@login_required
+def delete_tag(tag_id):
+    tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first_or_404()
+    
+    # Remove tag from all entries
+    for entry in tag.entries:
+        entry.tags.remove(tag)
+    
+    # Delete the tag
+    db.session.delete(tag)
+    db.session.commit()
+    
+    flash(f'Tag "{tag.name}" deleted successfully.', 'success')
+    return redirect(url_for('tag.manage_tags'))
