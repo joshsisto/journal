@@ -89,7 +89,14 @@
                     {% if entry.entry_type == 'quick' %}
                     <p class="mb-1">{{ entry.content|truncate(100) }}</p>
                     {% else %}
-                    <p class="mb-1">Guided journal entry</p>
+                        <p class="mb-1">
+                            {% if feeling_data and entry.id in feeling_data %}
+                                <span class="fs-4 me-2">{{ feeling_data[entry.id]|feeling_emoji }}</span>
+                                Feeling: {{ feeling_data[entry.id] }}/10
+                            {% else %}
+                                Guided journal entry
+                            {% endif %}
+                        </p>
                     {% endif %}
                 </a>
                 {% endfor %}
