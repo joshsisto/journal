@@ -98,8 +98,21 @@ def logout():
 @journal_bp.route('/')
 @login_required
 def index():
+    # Redirect to dashboard
+    return redirect(url_for('journal.dashboard'))
+
+
+@journal_bp.route('/dashboard')
+@login_required
+def dashboard():
     # Get tag filter if present
     tag_id = request.args.get('tag')
+    page = request.args.get('page', 1, type=int)
+    entries_per_page = request.args.get('per_page', 10, type=int)
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    selected_year = request.args.get('year')
+    selected_month = request.args.get('month')
     
     # Base query
     query = JournalEntry.query.filter_by(user_id=current_user.id)
@@ -112,8 +125,50 @@ def index():
     else:
         selected_tag = None
     
-    # Get entries
-    entries = query.order_by(JournalEntry.created_at.desc()).limit(10).all()
+    # Apply date filters if provided
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            query = query.filter(JournalEntry.created_at >= start_date_obj)
+        except ValueError:
+            start_date = None
+    
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            # Add one day to include the end date fully
+            end_date_obj = end_date_obj + timedelta(days=1)
+            query = query.filter(JournalEntry.created_at < end_date_obj)
+        except ValueError:
+            end_date = None
+    
+    # Apply year/month filter if provided
+    if selected_year and selected_month:
+        try:
+            year = int(selected_year)
+            month = int(selected_month)
+            start_of_month = datetime(year, month, 1)
+            if month == 12:
+                end_of_month = datetime(year + 1, 1, 1)
+            else:
+                end_of_month = datetime(year, month + 1, 1)
+            
+            query = query.filter(
+                JournalEntry.created_at >= start_of_month,
+                JournalEntry.created_at < end_of_month
+            )
+        except (ValueError, TypeError):
+            selected_year = None
+            selected_month = None
+    
+    # Count total entries for stats
+    total_entries = query.count()
+    
+    # Get paginated entries
+    paginated_entries = query.order_by(JournalEntry.created_at.desc()).paginate(
+        page=page, per_page=entries_per_page, error_out=False
+    )
+    entries = paginated_entries.items
     
     # Get all user tags for filter menu
     tags = Tag.query.filter_by(user_id=current_user.id).all()
@@ -130,7 +185,90 @@ def index():
         for resp in feeling_responses:
             feeling_data[resp.journal_entry_id] = resp.response
     
-    return render_template('home.html', entries=entries, tags=tags, selected_tag=selected_tag, feeling_data=feeling_data)
+    # Get timeline data by manual processing (SQLite compatibility)
+    all_entries = JournalEntry.query.filter_by(user_id=current_user.id).all()
+    
+    # Dictionary to store counts by year and month
+    entry_counts = {}
+    for entry in all_entries:
+        year = entry.created_at.strftime('%Y')
+        month = entry.created_at.strftime('%m')
+        
+        if year not in entry_counts:
+            entry_counts[year] = {}
+        
+        if month not in entry_counts[year]:
+            entry_counts[year][month] = 0
+            
+        entry_counts[year][month] += 1
+    
+    # Format timeline data for the template
+    timeline_data = []
+    for year in sorted(entry_counts.keys()):
+        for month in sorted(entry_counts[year].keys()):
+            timeline_data.append({
+                'year': year,
+                'month': month,
+                'count': entry_counts[year][month]
+            })
+    
+    # Format archive data for the template
+    archive_data = {}
+    for year in sorted(entry_counts.keys()):
+        archive_data[year] = []
+        for month in sorted(entry_counts[year].keys()):
+            archive_data[year].append({
+                'month': month,
+                'count': entry_counts[year][month]
+            })
+    
+    # If a specific month is selected, add daily data
+    if selected_year and selected_month:
+        # Manual processing for daily counts
+        daily_counts = {}
+        year_int = int(selected_year)
+        month_int = int(selected_month)
+        
+        start_of_month = datetime(year_int, month_int, 1)
+        if month_int == 12:
+            end_of_month = datetime(year_int + 1, 1, 1)
+        else:
+            end_of_month = datetime(year_int, month_int + 1, 1)
+        
+        for entry in all_entries:
+            if start_of_month <= entry.created_at < end_of_month:
+                day = entry.created_at.strftime('%d')
+                if day not in daily_counts:
+                    daily_counts[day] = 0
+                daily_counts[day] += 1
+        
+        # Format daily data
+        timeline_data = []
+        for day in sorted(daily_counts.keys()):
+            timeline_data.append({
+                'year': selected_year,
+                'month': selected_month,
+                'day': day,
+                'count': daily_counts[day]
+            })
+    
+    return render_template(
+        'dashboard.html', 
+        entries=entries,
+        paginated_entries=paginated_entries,
+        tags=tags, 
+        selected_tag=selected_tag,
+        feeling_data=feeling_data,
+        total_entries=total_entries,
+        timeline_data=timeline_data,
+        archive_data=archive_data,
+        selected_year=selected_year,
+        selected_month=selected_month,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        entries_per_page=entries_per_page
+    )
 
 
 @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
