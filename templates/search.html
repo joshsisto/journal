@@ -7,7 +7,17 @@
     <div class="col-md-12">
         <div class="d-flex justify-content-between align-items-center">
             <h2>Search Journal</h2>
-            <a href="{{ url_for('journal.index') }}" class="btn btn-secondary">Back to Journal</a>
+            <div>
+                {% if entries %}
+                <a href="{{ url_for('export.export_search_entries', 
+                    q=query, tag=selected_tag.id if selected_tag else None, 
+                    start_date=start_date, end_date=end_date, type=entry_type) }}" 
+                   class="btn btn-outline-primary me-2">
+                    <i class="bi bi-download"></i> Export Results
+                </a>
+                {% endif %}
+                <a href="{{ url_for('journal.index') }}" class="btn btn-secondary">Back to Journal</a>
+            </div>
         </div>
     </div>
 </div>

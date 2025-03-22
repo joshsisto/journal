@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy import func, or_, and_, desc
 import pytz
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag
+from export_utils import format_entry_for_text, format_multi_entry_filename
 from helpers import (
     get_time_since_last_entry, format_time_since, has_exercised_today,
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
@@ -15,6 +16,7 @@ from helpers import (
 auth_bp = Blueprint('auth', __name__)
 journal_bp = Blueprint('journal', __name__)
 tag_bp = Blueprint('tag', __name__)
+export_bp = Blueprint('export', __name__)
 
 # Authentication routes
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -540,3 +542,188 @@ def delete_tag(tag_id):
     
     flash(f'Tag "{tag.name}" deleted successfully.', 'success')
     return redirect(url_for('tag.manage_tags'))
+
+
+# Export routes
+@export_bp.route('/export/entry/<int:entry_id>')
+@login_required
+def export_entry(entry_id):
+    """Export a single journal entry as text."""
+    # Get the entry
+    entry = JournalEntry.query.filter_by(
+        id=entry_id,
+        user_id=current_user.id
+    ).first_or_404()
+    
+    # Get guided responses if needed
+    guided_responses = None
+    if entry.entry_type == 'guided':
+        guided_responses = GuidedResponse.query.filter_by(
+            journal_entry_id=entry.id
+        ).all()
+        
+        # Get the original questions for context
+        all_questions = QuestionManager.get_questions()
+        question_map = {q['id']: q for q in all_questions}
+        
+        # Add question text to responses
+        for resp in guided_responses:
+            resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+    
+    # Format the entry content
+    content = format_entry_for_text(entry, guided_responses, user_timezone=current_user.timezone)
+    
+    # Create a response with the text content
+    response = make_response(content)
+    response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename=journal_entry_{entry.id}.txt'
+    
+    return response
+
+
+@export_bp.route('/export/search')
+@login_required
+def export_search_entries():
+    """Export journal entries based on search criteria."""
+    query = request.args.get('q', '').strip()
+    tag_id = request.args.get('tag')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    entry_type = request.args.get('type')
+    
+    # Base query for user's journal entries
+    search_query = JournalEntry.query.filter_by(user_id=current_user.id)
+    
+    # Apply filters (same logic as in search route)
+    if query:
+        # Search in quick journal content
+        quick_entries = search_query.filter(
+            JournalEntry.content.ilike(f'%{query}%')
+        )
+        
+        # Search in guided journal responses
+        guided_entries = search_query.filter(
+            JournalEntry.id.in_(
+                db.session.query(GuidedResponse.journal_entry_id).filter(
+                    GuidedResponse.response.ilike(f'%{query}%')
+                )
+            )
+        )
+        
+        # Combine the results
+        search_query = quick_entries.union(guided_entries)
+    
+    # Filter by tag if provided
+    selected_tag = None
+    if tag_id:
+        selected_tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first_or_404()
+        search_query = search_query.filter(JournalEntry.tags.any(Tag.id == tag_id))
+    
+    # Filter by date range if provided
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            search_query = search_query.filter(JournalEntry.created_at >= start_date_obj)
+        except ValueError:
+            pass
+    
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            # Add one day to include the end date fully
+            end_date_obj = end_date_obj + timedelta(days=1)
+            search_query = search_query.filter(JournalEntry.created_at < end_date_obj)
+        except ValueError:
+            pass
+    
+    # Filter by entry type if provided
+    if entry_type and entry_type in ['quick', 'guided']:
+        search_query = search_query.filter(JournalEntry.entry_type == entry_type)
+    
+    # Always sort by date for exports
+    entries = search_query.order_by(JournalEntry.created_at.desc()).all()
+    
+    # Prepare filter info for filename
+    filter_info = {
+        'query': query,
+        'tag': selected_tag,
+        'start_date': start_date,
+        'end_date': end_date
+    }
+    
+    return export_entries_as_text(entries, filter_info)
+
+
+@export_bp.route('/export/all')
+@login_required
+def export_all_entries():
+    """Export all journal entries."""
+    # Get all entries sorted by date
+    entries = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).all()
+    
+    return export_entries_as_text(entries)
+
+
+def export_entries_as_text(entries, filter_info=None):
+    """Helper function to export entries as text."""
+    # Build text content
+    lines = []
+    lines.append("JOURNAL ENTRIES EXPORT")
+    lines.append("=====================")
+    lines.append("")
+    
+    # Add export metadata
+    if filter_info:
+        if filter_info.get('tag'):
+            lines.append(f"Filtered by tag: {filter_info['tag'].name}")
+        if filter_info.get('query'):
+            lines.append(f"Search results for: {filter_info['query']}")
+        if filter_info.get('start_date') and filter_info.get('end_date'):
+            lines.append(f"Date range: {filter_info['start_date']} to {filter_info['end_date']}")
+        elif filter_info.get('start_date'):
+            lines.append(f"From date: {filter_info['start_date']}")
+        elif filter_info.get('end_date'):
+            lines.append(f"Until date: {filter_info['end_date']}")
+        lines.append("")
+    
+    lines.append(f"Total entries: {len(entries)}")
+    lines.append(f"Export date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    lines.append("")
+    lines.append("=====================")
+    lines.append("")
+    
+    # Process each entry
+    for entry in entries:
+        # Get guided responses if needed
+        guided_responses = None
+        if entry.entry_type == 'guided':
+            guided_responses = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id
+            ).all()
+            
+            # Get the original questions for context
+            all_questions = QuestionManager.get_questions()
+            question_map = {q['id']: q for q in all_questions}
+            
+            # Add question text to responses
+            for resp in guided_responses:
+                resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+        
+        # Format the entry and add to lines
+        entry_text = format_entry_for_text(entry, guided_responses, user_timezone=current_user.timezone)
+        lines.append(entry_text)
+        lines.append("")
+        lines.append("-" * 40)
+        lines.append("")
+    
+    # Create a response with the text content
+    response = make_response("\n".join(lines))
+    response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+    
+    # Generate filename
+    filename = format_multi_entry_filename(filter_info)
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    
+    return response
