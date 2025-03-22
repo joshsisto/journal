@@ -13,6 +13,11 @@ A personal journaling web application built with Flask that helps you track your
   - Full-text search across all entry content
   - Filter by tags, dates, and entry types
   - Context highlighting for search matches
+- **Export Functionality**: Export your journal entries as text files:
+  - Export individual entries with all details preserved
+  - Export search results with all filters applied
+  - Export your entire journal with entry metadata
+  - Well-formatted plain text with headers and separators
 - **Timezone Support**: Entries are displayed in your local timezone
 
 ## Setup and Installation

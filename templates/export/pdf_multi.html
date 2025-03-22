@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journal Entries Export</title>
+    <style>
+        @page {
+            margin: 1cm;
+            @top-right {
+                content: "Page " counter(page);
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            font-size: 12pt;
+            color: #333;
+            margin: 0;
+            padding: 0.5cm;
+        }
+        .export-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .export-header h1 {
+            font-size: 20pt;
+            margin: 0 0 5px 0;
+        }
+        .export-meta {
+            color: #666;
+            font-size: 10pt;
+        }
+        .entry {
+            margin-bottom: 50px;
+            page-break-inside: avoid;
+        }
+        .entry-header {
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .entry-header h2 {
+            font-size: 16pt;
+            margin: 0 0 5px 0;
+        }
+        .entry-meta {
+            color: #666;
+            font-size: 10pt;
+            display: flex;
+            justify-content: space-between;
+        }
+        .tags {
+            margin: 10px 0;
+        }
+        .tag {
+            display: inline-block;
+            padding: 3px 8px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 9pt;
+            color: white;
+        }
+        .entry-content {
+            margin-top: 15px;
+        }
+        .question {
+            font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+        .response {
+            margin-left: 15px;
+            margin-bottom: 15px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 9pt;
+            color: #999;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+        .toc {
+            margin-bottom: 40px;
+        }
+        .toc h2 {
+            font-size: 16pt;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .toc-item {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .toc-item a {
+            color: #333;
+            text-decoration: none;
+        }
+        .toc-item .page {
+            color: #999;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+    <div class="export-header">
+        <h1>Journal Entries Export</h1>
+        <div class="export-meta">
+            <p>
+                {% if filter_info %}
+                    {% if filter_info.tag %}
+                        Filtered by tag: <strong>{{ filter_info.tag.name }}</strong>
+                    {% elif filter_info.query %}
+                        Search results for: <strong>{{ filter_info.query }}</strong>
+                    {% endif %}
+                    
+                    {% if filter_info.start_date and filter_info.end_date %}
+                        from {{ filter_info.start_date }} to {{ filter_info.end_date }}
+                    {% elif filter_info.start_date %}
+                        from {{ filter_info.start_date }}
+                    {% elif filter_info.end_date %}
+                        until {{ filter_info.end_date }}
+                    {% endif %}
+                {% else %}
+                    All journal entries
+                {% endif %}
+            </p>
+            <p>Exported on {{ now.strftime('%Y-%m-%d %H:%M') }}</p>
+        </div>
+    </div>
+    
+    <!-- Table of Contents -->
+    <div class="toc">
+        <h2>Contents</h2>
+        {% for entry in entries %}
+        <div class="toc-item">
+            <span>
+                {% if entry.entry_type == 'quick' %}Quick Entry{% else %}Guided Entry{% endif %} - 
+                {{ format_datetime(entry.created_at, '%Y-%m-%d') }}
+            </span>
+            <span class="page"><!-- Page number will be filled by PDF renderer --></span>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="page-break"></div>
+    
+    <!-- Journal Entries -->
+    {% for entry in entries %}
+    <div class="entry" id="entry-{{ entry.id }}">
+        <div class="entry-header">
+            <h2>
+                {% if entry.entry_type == 'quick' %}
+                    Quick Journal Entry
+                {% else %}
+                    Guided Journal Entry
+                {% endif %}
+            </h2>
+            <div class="entry-meta">
+                <span>Date: {{ format_datetime(entry.created_at, '%Y-%m-%d') }}</span>
+                <span>Time: {{ format_datetime(entry.created_at, '%H:%M') }} ({{ user_timezone }})</span>
+            </div>
+            
+            {% if entry.tags %}
+            <div class="tags">
+                Tags:
+                {% for tag in entry.tags %}
+                    <span class="tag" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="entry-content">
+            {% if entry.entry_type == 'quick' %}
+                {% for line in entry.content.split('\n') %}
+                    {{ line }}<br>
+                {% endfor %}
+            {% else %}
+                {% for response in entry_responses.get(entry.id, []) %}
+                <div>
+                    <div class="question">{{ response.question_text }}</div>
+                    <div class="response">{{ response.response }}</div>
+                </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if not loop.last %}
+    <div class="page-break"></div>
+    {% endif %}
+    {% endfor %}
+    
+    <div class="footer">
+        Journal App - {{ total_entries }} entries exported
+    </div>
+</body>
+</html>
