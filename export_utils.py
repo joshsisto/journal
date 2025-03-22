@@ -6,6 +6,7 @@ This module provides functions to export journal entries to text format.
 
 from datetime import datetime
 import pytz
+import json
 
 def format_entry_for_text(entry, guided_responses=None, include_header=True, user_timezone=None):
     """Format a journal entry as text.
@@ -50,7 +51,32 @@ def format_entry_for_text(entry, guided_responses=None, include_header=True, use
         if guided_responses:
             for resp in guided_responses:
                 lines.append(f"Q: {resp.question_text}")
-                lines.append(f"A: {resp.response}")
+                
+                # Handle special formatting for emotions
+                if resp.question_id == 'additional_emotions' and resp.response:
+                    try:
+                        # Try to parse the response as JSON
+                        emotions = json.loads(resp.response)
+                        if emotions:
+                            lines.append("A: " + ", ".join(emotions))
+                        else:
+                            lines.append("A: No additional emotions selected")
+                    except json.JSONDecodeError:
+                        # If it's not valid JSON, try a simple regex extraction
+                        if resp.response.startswith('[') and resp.response.endswith(']'):
+                            content = resp.response[1:-1]  # Remove brackets
+                            # Split by comma and clean up the items
+                            emotions_list = [item.strip().strip('"\'') for item in content.split(',') if item.strip()]
+                            if emotions_list:
+                                lines.append("A: " + ", ".join(emotions_list))
+                            else:
+                                lines.append("A: No additional emotions selected")
+                        else:
+                            # Fall back to plain text
+                            lines.append(f"A: {resp.response}")
+                else:
+                    lines.append(f"A: {resp.response}")
+                
                 lines.append("")
     
     return "\n".join(lines)
