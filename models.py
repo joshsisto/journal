@@ -5,6 +5,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
+# Tag-Entry association table (many-to-many)
+entry_tags = db.Table('entry_tags',
+    db.Column('tag_id', db.Integer, db.ForeignKey('tags.id'), primary_key=True),
+    db.Column('entry_id', db.Integer, db.ForeignKey('journal_entries.id'), primary_key=True)
+)
+
 class User(UserMixin, db.Model):
     """User model for authentication."""
     __tablename__ = 'users'
@@ -20,6 +26,7 @@ class User(UserMixin, db.Model):
     # Relationships
     journal_entries = db.relationship('JournalEntry', backref='author', lazy='dynamic')
     exercise_logs = db.relationship('ExerciseLog', backref='user', lazy='dynamic')
+    tags = db.relationship('Tag', backref='user', lazy='dynamic')
     
     def set_password(self, password):
         """Set password hash."""
@@ -43,8 +50,10 @@ class JournalEntry(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     entry_type = db.Column(db.String(20), nullable=False)  # 'quick' or 'guided'
     
-    # Relationship
+    # Relationships
     guided_responses = db.relationship('GuidedResponse', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
+    tags = db.relationship('Tag', secondary=entry_tags, lazy='joined', 
+                          backref=db.backref('entries', lazy='dynamic'))
     
     def __repr__(self):
         return f'<JournalEntry {self.id} by User {self.user_id}>'
@@ -87,6 +96,22 @@ class ExerciseLog(db.Model):
     
     def __repr__(self):
         return f'<ExerciseLog for User {self.user_id} on {self.date}>'
+
+
+class Tag(db.Model):
+    """Tag model for categorizing journal entries."""
+    __tablename__ = 'tags'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    color = db.Column(db.String(7), default='#6c757d')  # Default color (Bootstrap secondary)
+    
+    # Enforce unique tag names per user
+    __table_args__ = (db.UniqueConstraint('name', 'user_id', name='_tag_user_uc'),)
+    
+    def __repr__(self):
+        return f'<Tag {self.name}>'
 
 
 class QuestionManager:

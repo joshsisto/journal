@@ -3,19 +3,61 @@
 {% block title %}Home - Journal App{% endblock %}
 
 {% block content %}
-<div class="row">
+<div class="row mb-4">
     <div class="col-md-12">
-        <h2>Your Journal</h2>
-        <div class="d-flex mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Your Journal</h2>
+            <div>
+                <a href="{{ url_for('tag.manage_tags') }}" class="btn btn-outline-secondary">Manage Tags</a>
+            </div>
+        </div>
+        <div class="d-flex mt-3">
             <a href="{{ url_for('journal.quick_journal') }}" class="btn btn-primary me-2">Quick Journal</a>
             <a href="{{ url_for('journal.guided_journal') }}" class="btn btn-success">Guided Journal</a>
         </div>
     </div>
 </div>
 
+<!-- Tag Filter Section -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Filter by Tags</h5>
+            </div>
+            <div class="card-body">
+                {% if tags %}
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for('journal.index') }}" class="btn btn-sm {% if not selected_tag %}btn-dark{% else %}btn-outline-dark{% endif %}">
+                            All Entries
+                        </a>
+                        {% for tag in tags %}
+                            <a href="{{ url_for('journal.index', tag=tag.id) }}" 
+                               class="btn btn-sm {% if selected_tag and selected_tag.id == tag.id %}btn-dark{% else %}btn-outline-dark{% endif %}"
+                               style="{% if selected_tag and selected_tag.id == tag.id %}background-color: {{ tag.color }}; border-color: {{ tag.color }};{% else %}color: {{ tag.color }}; border-color: {{ tag.color }};{% endif %}">
+                                {{ tag.name }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-muted">
+                        No tags available. <a href="{{ url_for('tag.manage_tags') }}">Create tags</a> to categorize your entries.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-12">
-        <h3>Recent Entries</h3>
+        <h3>
+            {% if selected_tag %}
+                Entries tagged with "{{ selected_tag.name }}"
+            {% else %}
+                Recent Entries
+            {% endif %}
+        </h3>
         {% if entries %}
             <div class="list-group">
                 {% for entry in entries %}
@@ -30,6 +72,14 @@
                         </h5>
                         <small>{{ format_datetime(entry.created_at) }}</small>
                     </div>
+                    
+                    <!-- Display tags -->
+                    <div class="mb-2">
+                        {% for tag in entry.tags %}
+                            <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                    
                     {% if entry.entry_type == 'quick' %}
                     <p class="mb-1">{{ entry.content|truncate(100) }}</p>
                     {% else %}
@@ -40,7 +90,11 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                You haven't created any journal entries yet.
+                {% if selected_tag %}
+                    No journal entries found with the tag "{{ selected_tag.name }}".
+                {% else %}
+                    You haven't created any journal entries yet.
+                {% endif %}
             </div>
         {% endif %}
     </div>
