@@ -52,6 +52,10 @@ def create_app(config_class=Config):
             return ""
         return markupsafe.Markup(s.replace('\n', '<br>'))
     
+    # Add Python's built-in functions to templates
+    app.jinja_env.globals.update(max=max)
+    app.jinja_env.globals.update(min=min)
+    
     # Create database tables
     with app.app_context():
         db.create_all()

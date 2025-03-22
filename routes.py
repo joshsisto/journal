@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_, desc
 import pytz
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag
@@ -314,6 +314,121 @@ def check_exercise():
     return jsonify({
         'exercised_today': has_exercised_today()
     })
+
+
+@journal_bp.route('/search', methods=['GET'])
+@login_required
+def search():
+    """Search journal entries."""
+    query = request.args.get('q', '').strip()
+    tag_id = request.args.get('tag')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    entry_type = request.args.get('type')
+    sort_by = request.args.get('sort', 'recent')  # Default to sorting by most recent
+    
+    # Base query for user's journal entries
+    search_query = JournalEntry.query.filter_by(user_id=current_user.id)
+    
+    # Apply filters
+    if query:
+        # Search in quick journal content
+        quick_entries = search_query.filter(
+            JournalEntry.content.ilike(f'%{query}%')
+        )
+        
+        # Search in guided journal responses
+        guided_entries = search_query.filter(
+            JournalEntry.id.in_(
+                db.session.query(GuidedResponse.journal_entry_id).filter(
+                    GuidedResponse.response.ilike(f'%{query}%')
+                )
+            )
+        )
+        
+        # Combine the results
+        search_query = quick_entries.union(guided_entries)
+    
+    # Filter by tag if provided
+    if tag_id:
+        search_query = search_query.filter(JournalEntry.tags.any(Tag.id == tag_id))
+    
+    # Filter by date range if provided
+    if start_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d')
+            search_query = search_query.filter(JournalEntry.created_at >= start_date)
+        except ValueError:
+            pass
+    
+    if end_date:
+        try:
+            end_date = datetime.strptime(end_date, '%Y-%m-%d')
+            # Add one day to include the end date fully
+            end_date = end_date + timedelta(days=1)
+            search_query = search_query.filter(JournalEntry.created_at < end_date)
+        except ValueError:
+            pass
+    
+    # Filter by entry type if provided
+    if entry_type and entry_type in ['quick', 'guided']:
+        search_query = search_query.filter(JournalEntry.entry_type == entry_type)
+    
+    # Apply sorting
+    if sort_by == 'oldest':
+        search_query = search_query.order_by(JournalEntry.created_at.asc())
+    else:  # Default to most recent
+        search_query = search_query.order_by(JournalEntry.created_at.desc())
+    
+    # Get all entries that match the search criteria
+    entries = search_query.all()
+    
+    # Get all user tags for filtering
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    
+    # Get currently selected tag if any
+    selected_tag = None
+    if tag_id:
+        selected_tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first()
+    
+    # For guided entries, fetch the responses that match the search query
+    if query:
+        matched_responses = {}
+        guided_entry_ids = [entry.id for entry in entries if entry.entry_type == 'guided']
+        
+        if guided_entry_ids:
+            responses = GuidedResponse.query.filter(
+                GuidedResponse.journal_entry_id.in_(guided_entry_ids),
+                GuidedResponse.response.ilike(f'%{query}%')
+            ).all()
+            
+            # Get the original questions for context
+            all_questions = QuestionManager.get_questions()
+            question_map = {q['id']: q for q in all_questions}
+            
+            # Group responses by entry ID and add question text
+            for resp in responses:
+                resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+                
+                if resp.journal_entry_id not in matched_responses:
+                    matched_responses[resp.journal_entry_id] = []
+                
+                matched_responses[resp.journal_entry_id].append(resp)
+    else:
+        matched_responses = {}
+    
+    return render_template(
+        'search.html', 
+        entries=entries, 
+        tags=tags, 
+        selected_tag=selected_tag,
+        query=query,
+        start_date=request.args.get('start_date', ''),
+        end_date=request.args.get('end_date', ''),
+        entry_type=entry_type,
+        sort_by=sort_by,
+        matched_responses=matched_responses
+    )
 
 
 @auth_bp.route('/settings', methods=['GET', 'POST'])
