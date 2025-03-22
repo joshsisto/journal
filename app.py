@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_login import LoginManager
+from flask_mail import Mail
 from config import Config
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog
 from time_utils import register_template_utils
@@ -7,8 +8,10 @@ import os
 import jinja2
 import markupsafe
 
+# Initialize extensions
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
+mail = Mail()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -35,6 +38,7 @@ def create_app(config_class=Config):
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
+    mail.init_app(app)
 
     # Register time utilities for templates
     register_template_utils(app)    

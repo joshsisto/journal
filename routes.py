@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_mail import Mail
 from sqlalchemy import func, or_, and_, desc
 import pytz
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag
 from export_utils import format_entry_for_text, format_multi_entry_filename
+from email_utils import send_password_reset_email, send_email_change_confirmation
 from helpers import (
     get_time_since_last_entry, format_time_since, has_exercised_today,
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
@@ -685,26 +687,10 @@ def search():
     )
 
 
-@auth_bp.route('/settings', methods=['GET', 'POST'])
+@auth_bp.route('/settings', methods=['GET'])
 @login_required
 def settings():
-    if request.method == 'POST':
-        timezone = request.form.get('timezone')
-        
-        try:
-            # Validate timezone
-            pytz.timezone(timezone)
-            
-            # Update user's timezone
-            current_user.timezone = timezone
-            db.session.commit()
-            
-            flash('Timezone updated successfully.')
-        except pytz.exceptions.UnknownTimeZoneError:
-            flash('Invalid timezone selected.')
-        
-        return redirect(url_for('auth.settings'))
-    
+    """Display user settings page."""
     # Get list of common timezones for the form
     common_timezones = pytz.common_timezones
     
@@ -717,6 +703,176 @@ def settings():
         current_timezone=current_user.timezone,
         tags=tags
     )
+
+
+@auth_bp.route('/settings/timezone', methods=['POST'])
+@login_required
+def update_timezone():
+    """Update user timezone."""
+    timezone = request.form.get('timezone')
+    
+    try:
+        # Validate timezone
+        pytz.timezone(timezone)
+        
+        # Update user's timezone
+        current_user.timezone = timezone
+        db.session.commit()
+        
+        flash('Timezone updated successfully.')
+    except pytz.exceptions.UnknownTimeZoneError:
+        flash('Invalid timezone selected.')
+    
+    return redirect(url_for('auth.settings'))
+
+
+@auth_bp.route('/settings/password', methods=['POST'])
+@login_required
+def change_password():
+    """Change user password."""
+    current_password = request.form.get('current_password')
+    new_password = request.form.get('new_password')
+    confirm_password = request.form.get('confirm_password')
+    
+    # Validate passwords
+    if not current_user.check_password(current_password):
+        flash('Current password is incorrect.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    if new_password != confirm_password:
+        flash('New passwords do not match.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    if len(new_password) < 8:
+        flash('Password must be at least 8 characters long.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Update password
+    current_user.set_password(new_password)
+    db.session.commit()
+    
+    flash('Password updated successfully.', 'success')
+    return redirect(url_for('auth.settings'))
+
+
+@auth_bp.route('/settings/email', methods=['POST'])
+@login_required
+def change_email():
+    """Initiate email change process."""
+    password = request.form.get('password')
+    new_email = request.form.get('new_email')
+    confirm_email = request.form.get('confirm_email')
+    
+    # Validate inputs
+    if not current_user.check_password(password):
+        flash('Password is incorrect.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    if new_email != confirm_email:
+        flash('Email addresses do not match.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Check if email is already in use
+    existing_user = User.query.filter_by(email=new_email).first()
+    if existing_user and existing_user.id != current_user.id:
+        flash('This email address is already in use.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Generate token and update user
+    token = current_user.generate_email_change_token(new_email)
+    db.session.commit()
+    
+    # Send confirmation email
+    send_email_change_confirmation(current_user, token)
+    
+    flash('A confirmation link has been sent to your new email address. Please check your inbox.', 'info')
+    return redirect(url_for('auth.settings'))
+
+
+@auth_bp.route('/confirm-email-change/<token>')
+def confirm_email_change(token):
+    """Confirm email change with token."""
+    # Find user by token
+    user = User.query.filter_by(email_change_token=token).first()
+    
+    if not user or not user.verify_email_change_token(token):
+        flash('Invalid or expired confirmation link.', 'danger')
+        return redirect(url_for('auth.login'))
+    
+    # Update email
+    user.complete_email_change()
+    db.session.commit()
+    
+    flash('Your email address has been updated successfully.', 'success')
+    
+    # If user is logged in, redirect to settings, otherwise to login
+    if current_user.is_authenticated:
+        return redirect(url_for('auth.settings'))
+    else:
+        return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/request-reset', methods=['GET', 'POST'])
+def request_reset():
+    """Request password reset."""
+    if current_user.is_authenticated:
+        return redirect(url_for('journal.index'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        
+        # Find user by email
+        user = User.query.filter_by(email=email).first()
+        
+        # Always show success message even if email not found (security)
+        if user:
+            token = user.generate_reset_token()
+            db.session.commit()
+            
+            # Send password reset email
+            send_password_reset_email(user, token)
+        
+        flash('If your email address exists in our database, you will receive a password reset link at your email address.', 'info')
+        return redirect(url_for('auth.login'))
+    
+    return render_template('auth/request_reset.html')
+
+
+@auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """Reset password with token."""
+    if current_user.is_authenticated:
+        return redirect(url_for('journal.index'))
+    
+    # Find user by token
+    user = User.query.filter_by(reset_token=token).first()
+    
+    if not user or not user.verify_reset_token(token):
+        flash('Invalid or expired reset link.', 'danger')
+        return redirect(url_for('auth.request_reset'))
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validate passwords
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('auth.reset_password', token=token))
+        
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'danger')
+            return redirect(url_for('auth.reset_password', token=token))
+        
+        # Update password
+        user.set_password(password)
+        user.clear_reset_token()
+        db.session.commit()
+        
+        flash('Your password has been reset successfully. You can now log in with your new password.', 'success')
+        return redirect(url_for('auth.login'))
+    
+    return render_template('auth/reset_password.html')
 
 
 # Tag Management Routes

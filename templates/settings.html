@@ -5,12 +5,12 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header">
                 <h3 class="card-title">User Settings</h3>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" action="{{ url_for('auth.update_timezone') }}">
                     <div class="mb-3">
                         <label for="timezone" class="form-label">Your Timezone</label>
                         <select class="form-select" id="timezone" name="timezone" required>
@@ -24,7 +24,56 @@
                             Select your timezone to ensure journal entries display the correct time.
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <button type="submit" class="btn btn-primary">Update Timezone</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title">Change Password</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('auth.change_password') }}">
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="current_password" name="current_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Change Password</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title">Change Email Address</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('auth.change_email') }}">
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_email" class="form-label">New Email Address</label>
+                        <input type="email" class="form-control" id="new_email" name="new_email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_email" class="form-label">Confirm New Email</label>
+                        <input type="email" class="form-control" id="confirm_email" name="confirm_email" required>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> A verification link will be sent to your new email address.
+                    </div>
+                    <button type="submit" class="btn btn-primary">Change Email</button>
                 </form>
             </div>
         </div>
@@ -42,6 +91,23 @@
                 </p>
                 <p class="text-muted">
                     All journal entries will be displayed in your local time, but stored in UTC for consistency.
+                </p>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h3 class="card-title">Account Information</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    <strong>Username:</strong> {{ current_user.username }}
+                </p>
+                <p>
+                    <strong>Email address:</strong> {{ current_user.email }}
+                </p>
+                <p>
+                    <strong>Account created:</strong> {{ format_datetime(current_user.created_at, '%Y-%m-%d') }}
                 </p>
             </div>
         </div>
@@ -85,6 +151,40 @@
                 timezoneSelect.appendChild(noMatchOption);
             }
         });
+    });
+    
+    // Password confirmation validation
+    document.addEventListener('DOMContentLoaded', function() {
+        const newPassword = document.getElementById('new_password');
+        const confirmPassword = document.getElementById('confirm_password');
+        
+        function validatePasswordMatch() {
+            if (newPassword.value !== confirmPassword.value) {
+                confirmPassword.setCustomValidity("Passwords do not match");
+            } else {
+                confirmPassword.setCustomValidity("");
+            }
+        }
+        
+        newPassword.addEventListener('change', validatePasswordMatch);
+        confirmPassword.addEventListener('keyup', validatePasswordMatch);
+    });
+    
+    // Email confirmation validation
+    document.addEventListener('DOMContentLoaded', function() {
+        const newEmail = document.getElementById('new_email');
+        const confirmEmail = document.getElementById('confirm_email');
+        
+        function validateEmailMatch() {
+            if (newEmail.value !== confirmEmail.value) {
+                confirmEmail.setCustomValidity("Email addresses do not match");
+            } else {
+                confirmEmail.setCustomValidity("");
+            }
+        }
+        
+        newEmail.addEventListener('change', validateEmailMatch);
+        confirmEmail.addEventListener('keyup', validateEmailMatch);
     });
 </script>
 {% endblock %}

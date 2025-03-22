@@ -1,9 +1,11 @@
-from datetime import datetime, timedelta
-import secrets
+"""
+Original models.py file without the new User fields.
+This will be used temporarily to run the app and reset the database.
+"""
+from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 db = SQLAlchemy()
 
@@ -25,15 +27,6 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(128), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Reset password fields
-    reset_token = db.Column(db.String(100), nullable=True)
-    reset_token_expiry = db.Column(db.DateTime, nullable=True)
-    
-    # Email verification fields
-    email_change_token = db.Column(db.String(100), nullable=True)
-    email_change_token_expiry = db.Column(db.DateTime, nullable=True)
-    new_email = db.Column(db.String(120), nullable=True)
-    
     # Relationships
     journal_entries = db.relationship('JournalEntry', backref='author', lazy='dynamic')
     exercise_logs = db.relationship('ExerciseLog', backref='user', lazy='dynamic')
@@ -46,51 +39,6 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         """Check password hash."""
         return check_password_hash(self.password_hash, password)
-    
-    def generate_reset_token(self):
-        """Generate a password reset token."""
-        self.reset_token = secrets.token_urlsafe(64)
-        self.reset_token_expiry = datetime.utcnow() + timedelta(hours=24)
-        return self.reset_token
-    
-    def verify_reset_token(self, token):
-        """Verify that the reset token is valid."""
-        if (self.reset_token != token or 
-            self.reset_token_expiry is None or 
-            datetime.utcnow() > self.reset_token_expiry):
-            return False
-        return True
-    
-    def clear_reset_token(self):
-        """Clear the reset token after use."""
-        self.reset_token = None
-        self.reset_token_expiry = None
-    
-    def generate_email_change_token(self, new_email):
-        """Generate a token for email change verification."""
-        self.new_email = new_email
-        self.email_change_token = secrets.token_urlsafe(64)
-        self.email_change_token_expiry = datetime.utcnow() + timedelta(hours=24)
-        return self.email_change_token
-    
-    def verify_email_change_token(self, token):
-        """Verify that the email change token is valid."""
-        if (self.email_change_token != token or 
-            self.email_change_token_expiry is None or 
-            datetime.utcnow() > self.email_change_token_expiry or
-            self.new_email is None):
-            return False
-        return True
-    
-    def complete_email_change(self):
-        """Complete the email change process."""
-        if self.new_email:
-            self.email = self.new_email
-            self.new_email = None
-            self.email_change_token = None
-            self.email_change_token_expiry = None
-            return True
-        return False
     
     def __repr__(self):
         return f'<User {self.username}>'
