@@ -190,6 +190,12 @@ class QuestionManager:
                 'condition': lambda response_data: True  # Always ask
             },
             {
+                'id': 'additional_emotions',
+                'text': 'Select additional emotions you\'re experiencing:',
+                'type': 'emotions',
+                'condition': lambda response_data: True  # Always ask
+            },
+            {
                 'id': 'feeling_reason',
                 'text': 'Why do you feel that way?',
                 'type': 'text',

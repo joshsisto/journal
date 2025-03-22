@@ -5,10 +5,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_mail import Mail
 from sqlalchemy import func, or_, and_, desc
 import pytz
+import json
+import re
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag
 from export_utils import format_entry_for_text, format_multi_entry_filename
 from email_utils import send_password_reset_email, send_email_change_confirmation
+from emotions import get_emotions_by_category
 from helpers import (
     get_time_since_last_entry, format_time_since, has_exercised_today,
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
@@ -371,6 +374,7 @@ def quick_journal():
     if request.method == 'POST':
         content = request.form.get('content')
         tag_ids = request.form.getlist('tags')
+        new_tags_json = request.form.get('new_tags', '[]')
         
         if not content:
             flash('Journal entry cannot be empty.')
@@ -382,13 +386,44 @@ def quick_journal():
             entry_type='quick'
         )
         
-        # Add selected tags
+        # Add selected existing tags
         if tag_ids:
             tags = Tag.query.filter(
                 Tag.id.in_(tag_ids), 
                 Tag.user_id == current_user.id
             ).all()
             entry.tags = tags
+        else:
+            entry.tags = []
+        
+        # Create and add new tags
+        if new_tags_json:
+            try:
+                new_tags_data = json.loads(new_tags_json)
+                for tag_data in new_tags_data:
+                    # Check if tag with this name already exists for this user
+                    existing_tag = Tag.query.filter_by(
+                        name=tag_data.get('name'),
+                        user_id=current_user.id
+                    ).first()
+                    
+                    if existing_tag:
+                        # Use existing tag if it exists
+                        if existing_tag not in entry.tags:
+                            entry.tags.append(existing_tag)
+                    else:
+                        # Create new tag
+                        new_tag = Tag(
+                            name=tag_data.get('name'),
+                            color=tag_data.get('color', '#6c757d'),
+                            user_id=current_user.id
+                        )
+                        db.session.add(new_tag)
+                        db.session.flush()  # Get ID without committing
+                        entry.tags.append(new_tag)
+            except json.JSONDecodeError:
+                # If JSON parsing fails, just continue
+                pass
         
         db.session.add(entry)
         db.session.commit()
@@ -408,6 +443,7 @@ def guided_journal():
     if request.method == 'POST':
         # Get tag IDs from form
         tag_ids = request.form.getlist('tags')
+        new_tags_json = request.form.get('new_tags', '[]')
         
         # First, create the journal entry
         entry = JournalEntry(
@@ -415,13 +451,44 @@ def guided_journal():
             entry_type='guided'
         )
         
-        # Add selected tags
+        # Add selected existing tags
         if tag_ids:
             tags = Tag.query.filter(
                 Tag.id.in_(tag_ids), 
                 Tag.user_id == current_user.id
             ).all()
             entry.tags = tags
+        else:
+            entry.tags = []
+            
+        # Create and add new tags
+        if new_tags_json:
+            try:
+                new_tags_data = json.loads(new_tags_json)
+                for tag_data in new_tags_data:
+                    # Check if tag with this name already exists for this user
+                    existing_tag = Tag.query.filter_by(
+                        name=tag_data.get('name'),
+                        user_id=current_user.id
+                    ).first()
+                    
+                    if existing_tag:
+                        # Use existing tag if it exists
+                        if existing_tag not in entry.tags:
+                            entry.tags.append(existing_tag)
+                    else:
+                        # Create new tag
+                        new_tag = Tag(
+                            name=tag_data.get('name'),
+                            color=tag_data.get('color', '#6c757d'),
+                            user_id=current_user.id
+                        )
+                        db.session.add(new_tag)
+                        db.session.flush()  # Get ID without committing
+                        entry.tags.append(new_tag)
+            except json.JSONDecodeError:
+                # If JSON parsing fails, just continue
+                pass
         
         db.session.add(entry)
         db.session.flush()  # Get the ID without committing
@@ -454,6 +521,11 @@ def guided_journal():
                     if workout_type:
                         exercise_log.workout_type = workout_type
                 
+                # Handle additional emotions (JSON array from multiselect)
+                if question_id == 'additional_emotions' and value:
+                    # Store emotions as a JSON string
+                    value = value
+                
                 # Save the response
                 guided_response = GuidedResponse(
                     journal_entry_id=entry.id,
@@ -480,7 +552,15 @@ def guided_journal():
     # Get user's tags
     tags = Tag.query.filter_by(user_id=current_user.id).all()
     
-    return render_template('journal/guided.html', questions=questions, tags=tags)
+    # Get emotions by category for the template
+    emotions_by_category = get_emotions_by_category()
+    
+    return render_template(
+        'journal/guided.html', 
+        questions=questions, 
+        tags=tags, 
+        emotions_by_category=emotions_by_category
+    )
 
 
 @journal_bp.route('/journal/view/<int:entry_id>')
@@ -508,7 +588,17 @@ def view_entry(entry_id):
     # Get all user tags for adding/removing tags
     all_tags = Tag.query.filter_by(user_id=current_user.id).all()
     
-    return render_template('journal/view.html', entry=entry, guided_responses=guided_responses, all_tags=all_tags)
+    # Get emotions categories for badge coloring
+    emotions_by_category = get_emotions_by_category()
+    positive_emotions = set(emotions_by_category.get('Positive', []))
+    negative_emotions = set(emotions_by_category.get('Negative', []))
+    
+    return render_template('journal/view.html', 
+                           entry=entry, 
+                           guided_responses=guided_responses, 
+                           all_tags=all_tags,
+                           positive_emotions=positive_emotions,
+                           negative_emotions=negative_emotions)
 
 
 @journal_bp.route('/journal/delete/<int:entry_id>', methods=['POST'])

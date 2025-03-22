@@ -50,3 +50,61 @@ textarea {
     font-weight: 500;
     color: #6c757d;
 }
+
+/* Emotion select styling */
+.emotion-select {
+    width: 100%;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+.emotion-select option {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.emotion-select option:checked {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* Emotion badges */
+#selected_emotions_display .badge {
+    margin-right: 5px;
+    margin-bottom: 5px;
+    font-weight: normal;
+    font-size: 0.85rem;
+    padding: 6px 10px;
+}
+
+/* Tag styling */
+.badge {
+    font-weight: normal;
+    font-size: 0.85rem;
+    padding: 6px 10px;
+    cursor: default;
+    transition: all 0.2s ease;
+}
+
+.form-check-input:checked + .form-check-label .badge {
+    opacity: 1;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.form-check-input:not(:checked) + .form-check-label .badge {
+    opacity: 0.65;
+}
+
+/* Tag management styles */
+#new-tag-color {
+    width: 100%;
+    height: 38px;
+    padding: 0.375rem;
+    cursor: pointer;
+}
+
+#tag-feedback {
+    min-height: 24px;
+    padding-top: 0.25rem;
+}

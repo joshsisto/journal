@@ -16,7 +16,7 @@
             <!-- Tag Selection -->
             <div class="mb-3">
                 <label class="form-label">Tags</label>
-                <div class="d-flex flex-wrap gap-2">
+                <div class="d-flex flex-wrap gap-2 mb-3">
                     {% if tags %}
                         {% for tag in tags %}
                         <div class="form-check form-check-inline">
@@ -28,10 +28,31 @@
                         {% endfor %}
                     {% else %}
                         <div class="text-muted">
-                            No tags available. <a href="{{ url_for('tag.manage_tags') }}">Create tags</a> to categorize your entries.
+                            No tags available yet. Add a new tag below.
                         </div>
                     {% endif %}
                 </div>
+                
+                <!-- Add new tag form -->
+                <div class="row align-items-end mb-3">
+                    <div class="col-md-4">
+                        <label for="new-tag-name" class="form-label">Add New Tag</label>
+                        <input type="text" class="form-control" id="new-tag-name" placeholder="Enter tag name">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="new-tag-color" class="form-label">Color</label>
+                        <input type="color" class="form-control form-control-color" id="new-tag-color" value="#6c757d">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" id="add-tag-btn" class="btn btn-primary">Add Tag</button>
+                    </div>
+                    <div class="col-md-4">
+                        <div id="tag-feedback" class="form-text"></div>
+                    </div>
+                </div>
+                
+                <!-- Hidden field to store new tag data as JSON -->
+                <input type="hidden" name="new_tags" id="new-tags-data" value="[]">
             </div>
             
             <div class="d-flex justify-content-between">

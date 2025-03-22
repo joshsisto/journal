@@ -75,6 +75,27 @@
                                 <span class="fs-4">{{ response.response|feeling_emoji }}</span>
                                 <span class="ms-2">{{ response.response }} / 10</span>
                             </p>
+                        {% elif response.question_id == 'additional_emotions' %}
+                            <div class="d-flex flex-wrap gap-2">
+                                {% if response.response %}
+                                    {% set emotions = parse_emotions(response.response) %}
+                                    {% if emotions %}
+                                        {% for emotion in emotions %}
+                                            {% if emotion in positive_emotions %}
+                                                <span class="badge bg-success">{{ emotion }}</span>
+                                            {% elif emotion in negative_emotions %}
+                                                <span class="badge bg-danger">{{ emotion }}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ emotion }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        <p class="text-muted">No additional emotions selected</p>
+                                    {% endif %}
+                                {% else %}
+                                    <p class="text-muted">No additional emotions selected</p>
+                                {% endif %}
+                            </div>
                         {% else %}
                             <p>{{ response.response }}</p>
                         {% endif %}
