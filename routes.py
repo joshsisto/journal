@@ -244,14 +244,85 @@ def dashboard():
     else:
         end_of_month = datetime(year_int, month_int + 1, 1)
     
-    # Manual processing for daily counts
+    # Get day parameter if present
+    selected_day = request.args.get('day')
+    
+    # If a day is selected, filter entries for that specific day
+    if selected_day:
+        try:
+            day_int = int(selected_day)
+            
+            # Get the user's timezone
+            user_timezone = pytz.timezone(current_user.timezone)
+            
+            # Create datetime objects in user's local timezone
+            local_start_date = datetime(year_int, month_int, day_int)
+            local_end_date = local_start_date + timedelta(days=1)
+            
+            # Convert local dates to UTC for database filtering
+            utc_start_date = user_timezone.localize(local_start_date).astimezone(pytz.UTC).replace(tzinfo=None)
+            utc_end_date = user_timezone.localize(local_end_date).astimezone(pytz.UTC).replace(tzinfo=None)
+            
+            # Filter the query to show only entries from the selected day (in user's timezone)
+            query = query.filter(
+                JournalEntry.created_at >= utc_start_date,
+                JournalEntry.created_at < utc_end_date
+            )
+            
+            # Update entries and pagination
+            paginated_entries = query.order_by(JournalEntry.created_at.desc()).paginate(
+                page=page, per_page=entries_per_page, error_out=False
+            )
+            entries = paginated_entries.items
+            
+            # Update feeling data for the filtered entries
+            feeling_data = {}
+            guided_entry_ids = [entry.id for entry in entries if entry.entry_type == 'guided']
+            if guided_entry_ids:
+                feeling_responses = GuidedResponse.query.filter(
+                    GuidedResponse.journal_entry_id.in_(guided_entry_ids),
+                    GuidedResponse.question_id == 'feeling_scale'
+                ).all()
+                
+                for resp in feeling_responses:
+                    feeling_data[resp.journal_entry_id] = resp.response
+        except (ValueError, TypeError, OverflowError):
+            # Invalid day parameter, ignore
+            selected_day = None
+    
+    # Get the user's timezone
+    user_timezone = pytz.timezone(current_user.timezone)
+    
+    # Create datetime objects in user's local timezone for the month boundaries
+    local_start_of_month = datetime(year_int, month_int, 1)
+    if month_int == 12:
+        local_end_of_month = datetime(year_int + 1, 1, 1)
+    else:
+        local_end_of_month = datetime(year_int, month_int + 1, 1)
+    
+    # Convert local dates to UTC for database comparison
+    utc_start_of_month = user_timezone.localize(local_start_of_month).astimezone(pytz.UTC).replace(tzinfo=None)
+    utc_end_of_month = user_timezone.localize(local_end_of_month).astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    # Get entries for this month in user's timezone
+    month_entries = JournalEntry.query.filter(
+        JournalEntry.user_id == current_user.id,
+        JournalEntry.created_at >= utc_start_of_month,
+        JournalEntry.created_at < utc_end_of_month
+    ).all()
+    
+    # Manual processing for daily counts using user's timezone
     daily_counts = {}
-    for entry in all_entries:
-        if start_of_month <= entry.created_at < end_of_month:
-            day = entry.created_at.strftime('%d')
-            if day not in daily_counts:
-                daily_counts[day] = 0
-            daily_counts[day] += 1
+    days_with_entries = set()  # Track which days have entries
+    
+    for entry in month_entries:
+        # Convert UTC timestamp to user's local timezone
+        local_dt = pytz.UTC.localize(entry.created_at).astimezone(user_timezone)
+        day = local_dt.strftime('%d')
+        days_with_entries.add(int(day))
+        if day not in daily_counts:
+            daily_counts[day] = 0
+        daily_counts[day] += 1
     
     # Format daily data
     for day in sorted(daily_counts.keys()):
@@ -261,6 +332,14 @@ def dashboard():
             'day': day,
             'count': daily_counts[day]
         })
+        
+    # Debug info for timezone understanding
+    # Uncomment if you need to debug timezone issues
+    """
+    print(f"User timezone: {current_user.timezone}")
+    print(f"Days with entries: {days_with_entries}")
+    print(f"Current month entries count: {len(month_entries)}")
+    """
     
     return render_template(
         'dashboard.html', 
@@ -274,6 +353,8 @@ def dashboard():
         archive_data=archive_data,
         selected_year=selected_year,
         selected_month=selected_month,
+        selected_day=selected_day,
+        days_with_entries=days_with_entries,
         first_day_of_week=first_day_of_week,
         start_date=start_date,
         end_date=end_date,
