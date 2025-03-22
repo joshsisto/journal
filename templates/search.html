@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Search Journal - Journal App{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Search Journal</h2>
+            <a href="{{ url_for('journal.index') }}" class="btn btn-secondary">Back to Journal</a>
+        </div>
+    </div>
+</div>
+
+<!-- Search Form -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Search Filters</h5>
+            </div>
+            <div class="card-body">
+                <form method="get" action="{{ url_for('journal.search') }}" id="searchForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="q" class="form-label">Search Term</label>
+                                <input type="text" class="form-control" id="q" name="q" value="{{ query }}" 
+                                       placeholder="Search your journal entries...">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="tag" class="form-label">Filter by Tag</label>
+                                <select class="form-select" id="tag" name="tag">
+                                    <option value="">All Tags</option>
+                                    {% for tag in tags %}
+                                    <option value="{{ tag.id }}" {% if selected_tag and selected_tag.id == tag.id %}selected{% endif %}>
+                                        {{ tag.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="start_date" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="end_date" class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="type" class="form-label">Entry Type</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="">All Types</option>
+                                    <option value="quick" {% if entry_type == 'quick' %}selected{% endif %}>Quick Journal</option>
+                                    <option value="guided" {% if entry_type == 'guided' %}selected{% endif %}>Guided Journal</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="sort" class="form-label">Sort By</label>
+                                <select class="form-select" id="sort" name="sort">
+                                    <option value="recent" {% if sort_by == 'recent' %}selected{% endif %}>Most Recent</option>
+                                    <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>Oldest First</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <a href="{{ url_for('journal.search') }}" class="btn btn-outline-secondary me-2">Clear</a>
+                        <button type="submit" class="btn btn-primary">Search</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Results -->
+<div class="row">
+    <div class="col-md-12">
+        <h3>
+            {% if query or selected_tag or start_date or end_date or entry_type %}
+                Search Results 
+                {% if entries|length > 0 %}({{ entries|length }} entries found){% endif %}
+            {% else %}
+                All Journal Entries
+            {% endif %}
+        </h3>
+        
+        {% if entries %}
+            <div class="list-group">
+                {% for entry in entries %}
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">
+                            {% if entry.entry_type == 'quick' %}
+                            Quick Entry
+                            {% else %}
+                            Guided Entry
+                            {% endif %}
+                        </h5>
+                        <small>{{ format_datetime(entry.created_at) }}</small>
+                    </div>
+                    
+                    <!-- Display tags -->
+                    <div class="mb-2">
+                        {% for tag in entry.tags %}
+                            <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if entry.entry_type == 'quick' %}
+                        {% if query %}
+                            <!-- Format content to highlight the search query -->
+                            <div class="card mb-2">
+                                <div class="card-body py-2 px-3 bg-light">
+                                    <p class="mb-0">
+                                        {% set content = entry.content %}
+                                        {% if query in content.lower() %}
+                                            {% set start_pos = content.lower().find(query.lower()) %}
+                                            {% set end_pos = start_pos + query|length %}
+                                            
+                                            {% if start_pos > 50 %}
+                                                {% set context_start = start_pos - 50 %}
+                                            {% else %}
+                                                {% set context_start = 0 %}
+                                            {% endif %}
+                                            
+                                            {% if end_pos + 50 < content|length %}
+                                                {% set context_end = end_pos + 50 %}
+                                            {% else %}
+                                                {% set context_end = content|length %}
+                                            {% endif %}
+                                            
+                                            {% set context_before = content[context_start:start_pos] %}
+                                            {% set matched_text = content[start_pos:end_pos] %}
+                                            {% set context_after = content[end_pos:context_end] %}
+                                            
+                                            {% if start_pos > 50 %}...{% endif %}
+                                            {{ context_before }}
+                                            <mark>{{ matched_text }}</mark>
+                                            {{ context_after }}
+                                            {% if end_pos + 50 < content|length %}...{% endif %}
+                                        {% else %}
+                                            {{ content|truncate(150) }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="mb-1">{{ entry.content|truncate(150) }}</p>
+                        {% endif %}
+                    {% else %}
+                        {% if entry.id in matched_responses %}
+                            <!-- Show matched guided responses -->
+                            <div class="card mb-2">
+                                <div class="card-body py-2 px-3 bg-light">
+                                    {% for response in matched_responses[entry.id] %}
+                                        <div class="mb-2">
+                                            <strong>{{ response.question_text }}</strong>
+                                            <p class="mb-0">
+                                                {% set resp_text = response.response %}
+                                                {% if query in resp_text.lower() %}
+                                                    {% set start_pos = resp_text.lower().find(query.lower()) %}
+                                                    {% set end_pos = start_pos + query|length %}
+                                                    
+                                                    {% if start_pos > 50 %}
+                                                        {% set context_start = start_pos - 50 %}
+                                                    {% else %}
+                                                        {% set context_start = 0 %}
+                                                    {% endif %}
+                                                    
+                                                    {% if end_pos + 50 < resp_text|length %}
+                                                        {% set context_end = end_pos + 50 %}
+                                                    {% else %}
+                                                        {% set context_end = resp_text|length %}
+                                                    {% endif %}
+                                                    
+                                                    {% set context_before = resp_text[context_start:start_pos] %}
+                                                    {% set matched_text = resp_text[start_pos:end_pos] %}
+                                                    {% set context_after = resp_text[end_pos:context_end] %}
+                                                    
+                                                    {% if start_pos > 50 %}...{% endif %}
+                                                    {{ context_before }}
+                                                    <mark>{{ matched_text }}</mark>
+                                                    {{ context_after }}
+                                                    {% if end_pos + 50 < resp_text|length %}...{% endif %}
+                                                {% else %}
+                                                    {{ resp_text|truncate(150) }}
+                                                {% endif %}
+                                            </p>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="mb-1">Guided journal entry</p>
+                        {% endif %}
+                    {% endif %}
+                    
+                    <div class="mt-2">
+                        <a href="{{ url_for('journal.view_entry', entry_id=entry.id) }}" class="btn btn-sm btn-outline-primary">View Full Entry</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                No journal entries found matching your search criteria.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Add any JavaScript for the search page here
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-submit form when filters change (except for text search)
+        const autoSubmitElements = document.querySelectorAll('#tag, #type, #sort');
+        autoSubmitElements.forEach(el => {
+            el.addEventListener('change', function() {
+                document.getElementById('searchForm').submit();
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -9,6 +9,10 @@ A personal journaling web application built with Flask that helps you track your
 - **Guided Journal**: Follow structured prompts to reflect on your day
 - **Exercise Tracking**: Log your workouts as part of your journal
 - **Tags/Categories**: Categorize and filter your entries with customizable tags
+- **Advanced Search**: Find specific journal entries with powerful search capabilities:
+  - Full-text search across all entry content
+  - Filter by tags, dates, and entry types
+  - Context highlighting for search matches
 - **Timezone Support**: Entries are displayed in your local timezone
 
 ## Setup and Installation
