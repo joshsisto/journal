@@ -110,6 +110,7 @@ class JournalEntry(db.Model):
     guided_responses = db.relationship('GuidedResponse', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
     tags = db.relationship('Tag', secondary=entry_tags, lazy='joined', 
                           backref=db.backref('entries', lazy='dynamic'))
+    photos = db.relationship('Photo', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<JournalEntry {self.id} by User {self.user_id}>'
@@ -168,6 +169,20 @@ class Tag(db.Model):
     
     def __repr__(self):
         return f'<Tag {self.name}>'
+
+
+class Photo(db.Model):
+    """Photo model for journal entry attachments."""
+    __tablename__ = 'photos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f'<Photo {self.id} for JournalEntry {self.journal_entry_id}>'
 
 
 class QuestionManager:

@@ -8,7 +8,19 @@
         <h2>Guided Journal Entry</h2>
         <p class="text-muted">Answer the prompts to complete your journal entry.</p>
         
-        <form method="post" id="guidedJournalForm">
+        <form method="post" id="guidedJournalForm" enctype="multipart/form-data">
+            <!-- Photo Upload -->
+            <div class="mb-4 card">
+                <div class="card-body">
+                    <h5 class="card-title">Add Photos</h5>
+                    <p class="text-muted">Add photos to your journal entry</p>
+                    
+                    <input class="form-control" type="file" id="photos" name="photos" accept="image/*" multiple>
+                    <div class="form-text">You can select multiple photos to upload (max 16MB total)</div>
+                    <div id="photo-preview" class="d-flex flex-wrap gap-2 mt-2"></div>
+                </div>
+            </div>
+            
             {% for question in questions %}
             <div class="mb-4 card">
                 <div class="card-body">
@@ -263,4 +275,36 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Photo preview script
+    document.getElementById('photos').addEventListener('change', function(event) {
+        const preview = document.getElementById('photo-preview');
+        preview.innerHTML = '';
+        
+        if (this.files.length > 0) {
+            for (const file of this.files) {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    const imgContainer = document.createElement('div');
+                    imgContainer.className = 'position-relative';
+                    
+                    reader.onload = function(e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'img-thumbnail';
+                        img.style.maxHeight = '150px';
+                        img.style.maxWidth = '200px';
+                        imgContainer.appendChild(img);
+                    };
+                    
+                    reader.readAsDataURL(file);
+                    preview.appendChild(imgContainer);
+                }
+            }
+        }
+    });
+</script>
 {% endblock %}

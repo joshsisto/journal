@@ -21,3 +21,8 @@ class Config:
     # Application specific settings
     APP_NAME = 'Journal App'
     APP_URL = os.environ.get('APP_URL', 'http://localhost:5000')
+    
+    # File upload settings
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads/photos')
+    ALLOWED_PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max upload size
