@@ -1,14 +1,17 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response, current_app
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response, current_app, send_file
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from flask_mail import Mail
 from sqlalchemy import func, or_, and_, desc
 import pytz
 import json
 import re
+import os
+import uuid
 
-from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag
+from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo
 from export_utils import format_entry_for_text, format_multi_entry_filename
 from email_utils import send_password_reset_email, send_email_change_confirmation
 from emotions import get_emotions_by_category
@@ -426,6 +429,30 @@ def quick_journal():
                 pass
         
         db.session.add(entry)
+        db.session.flush()  # Get ID without committing
+        
+        # Handle photo uploads
+        photos = request.files.getlist('photos')
+        if photos:
+            for photo in photos:
+                if photo and photo.filename and allowed_file(photo.filename):
+                    # Create a secure filename with a UUID prefix
+                    original_filename = photo.filename
+                    filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
+                    
+                    # Save file to upload folder
+                    upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
+                    photo_path = os.path.join(upload_folder, filename)
+                    photo.save(photo_path)
+                    
+                    # Create photo record in database
+                    new_photo = Photo(
+                        journal_entry_id=entry.id,
+                        filename=filename,
+                        original_filename=original_filename
+                    )
+                    db.session.add(new_photo)
+        
         db.session.commit()
         
         flash('Journal entry saved successfully.')
@@ -533,6 +560,28 @@ def guided_journal():
                     response=value
                 )
                 db.session.add(guided_response)
+        
+        # Handle photo uploads
+        photos = request.files.getlist('photos')
+        if photos:
+            for photo in photos:
+                if photo and photo.filename and allowed_file(photo.filename):
+                    # Create a secure filename with a UUID prefix
+                    original_filename = photo.filename
+                    filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
+                    
+                    # Save file to upload folder
+                    upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
+                    photo_path = os.path.join(upload_folder, filename)
+                    photo.save(photo_path)
+                    
+                    # Create photo record in database
+                    new_photo = Photo(
+                        journal_entry_id=entry.id,
+                        filename=filename,
+                        original_filename=original_filename
+                    )
+                    db.session.add(new_photo)
         
         db.session.commit()
         flash('Guided journal entry saved successfully.')
@@ -1162,6 +1211,30 @@ def export_all_entries():
     ).order_by(JournalEntry.created_at.desc()).all()
     
     return export_entries_as_text(entries)
+
+
+def allowed_file(filename):
+    """Check if file has an allowed extension."""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_PHOTO_EXTENSIONS']
+
+
+@journal_bp.route('/journal/photo/<int:photo_id>')
+@login_required
+def view_photo(photo_id):
+    """Serve a photo file."""
+    # First verify that the photo belongs to the current user
+    photo = Photo.query.join(JournalEntry).filter(
+        Photo.id == photo_id,
+        JournalEntry.user_id == current_user.id
+    ).first_or_404()
+    
+    # Build the file path
+    upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
+    photo_path = os.path.join(upload_folder, photo.filename)
+    
+    # Send the file
+    return send_file(photo_path)
 
 
 def export_entries_as_text(entries, filter_info=None):

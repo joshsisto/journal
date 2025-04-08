@@ -103,6 +103,24 @@
                     {% endfor %}
                 </div>
                 {% endif %}
+                
+                <!-- Photos Display -->
+                {% if entry.photos.count() > 0 %}
+                <div class="mt-4">
+                    <h4>Photos</h4>
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for photo in entry.photos %}
+                        <div class="photo-item">
+                            <a href="{{ url_for('journal.view_photo', photo_id=photo.id) }}" target="_blank">
+                                <img src="{{ url_for('journal.view_photo', photo_id=photo.id) }}" 
+                                     class="img-thumbnail" alt="Journal Photo" 
+                                     style="max-height: 200px; max-width: 300px;">
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         

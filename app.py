@@ -35,6 +35,13 @@ def create_app(config_class=Config):
     except OSError:
         pass
     
+    # Create upload folder if it doesn't exist
+    upload_path = os.path.join(app.root_path, app.config['UPLOAD_FOLDER'])
+    try:
+        os.makedirs(upload_path, exist_ok=True)
+    except OSError:
+        pass
+    
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
