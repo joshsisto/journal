@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+
+{% block title %}Mood Tracker - Journal App{% endblock %}
+
+{% block styles %}
+<style>
+    .chart-container {
+        height: 400px;
+        width: 100%;
+        position: relative;
+    }
+    
+    .mood-scale {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    
+    .mood-scale-item {
+        text-align: center;
+    }
+    
+    .mood-emoji {
+        font-size: 1.5rem;
+    }
+    
+    .mood-summary-card {
+        transition: all 0.2s ease;
+    }
+    
+    .mood-summary-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .stats-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .stat-card {
+        flex: 1;
+        min-width: 180px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    
+    .date-range-control {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+</style>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Mood Tracker</h2>
+            <div>
+                <a href="{{ url_for('journal.dashboard') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Date Range Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form id="dateRangeForm" method="get" action="{{ url_for('journal.mood_tracker') }}">
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="period" class="form-label">Time Period</label>
+                    <select class="form-select" id="period" name="period" onchange="this.form.submit()">
+                        <option value="week" {% if period == 'week' %}selected{% endif %}>Last 7 Days</option>
+                        <option value="month" {% if period == 'month' %}selected{% endif %}>Last 30 Days</option>
+                        <option value="quarter" {% if period == 'quarter' %}selected{% endif %}>Last 90 Days</option>
+                        <option value="year" {% if period == 'year' %}selected{% endif %}>Last Year</option>
+                        <option value="all" {% if period == 'all' %}selected{% endif %}>All Time</option>
+                        <option value="custom" {% if period == 'custom' %}selected{% endif %}>Custom Range</option>
+                    </select>
+                </div>
+                <div class="col-md-4" id="startDateContainer" style="{% if period != 'custom' %}display: none;{% endif %}">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+                </div>
+                <div class="col-md-4" id="endDateContainer" style="{% if period != 'custom' %}display: none;{% endif %}">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+                </div>
+            </div>
+            <div class="row mt-3" id="customDateButtons" style="{% if period != 'custom' %}display: none;{% endif %}">
+                <div class="col-md-12 text-end">
+                    <button type="submit" class="btn btn-primary">Apply Date Range</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Mood Over Time</h5>
+            </div>
+            <div class="card-body">
+                <!-- Mood scale legend -->
+                <div class="mood-scale mb-4">
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😭</div>
+                        <div class="mood-value">1</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😢</div>
+                        <div class="mood-value">2</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😞</div>
+                        <div class="mood-value">3</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😔</div>
+                        <div class="mood-value">4</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😐</div>
+                        <div class="mood-value">5</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">🙂</div>
+                        <div class="mood-value">6</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😊</div>
+                        <div class="mood-value">7</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😄</div>
+                        <div class="mood-value">8</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">😁</div>
+                        <div class="mood-value">9</div>
+                    </div>
+                    <div class="mood-scale-item">
+                        <div class="mood-emoji">🤩</div>
+                        <div class="mood-value">10</div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    {% if mood_data %}
+                        <canvas id="moodChart"></canvas>
+                    {% else %}
+                        <div class="alert alert-info text-center">
+                            <i class="bi bi-info-circle me-2"></i>
+                            No mood data available for the selected period. Try a different time range or add more guided journal entries.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mood Statistics -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Mood Statistics</h5>
+            </div>
+            <div class="card-body">
+                {% if mood_data %}
+                <!-- Debug info (visible only to you for development) -->
+                <div class="alert alert-info mb-3">
+                    <small>Debug: Found {{ mood_data|length }} mood entries. Dates: {{ dates|join(', ') }}</small>
+                </div>
+                
+                <div class="stats-container">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Average Mood</h5>
+                            <div class="stat-value">{{ avg_mood|float|round(1) }}</div>
+                            <div class="stat-emoji fs-3">{{ avg_mood|float|round|int|feeling_emoji }}</div>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Highest Mood</h5>
+                            <div class="stat-value">{{ highest_mood }}</div>
+                            <div class="stat-emoji fs-3">{{ highest_mood|feeling_emoji }}</div>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Lowest Mood</h5>
+                            <div class="stat-value">{{ lowest_mood }}</div>
+                            <div class="stat-emoji fs-3">{{ lowest_mood|feeling_emoji }}</div>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Entries</h5>
+                            <div class="stat-value">{{ mood_data|length }}</div>
+                            <div class="text-muted">Guided entries with mood</div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No mood data available for the selected period.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Mood Entries -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Mood Entries</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_entries %}
+                <div class="row">
+                    {% for entry in recent_entries %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card mood-summary-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="card-title mb-0">
+                                        <span class="fs-3">{{ entry.feeling_value|feeling_emoji }}</span>
+                                        <span class="ms-2">{{ entry.feeling_value }}/10</span>
+                                    </h5>
+                                    <small class="text-muted">{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }} ({{ user_timezone }})</small>
+                                </div>
+                                
+                                {% if entry.emotions %}
+                                <div class="mb-2">
+                                    {% for emotion in entry.emotions %}
+                                        {% if emotion in positive_emotions %}
+                                            <span class="badge bg-success">{{ emotion }}</span>
+                                        {% elif emotion in negative_emotions %}
+                                            <span class="badge bg-danger">{{ emotion }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ emotion }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                
+                                {% if entry.feeling_reason %}
+                                <p class="card-text">{{ entry.feeling_reason|truncate(100) }}</p>
+                                {% endif %}
+                                
+                                <a href="{{ url_for('journal.view_entry', entry_id=entry.entry_id) }}" 
+                                   class="btn btn-sm btn-outline-primary mt-2">View Entry</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No recent mood entries available.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Date range selector logic
+    const periodSelect = document.getElementById('period');
+    const startDateContainer = document.getElementById('startDateContainer');
+    const endDateContainer = document.getElementById('endDateContainer');
+    const customDateButtons = document.getElementById('customDateButtons');
+    
+    periodSelect.addEventListener('change', function() {
+        if (this.value === 'custom') {
+            startDateContainer.style.display = 'block';
+            endDateContainer.style.display = 'block';
+            customDateButtons.style.display = 'block';
+        } else {
+            startDateContainer.style.display = 'none';
+            endDateContainer.style.display = 'none';
+            customDateButtons.style.display = 'none';
+            // Auto-submit when changing non-custom period
+            document.getElementById('dateRangeForm').submit();
+        }
+    });
+    
+    {% if mood_data %}
+    // Render mood chart
+    const ctx = document.getElementById('moodChart').getContext('2d');
+    const moodChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ dates|tojson }},
+            datasets: [{
+                label: 'Mood Level',
+                data: {{ mood_values|tojson }},
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1,
+                fill: true,
+                pointBackgroundColor: 'rgba(75, 192, 192, 1)',
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    min: 0.5,
+                    max: 10.5,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    title: {
+                        display: true,
+                        text: 'Mood Level'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            // Get the friendly date for the current data point
+                            const index = context[0].dataIndex;
+                            const friendlyDates = {{ friendly_dates|tojson }};
+                            return friendlyDates[index]; 
+                        },
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            let emoji = '❓';
+                            
+                            if (value === 1) emoji = '😭';
+                            else if (value === 2) emoji = '😢';
+                            else if (value === 3) emoji = '😞';
+                            else if (value === 4) emoji = '😔';
+                            else if (value === 5) emoji = '😐';
+                            else if (value === 6) emoji = '🙂';
+                            else if (value === 7) emoji = '😊';
+                            else if (value === 8) emoji = '😄';
+                            else if (value === 9) emoji = '😁';
+                            else if (value === 10) emoji = '🤩';
+                            
+                            return `Mood: ${value}/10 ${emoji}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}
