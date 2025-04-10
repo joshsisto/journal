@@ -8,3 +8,6 @@ pytz==2023.3
 python-dotenv==1.0.0
 flask-mail==0.9.1
 itsdangerous==2.1.2
+
+# Required for SSL/HTTPS (needed for camera access)
+pyopenssl==23.2.0
