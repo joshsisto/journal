@@ -1579,19 +1579,31 @@ def single_entry_conversation(entry_id):
     )
 
 
-@ai_bp.route('/conversation/multiple', methods=['GET', 'POST'])
+@ai_bp.route('/conversation/original', methods=['GET', 'POST'])
 @login_required
-def multiple_entries_conversation():
-    """AI conversation based on multiple journal entries."""
-    # Get all user tags for filtering
-    tags = Tag.query.filter_by(user_id=current_user.id).all()
+def original_multiple_entries_conversation():
+    """Original (non-working) version of multiple entries conversation."""
+    # Get the 10 most recent entries only - simplify for troubleshooting
+    entries = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).limit(10).all()
     
-    # Get filter parameters
-    tag_id = request.args.get('tag')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    entry_type = request.args.get('type')
-    selected_entries = request.args.getlist('entries')
+    print(f"Original multiple entries conversation requested")
+    print(f"Using {len(entries)} most recent entries for simplicity")
+    
+    # Format entries for template with the TimeUtils helper
+    from time_utils import TimeUtils
+    entries_data = []
+    for entry in entries:
+        entry_data = {
+            'id': entry.id,
+            'date': TimeUtils.format_datetime(entry.created_at),
+            'entry_type': entry.entry_type,
+            'content': entry.content or "",
+        }
+        entries_data.append(entry_data)
+    
+    # Use the direct template for multiple conversations
     
     # Base query for user's journal entries
     query = JournalEntry.query.filter_by(user_id=current_user.id)
@@ -1677,23 +1689,9 @@ def multiple_entries_conversation():
         entries_data.append(entry_data)
     
     # Get emotions categories for badge styling
-    emotions_by_category = get_emotions_by_category()
-    positive_emotions = set(emotions_by_category.get('Positive', []))
-    negative_emotions = set(emotions_by_category.get('Negative', []))
-    
     return render_template(
-        'ai/conversation.html',
-        entries=entries_data,
-        is_single_entry=False,
-        conversation_type='multiple',
-        tags=tags,
-        selected_tag=selected_tag,
-        start_date=start_date,
-        end_date=end_date,
-        entry_type=entry_type,
-        selected_entries=selected_entries,
-        positive_emotions=positive_emotions,
-        negative_emotions=negative_emotions
+        'ai/multiple_conversation.html',
+        entries=entries_data
     )
 
 
@@ -1710,18 +1708,302 @@ def test_conversation():
         'ai/test_conversation.html',
         recent_entries=recent_entries
     )
+    
+@ai_bp.route('/simple', methods=['GET'])
+@login_required
+def simple_ai_conversation():
+    """Simple AI conversation with the most recent entry."""
+    # Get the most recent entry
+    entry = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).first()
+    
+    if not entry:
+        flash("You don't have any journal entries yet.")
+        return redirect(url_for('journal.dashboard'))
+    
+    # Format the date with timezone conversion
+    from time_utils import TimeUtils
+    entry_local_date = TimeUtils.format_datetime(entry.created_at)
+    
+    # Prepare data for the template
+    entry_data = {
+        'id': entry.id,
+        'date': entry_local_date,
+        'entry_type': entry.entry_type,
+        'content': entry.content
+    }
+    
+    # If it's a guided entry, get the responses
+    if entry.entry_type == 'guided':
+        guided_responses = GuidedResponse.query.filter_by(
+            journal_entry_id=entry.id
+        ).all()
+        
+        # Get questions for context
+        all_questions = QuestionManager.get_questions()
+        question_map = {q['id']: q for q in all_questions}
+        
+        # Format responses with questions
+        responses_data = {}
+        for resp in guided_responses:
+            question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+            responses_data[question_text] = resp.response
+            
+            # Extract feeling value for display
+            if resp.question_id == 'feeling_scale':
+                try:
+                    entry_data['feeling_value'] = int(resp.response)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Extract emotions for display
+            if resp.question_id == 'additional_emotions':
+                try:
+                    if resp.response:
+                        try:
+                            entry_data['emotions'] = json.loads(resp.response)
+                        except json.JSONDecodeError:
+                            entry_data['emotions'] = [e.strip() for e in resp.response.split(',') if e.strip()]
+                except Exception:
+                    pass
+        
+        entry_data['guided_responses'] = responses_data
+    
+    # Get emotions categories for badge styling
+    emotions_by_category = get_emotions_by_category()
+    positive_emotions = set(emotions_by_category.get('Positive', []))
+    negative_emotions = set(emotions_by_category.get('Negative', []))
+    
+    return render_template(
+        'ai/conversation.html',
+        entry=entry_data,
+        is_single_entry=True,
+        conversation_type='single',
+        entry_id=entry.id,
+        positive_emotions=positive_emotions,
+        negative_emotions=negative_emotions
+    )
+
+@ai_bp.route('/test/multiple', methods=['GET'])
+@login_required
+def test_multiple_conversation():
+    """Test page for multiple entries AI conversation."""
+    # Get the 5 most recent entries
+    entries = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).limit(5).all()
+    
+    # Format entries for template
+    from time_utils import TimeUtils
+    entries_data = []
+    for entry in entries:
+        entry_data = {
+            'id': entry.id,
+            'date': TimeUtils.format_datetime(entry.created_at),
+            'entry_type': entry.entry_type,
+            'content': entry.content
+        }
+        
+        # For guided entries, get feeling value and emotions
+        if entry.entry_type == 'guided':
+            feeling_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='feeling_scale'
+            ).first()
+            
+            if feeling_response:
+                try:
+                    entry_data['feeling_value'] = int(feeling_response.response)
+                except (ValueError, TypeError):
+                    pass
+            
+            emotions_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='additional_emotions'
+            ).first()
+            
+            if emotions_response and emotions_response.response:
+                try:
+                    entry_data['emotions'] = json.loads(emotions_response.response)
+                except json.JSONDecodeError:
+                    entry_data['emotions'] = [e.strip() for e in emotions_response.response.split(',') if e.strip()]
+                except Exception:
+                    pass
+                    
+        entries_data.append(entry_data)
+    
+    print(f"Test multiple conversation with {len(entries_data)} entries")
+    
+    return render_template(
+        'ai/multiple_conversation.html',
+        entries=entries_data
+    )
+
+@ai_bp.route('/direct', methods=['GET'])
+@login_required
+def direct_ai_conversation():
+    """Extra direct version of the multiple entries conversation."""
+    # Get entries
+    entries = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).limit(3).all()
+    
+    # Format entries
+    from time_utils import TimeUtils
+    entries_data = []
+    for entry in entries:
+        entry_data = {
+            'id': entry.id,
+            'date': TimeUtils.format_datetime(entry.created_at),
+            'entry_type': entry.entry_type,
+            'content': entry.content
+        }
+        entries_data.append(entry_data)
+    
+    print(f"Direct AI conversation with {len(entries_data)} entries")
+    return render_template('ai/direct_conversation.html', entries=entries_data)
+
+@ai_bp.route('/bare', methods=['GET'])
+@login_required
+def bare_minimum_test():
+    """Absolute bare minimum test page for AI conversations."""
+    print("Rendering bare minimum test page")
+    return render_template('ai/bare_minimum.html')
+
+@ai_bp.route('/working', methods=['GET'])
+@login_required
+def working_multiple_conversation():
+    """Working version of multiple entries conversation."""
+    # Get the 10 most recent entries
+    entries = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).limit(10).all()
+    
+    # Format entries for template
+    from time_utils import TimeUtils
+    entries_data = []
+    for entry in entries:
+        entry_data = {
+            'id': entry.id,
+            'date': TimeUtils.format_datetime(entry.created_at),
+            'entry_type': entry.entry_type,
+            'content': entry.content
+        }
+        
+        # For guided entries, get feeling value and emotions
+        if entry.entry_type == 'guided':
+            feeling_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='feeling_scale'
+            ).first()
+            
+            if feeling_response:
+                try:
+                    entry_data['feeling_value'] = int(feeling_response.response)
+                except (ValueError, TypeError):
+                    pass
+            
+            emotions_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='additional_emotions'
+            ).first()
+            
+            if emotions_response and emotions_response.response:
+                try:
+                    entry_data['emotions'] = json.loads(emotions_response.response)
+                except json.JSONDecodeError:
+                    entry_data['emotions'] = [e.strip() for e in emotions_response.response.split(',') if e.strip()]
+                except Exception:
+                    pass
+        
+        entries_data.append(entry_data)
+    
+    print(f"Working multiple conversation with {len(entries_data)} entries")
+    return render_template('ai/working_multiple.html', entries=entries_data)
+
+@ai_bp.route('/conversation/multiple', methods=['GET'])
+@login_required
+def multiple_entries_conversation():
+    """Working multiple entries conversation (default)."""
+    # Get the 10 most recent entries
+    entries = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).limit(10).all()
+    
+    # Format entries
+    from time_utils import TimeUtils
+    entries_data = []
+    for entry in entries:
+        entry_data = {
+            'id': entry.id,
+            'date': TimeUtils.format_datetime(entry.created_at),
+            'entry_type': entry.entry_type,
+            'content': entry.content or ""  # Ensure content is never None
+        }
+        
+        # For guided entries, get feeling value and emotions
+        if entry.entry_type == 'guided':
+            feeling_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='feeling_scale'
+            ).first()
+            
+            if feeling_response:
+                try:
+                    entry_data['feeling_value'] = int(feeling_response.response)
+                except (ValueError, TypeError):
+                    pass
+            
+            emotions_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='additional_emotions'
+            ).first()
+            
+            if emotions_response and emotions_response.response:
+                try:
+                    entry_data['emotions'] = json.loads(emotions_response.response)
+                except json.JSONDecodeError:
+                    entry_data['emotions'] = [e.strip() for e in emotions_response.response.split(',') if e.strip()]
+                except Exception:
+                    pass
+        
+        entries_data.append(entry_data)
+    
+    print(f"Multiple entries conversation with {len(entries_data)} entries")
+    return render_template('ai/basic_multiple.html', entries=entries_data)
+
+@ai_bp.route('/basic', methods=['GET'])
+@login_required
+def basic_multiple_conversation():
+    """Legacy route for basic multiple entries conversation."""
+    # Redirect to the main multiple conversation route
+    return redirect(url_for('ai.multiple_entries_conversation'))
 
 @ai_bp.route('/api/conversation', methods=['POST', 'OPTIONS'])
 @login_required
 def ai_conversation_api():
+    """API endpoint for AI conversations."""
+    
+    # For debugging
+    print("="*50)
+    print(f"AI conversation API called by user: {current_user.username}")
+    print("Request details:")
+    print(f"Method: {request.method}")
+    print(f"Headers: {dict(request.headers)}")
+    print(f"URL: {request.url}")
+    print(f"Raw data: {request.data.decode('utf-8')[:1000] if request.data else 'None'}")
+    
     # Handle OPTIONS requests for CORS
     if request.method == 'OPTIONS':
+        print("Handling OPTIONS request")
         response = current_app.make_default_options_response()
         response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Accept'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Max-Age'] = '3600'
+        print(f"OPTIONS response headers: {dict(response.headers)}")
         return response
         
     # Handle regular POST requests

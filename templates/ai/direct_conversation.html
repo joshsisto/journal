@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}Multiple Entries AI Conversation - Journal App{% endblock %}
+
+{% block styles %}
+<style>
+    /* Chat styles */
+    .chat-container {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .message {
+        margin-bottom: 1rem;
+        max-width: 80%;
+    }
+    
+    .user-message {
+        margin-left: auto;
+        background-color: #d1ecf1;
+        border-radius: 1rem 1rem 0 1rem;
+        padding: 0.75rem;
+    }
+    
+    .ai-message {
+        background-color: #f1f1f1;
+        border-radius: 1rem 1rem 1rem 0;
+        padding: 0.75rem;
+    }
+    
+    /* Entry styles */
+    .entry-card {
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 0.5rem;
+    }
+    
+    .entry-card:hover {
+        transform: translateY(-3px);
+    }
+    
+    .entry-card.selected {
+        border-color: #0d6efd;
+        background-color: #f0f7ff;
+    }
+    
+    /* Debug console */
+    #debug-console {
+        height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.8rem;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem;
+    }
+    
+    .debug-log {
+        margin: 2px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .debug-error {
+        color: red;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>AI Conversation - Multiple Entries</h2>
+                <a href="{{ url_for('journal.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+            <p class="text-muted">Have a conversation with AI about multiple journal entries.</p>
+        </div>
+    </div>
+    
+    <!-- Main content -->
+    <div class="row">
+        <!-- Left panel: Entries -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Journal Entries</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Entries list -->
+                    <div id="entries-list">
+                        {% if entries %}
+                            {% for entry in entries %}
+                            <div class="card entry-card selected" data-entry-id="{{ entry.id }}">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            {% if entry.entry_type == 'guided' %}
+                                                <i class="bi bi-journal-text text-success"></i>
+                                            {% else %}
+                                                <i class="bi bi-pencil-fill text-primary"></i>
+                                            {% endif %}
+                                            <span>{{ entry.date }}</span>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input entry-checkbox" type="checkbox" 
+                                                   value="{{ entry.id }}" id="entry-{{ entry.id }}" checked>
+                                        </div>
+                                    </div>
+                                    {% if entry.content %}
+                                    <div class="mt-1">
+                                        <small class="text-muted">{{ entry.content|truncate(50) }}</small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-center">No entries available</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right panel: Chat -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">AI Conversation</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Chat container -->
+                    <div class="chat-container" id="chat-container">
+                        <div class="ai-message message">
+                            <p class="mb-0">Hello! I'm your AI assistant. I can help you reflect on your journal entries.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Message form -->
+                    <form id="message-form" class="mt-3">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="message-input" 
+                                   placeholder="Type your message here...">
+                            <button class="btn btn-primary" type="submit" id="send-button">
+                                <i class="bi bi-send"></i> Send
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Suggested questions -->
+                    <div class="mt-3">
+                        <p class="mb-2 small text-muted">Suggested questions:</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary question-btn">
+                                What emotions am I expressing?
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary question-btn">
+                                What patterns do you notice?
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary question-btn">
+                                How has my mood changed?
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary question-btn">
+                                What are key themes?
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Debug panel -->
+            <div class="card mt-4">
+                <div class="card-header bg-warning">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Debug Console</h5>
+                        <button class="btn btn-sm btn-secondary" id="clear-debug-btn">Clear</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="debug-console"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// IMPORTANT: Notification to check if script is loading at all
+alert('AI conversation script loaded');
+
+// Debug logging function
+function debug(message, isError = false) {
+    const console = document.getElementById('debug-console');
+    if (!console) return;
+    
+    const timestamp = new Date().toLocaleTimeString();
+    
+    // Create log entry
+    const logDiv = document.createElement('div');
+    logDiv.className = isError ? 'debug-log debug-error' : 'debug-log';
+    logDiv.innerHTML = `[${timestamp}] ${message}`;
+    
+    // Add to console
+    console.appendChild(logDiv);
+    console.scrollTop = console.scrollHeight;
+    
+    // Also log to browser console
+    if (isError) {
+        window.console.error(message);
+    } else {
+        window.console.log(message);
+    }
+}
+
+// Main initialization
+document.addEventListener('DOMContentLoaded', function() {
+    debug('Page loaded - DOM content loaded event fired');
+    
+    try {
+        // Get DOM elements
+        const chatContainer = document.getElementById('chat-container');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const questionButtons = document.querySelectorAll('.question-btn');
+        const entryCheckboxes = document.querySelectorAll('.entry-checkbox');
+        const clearDebugBtn = document.getElementById('clear-debug-btn');
+        
+        // Log element finding results
+        debug(`Found chat container: ${!!chatContainer}`);
+        debug(`Found message form: ${!!messageForm}`);
+        debug(`Found message input: ${!!messageInput}`);
+        debug(`Found send button: ${!!sendButton}`);
+        debug(`Found ${questionButtons.length} question buttons`);
+        debug(`Found ${entryCheckboxes.length} entry checkboxes`);
+        
+        // Function to add a message to the chat
+        function addMessage(text, isUser = false) {
+            debug(`Adding ${isUser ? 'user' : 'AI'} message: ${text.substring(0, 30)}...`);
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = isUser ? 'user-message message' : 'ai-message message';
+            messageDiv.innerHTML = `<p class="mb-0">${text.replace(/\n/g, '<br>')}</p>`;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // Show loading indicator
+        function setLoading(isLoading) {
+            if (isLoading) {
+                debug('Setting loading state: active');
+                sendButton.disabled = true;
+                sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending...';
+            } else {
+                debug('Setting loading state: inactive');
+                sendButton.disabled = false;
+                sendButton.innerHTML = '<i class="bi bi-send"></i> Send';
+            }
+        }
+        
+        // Get selected entries data
+        function getSelectedEntries() {
+            const entries = [];
+            
+            // Direct data access - Build entry objects from template data
+            {% for entry in entries %}
+            if (document.getElementById('entry-{{ entry.id }}')?.checked) {
+                entries.push({
+                    id: {{ entry.id }},
+                    date: "{{ entry.date }}",
+                    entry_type: "{{ entry.entry_type }}",
+                    content: {{ entry.content|tojson }}{% if entry.feeling_value is defined %},
+                    feeling_value: {{ entry.feeling_value }}{% endif %}{% if entry.emotions is defined and entry.emotions %},
+                    emotions: {{ entry.emotions|tojson }}{% endif %}
+                });
+            }
+            {% endfor %}
+            
+            debug(`Selected ${entries.length} entries for conversation`);
+            return entries;
+        }
+        
+        // Send message to AI
+        async function sendToAI(message) {
+            debug(`Sending message to AI: "${message}"`);
+            
+            try {
+                // Get selected entries
+                const entries = getSelectedEntries();
+                
+                // Check if any entries are selected
+                if (entries.length === 0) {
+                    debug('No entries selected!', true);
+                    addMessage('Please select at least one journal entry to continue.', false);
+                    return;
+                }
+                
+                // Set loading state
+                setLoading(true);
+                
+                // Build request data
+                const requestData = {
+                    entries: entries,
+                    question: message
+                };
+                
+                debug('Request data prepared');
+                
+                // Send API request
+                const apiUrl = "{{ url_for('ai.ai_conversation_api', _external=True) }}";
+                debug(`Sending request to: ${apiUrl}`);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(requestData)
+                });
+                
+                debug(`Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+                
+                // Parse response
+                const responseText = await response.text();
+                debug(`Raw response: ${responseText.substring(0, 50)}...`);
+                
+                try {
+                    const data = JSON.parse(responseText);
+                    
+                    if (data.error) {
+                        debug(`API error: ${data.error}`, true);
+                        addMessage(`Error: ${data.error}`, false);
+                    } else {
+                        debug('Received successful response');
+                        addMessage(data.response, false);
+                    }
+                } catch (parseError) {
+                    debug(`Error parsing JSON: ${parseError}`, true);
+                    addMessage('Error: Could not parse response from server', false);
+                }
+            } catch (error) {
+                debug(`Error: ${error.message}`, true);
+                addMessage(`Sorry, I encountered an error: ${error.message}`, false);
+            } finally {
+                setLoading(false);
+            }
+        }
+        
+        // Event handler: Form submission
+        if (messageForm) {
+            messageForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                debug('Message form submitted');
+                
+                const message = messageInput.value.trim();
+                debug(`Message input value: "${message}"`);
+                
+                if (!message) {
+                    debug('Empty message, not sending');
+                    return;
+                }
+                
+                // Add to chat
+                addMessage(message, true);
+                
+                // Clear input
+                messageInput.value = '';
+                
+                // Send to AI
+                sendToAI(message);
+            });
+            
+            debug('Message form submit handler attached');
+        } else {
+            debug('Could not find message form!', true);
+        }
+        
+        // Event handler: Question buttons
+        questionButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const question = this.textContent.trim();
+                debug(`Question button clicked: "${question}"`);
+                
+                // Add to chat
+                addMessage(question, true);
+                
+                // Send to AI
+                sendToAI(question);
+            });
+        });
+        debug('Question button handlers attached');
+        
+        // Event handler: Entry checkboxes
+        entryCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const entryId = this.value;
+                const isChecked = this.checked;
+                const card = this.closest('.entry-card');
+                
+                debug(`Entry ${entryId} ${isChecked ? 'selected' : 'unselected'}`);
+                
+                // Update card styling
+                if (isChecked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        });
+        debug('Entry checkbox handlers attached');
+        
+        // Event handler: Clear debug button
+        if (clearDebugBtn) {
+            clearDebugBtn.addEventListener('click', function() {
+                document.getElementById('debug-console').innerHTML = '';
+                debug('Debug console cleared');
+            });
+        }
+        
+        debug('Initialization complete');
+        
+    } catch (e) {
+        debug(`CRITICAL ERROR DURING INITIALIZATION: ${e.message}`, true);
+        if (e.stack) {
+            debug(`Stack trace: ${e.stack}`, true);
+        }
+    }
+});
+</script>
+{% endblock %}
