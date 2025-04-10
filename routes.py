@@ -25,6 +25,7 @@ auth_bp = Blueprint('auth', __name__)
 journal_bp = Blueprint('journal', __name__)
 tag_bp = Blueprint('tag', __name__)
 export_bp = Blueprint('export', __name__)
+ai_bp = Blueprint('ai', __name__)
 
 # Authentication routes
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -1501,3 +1502,301 @@ def export_entries_as_text(entries, filter_info=None):
     response.headers['Content-Disposition'] = f'attachment; filename={filename}'
     
     return response
+
+
+# AI Conversation Routes
+@ai_bp.route('/conversation/<int:entry_id>', methods=['GET'])
+@login_required
+def single_entry_conversation(entry_id):
+    """AI conversation based on a single journal entry."""
+    # Get the journal entry
+    entry = JournalEntry.query.filter_by(
+        id=entry_id,
+        user_id=current_user.id
+    ).first_or_404()
+    
+    # Format the date with timezone conversion
+    from time_utils import TimeUtils
+    entry_local_date = TimeUtils.format_datetime(entry.created_at)
+    
+    # Prepare data for the template
+    entry_data = {
+        'id': entry.id,
+        'date': entry_local_date,
+        'entry_type': entry.entry_type,
+        'content': entry.content
+    }
+    
+    # If it's a guided entry, get the responses
+    if entry.entry_type == 'guided':
+        guided_responses = GuidedResponse.query.filter_by(
+            journal_entry_id=entry.id
+        ).all()
+        
+        # Get questions for context
+        all_questions = QuestionManager.get_questions()
+        question_map = {q['id']: q for q in all_questions}
+        
+        # Format responses with questions
+        responses_data = {}
+        for resp in guided_responses:
+            question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+            responses_data[question_text] = resp.response
+            
+            # Extract feeling value for display
+            if resp.question_id == 'feeling_scale':
+                try:
+                    entry_data['feeling_value'] = int(resp.response)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Extract emotions for display
+            if resp.question_id == 'additional_emotions':
+                try:
+                    if resp.response:
+                        try:
+                            entry_data['emotions'] = json.loads(resp.response)
+                        except json.JSONDecodeError:
+                            entry_data['emotions'] = [e.strip() for e in resp.response.split(',') if e.strip()]
+                except Exception:
+                    pass
+        
+        entry_data['guided_responses'] = responses_data
+    
+    # Get emotions categories for badge styling
+    emotions_by_category = get_emotions_by_category()
+    positive_emotions = set(emotions_by_category.get('Positive', []))
+    negative_emotions = set(emotions_by_category.get('Negative', []))
+    
+    return render_template(
+        'ai/conversation.html',
+        entry=entry_data,
+        is_single_entry=True,
+        conversation_type='single',
+        entry_id=entry_id,
+        positive_emotions=positive_emotions,
+        negative_emotions=negative_emotions
+    )
+
+
+@ai_bp.route('/conversation/multiple', methods=['GET', 'POST'])
+@login_required
+def multiple_entries_conversation():
+    """AI conversation based on multiple journal entries."""
+    # Get all user tags for filtering
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    
+    # Get filter parameters
+    tag_id = request.args.get('tag')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    entry_type = request.args.get('type')
+    selected_entries = request.args.getlist('entries')
+    
+    # Base query for user's journal entries
+    query = JournalEntry.query.filter_by(user_id=current_user.id)
+    
+    # Apply filters
+    if tag_id:
+        try:
+            tag_id = int(tag_id)
+            selected_tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first()
+            if selected_tag:
+                query = query.filter(JournalEntry.tags.contains(selected_tag))
+        except ValueError:
+            pass
+    else:
+        selected_tag = None
+    
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            query = query.filter(JournalEntry.created_at >= start_date_obj)
+        except ValueError:
+            start_date = None
+    
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            # Add one day to include the end date fully
+            end_date_obj = end_date_obj + timedelta(days=1)
+            query = query.filter(JournalEntry.created_at < end_date_obj)
+        except ValueError:
+            end_date = None
+    
+    if entry_type in ['quick', 'guided']:
+        query = query.filter_by(entry_type=entry_type)
+    
+    # If specific entries are selected
+    if selected_entries:
+        entry_ids = [int(id) for id in selected_entries if id.isdigit()]
+        if entry_ids:
+            query = query.filter(JournalEntry.id.in_(entry_ids))
+    
+    # Order entries by date
+    entries = query.order_by(JournalEntry.created_at.desc()).all()
+    
+    # Format entries with timezone conversion
+    from time_utils import TimeUtils
+    entries_data = []
+    for entry in entries:
+        entry_data = {
+            'id': entry.id,
+            'date': TimeUtils.format_datetime(entry.created_at),
+            'entry_type': entry.entry_type,
+            'content': entry.content,
+            'tags': [{'id': tag.id, 'name': tag.name, 'color': tag.color} for tag in entry.tags]
+        }
+        
+        # If it's a guided entry, get the feeling value and emotions
+        if entry.entry_type == 'guided':
+            feeling_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='feeling_scale'
+            ).first()
+            
+            if feeling_response:
+                try:
+                    entry_data['feeling_value'] = int(feeling_response.response)
+                except (ValueError, TypeError):
+                    pass
+            
+            emotions_response = GuidedResponse.query.filter_by(
+                journal_entry_id=entry.id,
+                question_id='additional_emotions'
+            ).first()
+            
+            if emotions_response and emotions_response.response:
+                try:
+                    entry_data['emotions'] = json.loads(emotions_response.response)
+                except json.JSONDecodeError:
+                    entry_data['emotions'] = [e.strip() for e in emotions_response.response.split(',') if e.strip()]
+                except Exception:
+                    pass
+        
+        entries_data.append(entry_data)
+    
+    # Get emotions categories for badge styling
+    emotions_by_category = get_emotions_by_category()
+    positive_emotions = set(emotions_by_category.get('Positive', []))
+    negative_emotions = set(emotions_by_category.get('Negative', []))
+    
+    return render_template(
+        'ai/conversation.html',
+        entries=entries_data,
+        is_single_entry=False,
+        conversation_type='multiple',
+        tags=tags,
+        selected_tag=selected_tag,
+        start_date=start_date,
+        end_date=end_date,
+        entry_type=entry_type,
+        selected_entries=selected_entries,
+        positive_emotions=positive_emotions,
+        negative_emotions=negative_emotions
+    )
+
+
+@ai_bp.route('/test/conversation', methods=['GET'])
+@login_required
+def test_conversation():
+    """Test page for AI conversation functionality."""
+    # Get some recent entries for the select dropdown
+    recent_entries = JournalEntry.query.filter_by(
+        user_id=current_user.id
+    ).order_by(JournalEntry.created_at.desc()).limit(10).all()
+    
+    return render_template(
+        'ai/test_conversation.html',
+        recent_entries=recent_entries
+    )
+
+@ai_bp.route('/api/conversation', methods=['POST', 'OPTIONS'])
+@login_required
+def ai_conversation_api():
+    # Handle OPTIONS requests for CORS
+    if request.method == 'OPTIONS':
+        response = current_app.make_default_options_response()
+        response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Accept'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response
+        
+    # Handle regular POST requests
+    """API endpoint for AI conversations."""
+    print("="*50)
+    print(f"AI conversation API called by user: {current_user.username}")
+    print("="*50)
+    
+    # Log request details
+    print(f"Request method: {request.method}")
+    print(f"Request headers: {dict(request.headers)}")
+    print(f"Request endpoint: {request.endpoint}")
+    print(f"Request data: {request.data.decode('utf-8')[:500] if request.data else 'empty'}")
+    
+    # Check if request has JSON
+    if not request.is_json:
+        print(f"Request is not JSON. Content-Type: {request.headers.get('Content-Type')}")
+        # Try to parse JSON even if content type is not set correctly
+        try:
+            data = request.get_json(force=True)
+            print(f"Forced JSON parsing successful: {type(data)}")
+        except Exception as json_error:
+            print(f"Error forcing JSON parse: {json_error}")
+            return jsonify({'error': 'Request must be JSON'}), 400
+    else:
+        # Get the JSON data
+        try:
+            data = request.get_json()
+            print(f"JSON parsing successful: {type(data)}")
+        except Exception as json_error:
+            print(f"Error parsing JSON: {json_error}")
+            return jsonify({'error': f'Invalid JSON: {str(json_error)}'}), 400
+    
+    if not data:
+        print(f"No JSON data in request")
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Extract data
+    entries_data = data.get('entries', [])
+    question = data.get('question', '')
+    
+    print(f"Entries count: {len(entries_data)}")
+    print(f"Question: '{question}'")
+    
+    if not entries_data:
+        return jsonify({'error': 'No journal entries provided'}), 400
+    
+    if not question:
+        return jsonify({'error': 'No question provided'}), 400
+    
+    try:
+        # Import AI utils
+        from ai_utils import get_ai_response
+        
+        print(f"Calling AI response function")
+        # Get AI response (now synchronous)
+        response = get_ai_response(entries_data, question)
+        print(f"AI response received, length: {len(response) if response else 0}")
+        
+        # Create response and log it
+        result = {'response': response}
+        print(f"Returning result with response beginning: {response[:100] if response else 'None'}")
+        print("="*50)
+        
+        # Explicitly create a JSON response with appropriate CORS headers
+        resp = jsonify(result)
+        resp.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        print(f"JSON response created, status: 200, Content-Type: {resp.headers.get('Content-Type')}")
+        return resp
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        trace = traceback.format_exc()
+        current_app.logger.error(f"AI conversation error: {error_msg}\n{trace}")
+        print(f"AI conversation error: {error_msg}\n{trace}")
+        print("="*50)
+        return jsonify({'error': f"Error: {error_msg}"}), 500

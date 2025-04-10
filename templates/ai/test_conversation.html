@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block title %}Test AI Conversation - Journal App{% endblock %}
+
+{% block styles %}
+<style>
+    #debugOutput {
+        border: 1px solid #ccc;
+        background-color: #f8f9fa;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.8rem;
+    }
+    
+    .status-success {
+        color: green;
+        font-weight: bold;
+    }
+    
+    .status-error {
+        color: red;
+        font-weight: bold;
+    }
+    
+    .log-entry {
+        border-bottom: 1px solid #eee;
+        padding: 3px 0;
+    }
+    
+    .response-display {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 15px;
+        margin-top: 15px;
+        background-color: #f1f1f1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>AI Conversation Test</h2>
+                <div>
+                    <a href="{{ url_for('journal.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Test Panel</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="testMessage" class="form-label">Test Message</label>
+                        <input type="text" class="form-control" id="testMessage" 
+                               value="What patterns do you notice in my entries?">
+                    </div>
+                    <div class="mb-3">
+                        <label for="entrySelect" class="form-label">Select Journal Entry</label>
+                        <select class="form-select" id="entrySelect">
+                            <option value="">Loading entries...</option>
+                        </select>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button id="runTest" class="btn btn-primary">
+                            <i class="bi bi-play-fill"></i> Run Test
+                        </button>
+                        <button id="clearLog" class="btn btn-secondary">
+                            <i class="bi bi-trash"></i> Clear Log
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Debug Output</h5>
+                </div>
+                <div class="card-body">
+                    <div id="debugOutput"></div>
+                    
+                    <div class="response-display d-none" id="responseDisplay">
+                        <h5>AI Response:</h5>
+                        <div id="responseContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const debugOutput = document.getElementById('debugOutput');
+    const testMessage = document.getElementById('testMessage');
+    const entrySelect = document.getElementById('entrySelect');
+    const runTestBtn = document.getElementById('runTest');
+    const clearLogBtn = document.getElementById('clearLog');
+    const responseDisplay = document.getElementById('responseDisplay');
+    const responseContent = document.getElementById('responseContent');
+    
+    // Log function
+    function log(message, type = 'info') {
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry';
+        
+        const timestamp = new Date().toLocaleTimeString();
+        
+        if (type === 'success') {
+            logEntry.innerHTML = `<span class="status-success">[${timestamp}] ✓ ${message}</span>`;
+        } else if (type === 'error') {
+            logEntry.innerHTML = `<span class="status-error">[${timestamp}] ✗ ${message}</span>`;
+        } else {
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+        }
+        
+        debugOutput.appendChild(logEntry);
+        debugOutput.scrollTop = debugOutput.scrollHeight;
+    }
+    
+    // Load journal entries
+    async function loadEntries() {
+        try {
+            log('Loading recent journal entries...');
+            
+            const response = await fetch('{{ url_for('journal.dashboard') }}');
+            const html = await response.text();
+            
+            // Use DOM parser to extract entries from the dashboard HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const entryElements = doc.querySelectorAll('.journal-entry-card');
+            
+            // Clear existing options
+            entrySelect.innerHTML = '';
+            
+            if (entryElements.length === 0) {
+                entrySelect.innerHTML = '<option value="">No entries found</option>';
+                log('No journal entries found', 'error');
+                return;
+            }
+            
+            // Add each entry to the select
+            entryElements.forEach(entry => {
+                const entryId = entry.getAttribute('data-entry-id');
+                const entryDate = entry.querySelector('.entry-date')?.textContent || 'Unknown date';
+                const entryType = entry.getAttribute('data-entry-type') || 'unknown';
+                
+                if (entryId) {
+                    const option = document.createElement('option');
+                    option.value = entryId;
+                    option.textContent = `${entryDate} (${entryType})`;
+                    entrySelect.appendChild(option);
+                }
+            });
+            
+            log(`Loaded ${entryElements.length} journal entries`, 'success');
+        } catch (error) {
+            log(`Error loading entries: ${error.message}`, 'error');
+            entrySelect.innerHTML = '<option value="">Error loading entries</option>';
+        }
+    }
+    
+    // Get entry data directly (as fallback)
+    async function getEntryData(entryId) {
+        try {
+            log(`Getting data for entry ID: ${entryId}`);
+            
+            const response = await fetch(`{{ url_for('journal.view_entry', entry_id='ENTRY_ID') }}`.replace('ENTRY_ID', entryId));
+            const html = await response.text();
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Extract basic entry information
+            const entryDate = doc.querySelector('.card-header strong')?.textContent || 'Unknown date';
+            const entryType = doc.querySelector('h2')?.textContent.includes('Guided') ? 'guided' : 'quick';
+            
+            // Get content based on entry type
+            let content = '';
+            if (entryType === 'quick') {
+                content = doc.querySelector('.entry-content')?.textContent || '';
+            }
+            
+            // Build entry data object
+            const entryData = {
+                id: entryId,
+                date: entryDate,
+                entry_type: entryType,
+                content: content
+            };
+            
+            // If guided entry, add responses
+            if (entryType === 'guided') {
+                const guidedResponses = {};
+                const responseElements = doc.querySelectorAll('.guided-responses .mb-3');
+                
+                responseElements.forEach(elem => {
+                    const question = elem.querySelector('h5')?.textContent || '';
+                    const responseText = elem.querySelector('p')?.textContent || '';
+                    
+                    if (question && responseText) {
+                        guidedResponses[question] = responseText;
+                    }
+                });
+                
+                entryData.guided_responses = guidedResponses;
+            }
+            
+            log(`Entry data prepared for ID: ${entryId}`, 'success');
+            return entryData;
+        } catch (error) {
+            log(`Error getting entry data: ${error.message}`, 'error');
+            return null;
+        }
+    }
+    
+    // Test the AI conversation API
+    async function testAIConversation() {
+        try {
+            const entryId = entrySelect.value;
+            const message = testMessage.value.trim();
+            
+            if (!entryId) {
+                log('Please select a journal entry', 'error');
+                return;
+            }
+            
+            if (!message) {
+                log('Please enter a test message', 'error');
+                return;
+            }
+            
+            log(`Starting AI conversation test with entry ID: ${entryId}`);
+            log(`Test message: "${message}"`);
+            
+            // Get entry data
+            const entryData = await getEntryData(entryId);
+            if (!entryData) {
+                log('Failed to get entry data', 'error');
+                return;
+            }
+            
+            log('Preparing API request...');
+            
+            // Create request body
+            const requestBody = {
+                entries: [entryData],
+                question: message
+            };
+            
+            log(`Request payload: ${JSON.stringify(requestBody).substring(0, 200)}...`);
+            
+            // Make API call
+            log('Sending request to AI conversation API...');
+            const apiUrl = "{{ url_for('ai.ai_conversation_api', _external=True) }}";
+            log(`API URL: ${apiUrl}`);
+            
+            const apiStartTime = performance.now();
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify(requestBody)
+            });
+            
+            const apiEndTime = performance.now();
+            const apiDuration = Math.round(apiEndTime - apiStartTime);
+            
+            log(`API response received in ${apiDuration}ms`);
+            log(`Response status: ${response.status} ${response.statusText}`);
+            
+            // Check response headers
+            const headers = {};
+            response.headers.forEach((value, key) => {
+                headers[key] = value;
+            });
+            log(`Response headers: ${JSON.stringify(headers)}`);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                log(`Error response: ${errorText}`, 'error');
+                throw new Error(`Server returned ${response.status}: ${errorText}`);
+            }
+            
+            // Parse response
+            log('Parsing response...');
+            const data = await response.json();
+            
+            if (data.error) {
+                log(`API returned error: ${data.error}`, 'error');
+            } else {
+                log('AI conversation test completed successfully', 'success');
+                
+                // Show response
+                responseDisplay.classList.remove('d-none');
+                responseContent.textContent = data.response;
+            }
+        } catch (error) {
+            log(`Error in AI conversation test: ${error.message}`, 'error');
+            log(`Error stack: ${error.stack}`);
+        }
+    }
+    
+    // Event listeners
+    runTestBtn.addEventListener('click', testAIConversation);
+    
+    clearLogBtn.addEventListener('click', function() {
+        debugOutput.innerHTML = '';
+        responseDisplay.classList.add('d-none');
+        responseContent.textContent = '';
+    });
+    
+    // Manually add some entries if automatic loading fails
+    function addManualEntries() {
+        entrySelect.innerHTML = '';
+        
+        // Add recent entries from your application
+        // You can customize this list based on your actual entries
+        const recentEntries = [
+            {% for entry in recent_entries %}
+            { id: {{ entry.id }}, date: "{{ entry.created_at|format_datetime('%Y-%m-%d %H:%M') }}", type: "{{ entry.entry_type }}" },
+            {% endfor %}
+        ];
+        
+        if (recentEntries.length === 0) {
+            // Fallback entries if no recent_entries context variable
+            [
+                { id: 1, date: "Recent entry 1", type: "quick" },
+                { id: 2, date: "Recent entry 2", type: "guided" },
+                { id: 3, date: "Recent entry 3", type: "quick" }
+            ].forEach(entry => {
+                const option = document.createElement('option');
+                option.value = entry.id;
+                option.textContent = `${entry.date} (${entry.type})`;
+                entrySelect.appendChild(option);
+            });
+        } else {
+            recentEntries.forEach(entry => {
+                const option = document.createElement('option');
+                option.value = entry.id;
+                option.textContent = `${entry.date} (${entry.type})`;
+                entrySelect.appendChild(option);
+            });
+        }
+    }
+    
+    // Initialize
+    log('Test page loaded');
+    loadEntries().catch(error => {
+        log(`Failed to load entries automatically: ${error.message}`, 'error');
+        log('Adding manual entry options as fallback');
+        addManualEntries();
+    });
+});
+</script>
+{% endblock %}

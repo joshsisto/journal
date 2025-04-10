@@ -4,6 +4,7 @@ from flask_mail import Mail
 from config import Config
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog
 from time_utils import register_template_utils
+import logging
 import os
 import jinja2
 import markupsafe
@@ -29,6 +30,12 @@ def create_app(config_class=Config):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
     
+    # Set up basic logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
     # Ensure the instance folder exists
     try:
         os.makedirs(app.instance_path)
@@ -51,11 +58,12 @@ def create_app(config_class=Config):
     register_template_utils(app)    
     
     # Register blueprints
-    from routes import auth_bp, journal_bp, tag_bp, export_bp
+    from routes import auth_bp, journal_bp, tag_bp, export_bp, ai_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(journal_bp)
     app.register_blueprint(tag_bp, url_prefix='/tags')
     app.register_blueprint(export_bp, url_prefix='/export')
+    app.register_blueprint(ai_bp, url_prefix='/ai')
     
     # Add custom Jinja2 filters
     @app.template_filter('nl2br')
