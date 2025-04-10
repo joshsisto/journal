@@ -30,6 +30,8 @@ def create_app(config_class=Config):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
     
+    # Server name configuration has been removed
+    
     # Set up basic logging
     logging.basicConfig(
         level=logging.DEBUG,
