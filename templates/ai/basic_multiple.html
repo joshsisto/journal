@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}Basic Multiple Entry AI Conversation{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1>Multiple Entry AI Conversation</h1>
+            <p class="lead">Discuss multiple journal entries with the AI assistant.</p>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <!-- Entry selection panel -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">Journal Entries</h2>
+                </div>
+                <div class="card-body">
+                    <div id="entryList">
+                        {% if entries %}
+                            {% for entry in entries %}
+                            <div class="form-check mb-3 p-2 border rounded" style="background-color: #f8f9fa;">
+                                <input class="form-check-input" type="checkbox" id="entry-{{ entry.id }}" value="{{ entry.id }}" checked>
+                                <label class="form-check-label" for="entry-{{ entry.id }}">
+                                    <div>
+                                        <strong>{{ entry.date }}</strong>
+                                        <span class="badge {% if entry.entry_type == 'guided' %}bg-success{% else %}bg-primary{% endif %}">
+                                            {{ entry.entry_type }}
+                                        </span>
+                                    </div>
+                                    <div class="small text-muted">
+                                        {{ entry.content|default('No content')|truncate(50) }}
+                                    </div>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p>No entries found.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Conversation panel -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">AI Conversation</h2>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="messageInput" class="form-label">Your message:</label>
+                        <input type="text" class="form-control" id="messageInput" 
+                               value="What patterns do you notice in these entries?">
+                    </div>
+                    <div class="d-grid">
+                        <button id="sendButton" class="btn btn-primary">Send Message</button>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h3 class="h6">Suggested Questions:</h3>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-sm btn-outline-secondary suggested-btn">What emotions am I expressing?</button>
+                            <button class="btn btn-sm btn-outline-secondary suggested-btn">What patterns do you notice?</button>
+                            <button class="btn btn-sm btn-outline-secondary suggested-btn">How has my mood changed?</button>
+                            <button class="btn btn-sm btn-outline-secondary suggested-btn">What are key themes?</button>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div id="resultArea" class="p-3 border rounded bg-light">
+                        <div class="mb-3 p-3 rounded" style="background-color: #d1ecf1;">
+                            <strong>AI:</strong> Hello! I'm your AI assistant. I can help you reflect on your journal entries. Select some entries and ask me a question.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="h5 mb-0">Debug Information</h2>
+                        <button id="clearDebugBtn" class="btn btn-sm btn-secondary">Clear</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="debugArea" class="p-3 bg-dark text-light" 
+                         style="min-height: 150px; max-height: 300px; font-family: monospace; overflow-y: auto;">
+                        Debug information will appear here...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// This is an inline script - DO NOT use any external dependencies or modules
+
+// Alert to confirm script is loading
+// Alert disabled in production
+// alert('Multiple entry conversation script loaded');
+
+// Log to both debug area and console
+function log(message, isError = false) {
+    var debugArea = document.getElementById('debugArea');
+    if (!debugArea) return;
+    
+    var timestamp = new Date().toLocaleTimeString();
+    var entry = document.createElement('div');
+    entry.style.borderBottom = '1px solid #444';
+    entry.style.padding = '2px 0';
+    
+    if (isError) {
+        entry.style.color = '#ff6b6b';
+        entry.textContent = `[${timestamp}] ERROR: ${message}`;
+        console.error(message);
+    } else {
+        entry.textContent = `[${timestamp}] ${message}`;
+        console.log(message);
+    }
+    
+    debugArea.appendChild(entry);
+    debugArea.scrollTop = debugArea.scrollHeight;
+}
+
+// Get selected entry data
+function getSelectedEntries() {
+    var entries = [];
+    var checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+    
+    // Static entry data from template
+    {% for entry in entries %}
+    if (document.getElementById('entry-{{ entry.id }}') && document.getElementById('entry-{{ entry.id }}').checked) {
+        entries.push({
+            id: {{ entry.id }},
+            date: '{{ entry.date }}',
+            entry_type: '{{ entry.entry_type }}',
+            content: {{ entry.content|tojson }}
+        });
+    }
+    {% endfor %}
+    
+    log(`Selected ${entries.length} entries: ${entries.map(e => e.id).join(', ')}`);
+    return entries;
+}
+
+// Add a message to the result area
+function addMessage(text, isUser = false) {
+    var resultArea = document.getElementById('resultArea');
+    var messageDiv = document.createElement('div');
+    messageDiv.className = 'mb-3 p-3 rounded';
+    messageDiv.style.backgroundColor = isUser ? '#e2f3f5' : '#d1ecf1';
+    messageDiv.innerHTML = `<strong>${isUser ? 'You' : 'AI'}:</strong> ${text}`;
+    resultArea.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    resultArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+// Send message to AI
+function sendMessage(message) {
+    log(`Sending message: "${message}"`);
+    
+    // Show user message
+    addMessage(message, true);
+    
+    // Get selected entries
+    var entries = getSelectedEntries();
+    if (entries.length === 0) {
+        log('No entries selected', true);
+        addMessage('Please select at least one journal entry to continue.', false);
+        return;
+    }
+    
+    // Prepare request data
+    var requestData = {
+        entries: entries,
+        question: message
+    };
+    
+    log(`Request data prepared: ${JSON.stringify(requestData).substring(0, 100)}...`);
+    
+    // Disable send button and show loading
+    var sendButton = document.getElementById('sendButton');
+    var originalButtonText = sendButton.textContent;
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending...';
+    
+    // Create XHR request
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', "{{ url_for('ai.ai_conversation_api', _external=True) }}", true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    
+    // Handle response
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            log(`Response received. Status: ${xhr.status}`);
+            
+            // Reset button
+            sendButton.disabled = false;
+            sendButton.textContent = originalButtonText;
+            
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    var responseData = JSON.parse(xhr.responseText);
+                    log(`Response successfully parsed: ${JSON.stringify(responseData).substring(0, 50)}...`);
+                    
+                    if (responseData.error) {
+                        log(`Error from API: ${responseData.error}`, true);
+                        addMessage(`Error: ${responseData.error}`, false);
+                    } else {
+                        log('Valid response received');
+                        addMessage(responseData.response, false);
+                    }
+                } catch (e) {
+                    log(`Error parsing response: ${e.message}`, true);
+                    log(`Raw response: ${xhr.responseText.substring(0, 100)}...`, true);
+                    addMessage('Error parsing server response. Check the debug area for details.', false);
+                }
+            } else {
+                log(`HTTP error: ${xhr.status} ${xhr.statusText}`, true);
+                addMessage(`Server returned an error: ${xhr.status} ${xhr.statusText}`, false);
+            }
+        }
+    };
+    
+    // Handle network errors
+    xhr.onerror = function() {
+        log('Network error occurred', true);
+        addMessage('Network error. Please check your connection and try again.', false);
+        
+        // Reset button
+        sendButton.disabled = false;
+        sendButton.textContent = originalButtonText;
+    };
+    
+    // Send the request
+    log('Sending XHR request...');
+    xhr.send(JSON.stringify(requestData));
+}
+
+// Add event listeners when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    log('DOM fully loaded. Setting up event handlers...');
+    
+    // Send button
+    var sendButton = document.getElementById('sendButton');
+    if (sendButton) {
+        sendButton.addEventListener('click', function() {
+            log('Send button clicked');
+            var messageInput = document.getElementById('messageInput');
+            var message = messageInput.value.trim();
+            
+            if (message) {
+                sendMessage(message);
+            } else {
+                log('Empty message, not sending', true);
+            }
+        });
+        log('Send button handler attached');
+    } else {
+        log('Send button not found', true);
+    }
+    
+    // Suggested question buttons
+    var suggestedButtons = document.querySelectorAll('.suggested-btn');
+    suggestedButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            var question = this.textContent.trim();
+            log(`Suggested question clicked: "${question}"`);
+            sendMessage(question);
+        });
+    });
+    log(`${suggestedButtons.length} suggested button handlers attached`);
+    
+    // Clear debug button
+    var clearDebugBtn = document.getElementById('clearDebugBtn');
+    if (clearDebugBtn) {
+        clearDebugBtn.addEventListener('click', function() {
+            var debugArea = document.getElementById('debugArea');
+            debugArea.innerHTML = '';
+            log('Debug area cleared');
+        });
+        log('Clear debug button handler attached');
+    }
+    
+    // Track checkbox changes
+    var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            log(`Entry ${this.value} ${this.checked ? 'selected' : 'unselected'}`);
+        });
+    });
+    log(`${checkboxes.length} checkbox handlers attached`);
+    
+    log('Initialization complete');
+});
+</script>
+{% endblock %}

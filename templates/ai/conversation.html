@@ -359,6 +359,8 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOMContentLoaded event fired");
+    
     // Elements
     const chatContainer = document.getElementById('chatContainer');
     const messageForm = document.getElementById('messageForm');
@@ -366,22 +368,40 @@ document.addEventListener('DOMContentLoaded', function() {
     const thinkingIndicator = document.getElementById('thinkingIndicator');
     const suggestedQuestions = document.querySelectorAll('.suggested-question');
     
+    console.log(`Page elements: 
+        - Chat container: ${chatContainer ? 'Found' : 'Not found'}
+        - Message form: ${messageForm ? 'Found' : 'Not found'}
+        - User message input: ${userMessageInput ? 'Found' : 'Not found'}
+        - Thinking indicator: ${thinkingIndicator ? 'Found' : 'Not found'}
+        - Suggested questions: ${suggestedQuestions.length} found`
+    );
+    
     // Toggle entry details (for multiple entries view)
-    document.querySelectorAll('.toggle-details').forEach(button => {
-        button.addEventListener('click', function() {
-            const entryItem = this.closest('.entry-summary');
-            const detailsSection = entryItem.querySelector('.entry-details');
-            const icon = this.querySelector('i');
+    function setupEntryToggles() {
+        document.querySelectorAll('.toggle-details').forEach(button => {
+            // Remove any existing event listeners to prevent duplicates
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
             
-            if (detailsSection.style.display === 'block') {
-                detailsSection.style.display = 'none';
-                icon.classList.replace('bi-chevron-up', 'bi-chevron-down');
-            } else {
-                detailsSection.style.display = 'block';
-                icon.classList.replace('bi-chevron-down', 'bi-chevron-up');
-            }
+            newButton.addEventListener('click', function() {
+                console.log("Toggle details clicked");
+                const entryItem = this.closest('.entry-summary');
+                const detailsSection = entryItem.querySelector('.entry-details');
+                const icon = this.querySelector('i');
+                
+                if (detailsSection.style.display === 'block') {
+                    detailsSection.style.display = 'none';
+                    icon.classList.replace('bi-chevron-up', 'bi-chevron-down');
+                } else {
+                    detailsSection.style.display = 'block';
+                    icon.classList.replace('bi-chevron-down', 'bi-chevron-up');
+                }
+            });
         });
-    });
+        console.log("Entry toggles initialized");
+    }
+    
+    setupEntryToggles();
     
     // Clear filters button
     const clearFiltersBtn = document.getElementById('clearFilters');
@@ -446,25 +466,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }];
             {% else %}
             // Multiple entries mode
-            return [
-                {% for entry in entries %}
-                {
-                    id: {{ entry.id }},
-                    date: "{{ entry.date }}",
-                    entry_type: "{{ entry.entry_type }}",
-                    content: {{ entry.content|default('')|tojson }},
-                    {% if entry.feeling_value is defined %}
-                    feeling_value: {{ entry.feeling_value }},
-                    {% endif %}
-                    {% if entry.emotions is defined and entry.emotions %}
-                    emotions: {{ entry.emotions|tojson }},
-                    {% endif %}
-                    {% if entry.tags %}
-                    tags: [{% for tag in entry.tags %}{{ tag.name|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}]
-                    {% endif %}
-                }{% if not loop.last %},{% endif %}
-                {% endfor %}
-            ];
+            try {
+                const entriesData = [
+                    {% for entry in entries %}
+                    {
+                        id: {{ entry.id }},
+                        date: "{{ entry.date }}",
+                        entry_type: "{{ entry.entry_type }}",
+                        content: {{ entry.content|default('')|tojson }},
+                        {% if entry.feeling_value is defined %}
+                        feeling_value: {{ entry.feeling_value }},
+                        {% endif %}
+                        {% if entry.emotions is defined and entry.emotions %}
+                        emotions: {{ entry.emotions|tojson }},
+                        {% endif %}
+                        {% if entry.tags %}
+                        tags: [{% for tag in entry.tags %}{{ tag.name|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}]
+                        {% endif %}
+                    }{% if not loop.last %},{% endif %}
+                    {% endfor %}
+                ];
+                
+                console.log(`Prepared ${entriesData.length} entries for API request`);
+                return entriesData;
+            } catch (prepError) {
+                console.error("Error preparing multiple entries:", prepError);
+                return [{error: "Failed to prepare multiple entries: " + prepError.message}];
+            }
             {% endif %}
         } catch (error) {
             console.error("Error preparing entry data:", error);
@@ -545,6 +573,9 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 addMessage(data.response, false);
             }
+            
+            // Scroll chat to bottom to ensure response is visible
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (error) {
             console.error("Error in sendMessageToAI:", error);
             addMessage(`Sorry, there was an error: ${error.message}. Please try again later.`, false);
@@ -554,47 +585,83 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Handle message form submission
-    messageForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const message = userMessageInput.value.trim();
-        if (!message) return;
-        
-        // Add user message to chat
-        addMessage(message, true);
-        
-        // Clear input
-        userMessageInput.value = '';
-        
-        // Send to AI with error handling
-        try {
-            console.log("Submitting message:", message);
-            sendMessageToAI(message);
-        } catch (error) {
-            console.error("Error in message submission:", error);
-            addMessage("Failed to send message: " + error.message, false);
+    function setupMessageForm() {
+        if (!messageForm) {
+            console.error("Message form not found!");
+            return;
         }
-    });
-    
-    // Handle suggested questions
-    suggestedQuestions.forEach(button => {
-        button.addEventListener('click', function() {
-            const question = this.textContent;
-            console.log("Suggested question clicked:", question);
+        
+        // Remove existing event listeners to prevent duplicates
+        const newForm = messageForm.cloneNode(true);
+        messageForm.parentNode.replaceChild(newForm, messageForm);
+        
+        // Get reference to the new form
+        const updatedForm = document.getElementById('messageForm');
+        const updatedInput = document.getElementById('userMessage');
+        
+        updatedForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log("Form submitted");
+            
+            const message = updatedInput.value.trim();
+            if (!message) {
+                console.log("Empty message, not submitting");
+                return;
+            }
             
             // Add user message to chat
-            addMessage(question, true);
+            addMessage(message, true);
+            
+            // Clear input
+            updatedInput.value = '';
             
             // Send to AI with error handling
             try {
-                console.log("Sending suggested question to AI");
-                sendMessageToAI(question);
+                console.log("Submitting message:", message);
+                sendMessageToAI(message);
             } catch (error) {
-                console.error("Error sending suggested question:", error);
-                addMessage("Failed to send question: " + error.message, false);
+                console.error("Error in message submission:", error);
+                addMessage("Failed to send message: " + error.message, false);
             }
         });
-    });
+        
+        console.log("Message form event handler attached");
+    }
+    
+    setupMessageForm();
+    
+    // Handle suggested questions
+    function setupSuggestedQuestions() {
+        // Remove existing event listeners to prevent duplicates
+        suggestedQuestions.forEach(button => {
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+        
+        // Re-query to get the new buttons
+        document.querySelectorAll('.suggested-question').forEach(button => {
+            button.addEventListener('click', function() {
+                const question = this.textContent;
+                console.log("Suggested question clicked:", question);
+                
+                // Add user message to chat
+                addMessage(question, true);
+                
+                // Send to AI with error handling
+                try {
+                    console.log("Sending suggested question to AI");
+                    sendMessageToAI(question);
+                } catch (error) {
+                    console.error("Error sending suggested question:", error);
+                    addMessage("Failed to send question: " + error.message, false);
+                }
+            });
+        });
+        
+        console.log("Suggested questions initialized");
+    }
+    
+    setupSuggestedQuestions();
     
     // Add debug output to page (only visible during development)
     function showDebugInfo() {
@@ -602,7 +669,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!document.getElementById('aiDebugInfo')) {
             const debugSection = document.createElement('div');
             debugSection.id = 'aiDebugInfo';
-            debugSection.classList.add('card', 'mt-4');
+            debugSection.classList.add('card', 'mt-4', 'col-12');
             debugSection.innerHTML = `
                 <div class="card-header bg-warning">
                     <h5 class="mb-0">Debug Information</h5>
@@ -613,7 +680,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
             
-            document.querySelector('.row').appendChild(debugSection);
+            // Find appropriate container based on page type
+            const lastRow = document.querySelector('.row:last-child');
+            if (lastRow) {
+                lastRow.appendChild(debugSection);
+            } else {
+                // Fallback - create a new row
+                const newRow = document.createElement('div');
+                newRow.className = 'row mt-4';
+                newRow.appendChild(debugSection);
+                document.querySelector('.container').appendChild(newRow);
+            }
             
             // Add clear button functionality
             document.getElementById('clearDebug').addEventListener('click', function() {
@@ -638,11 +715,56 @@ document.addEventListener('DOMContentLoaded', function() {
                 debugOutput.scrollTop = debugOutput.scrollHeight;
                 originalError.apply(console, arguments);
             };
+            
+            console.log("Debug console initialized");
         }
     }
     
-    // Show debug info in development
-    showDebugInfo();
+    // Initialize everything in the right order
+    function initializePage() {
+        console.log("Initializing AI conversation page...");
+        
+        // First set up the debug console so we can see logs
+        showDebugInfo();
+        
+        console.log("Is single entry mode: {{ 'Yes' if is_single_entry else 'No' }}");
+        console.log("Conversation type: {{ conversation_type }}");
+        
+        // Then set up UI interaction handlers
+        setupEntryToggles();
+        setupMessageForm();
+        setupSuggestedQuestions();
+        
+        // Finally, initialize the filter elements for multiple entry mode
+        if ("{{ conversation_type }}" === "multiple") {
+            // Set up the clear filters button
+            const clearFiltersBtn = document.getElementById('clearFilters');
+            if (clearFiltersBtn) {
+                clearFiltersBtn.addEventListener('click', function() {
+                    console.log("Clear filters clicked");
+                    const form = document.getElementById('filterForm');
+                    if (form) {
+                        const elements = form.elements;
+                        
+                        for (let i = 0; i < elements.length; i++) {
+                            const element = elements[i];
+                            if (element.type === 'text' || element.type === 'date' || element.tagName === 'SELECT') {
+                                element.value = '';
+                            }
+                        }
+                        
+                        form.submit();
+                    }
+                });
+                console.log("Clear filters button initialized");
+            }
+        }
+        
+        console.log("Page initialization complete");
+    }
+    
+    // Run initialization
+    initializePage();
 });
 </script>
 {% endblock %}

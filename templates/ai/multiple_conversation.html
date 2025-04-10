@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+
+{% block title %}Multiple Entries AI Conversation - Journal App{% endblock %}
+
+{% block styles %}
+<style>
+    /* Chat container styles */
+    .chat-container {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    /* Message styles */
+    .message {
+        margin-bottom: 1rem;
+        max-width: 80%;
+    }
+    
+    .user-message {
+        margin-left: auto;
+        background-color: #d1ecf1;
+        border-radius: 1rem 1rem 0 1rem;
+        padding: 0.75rem;
+    }
+    
+    .ai-message {
+        background-color: #f1f1f1;
+        border-radius: 1rem 1rem 1rem 0;
+        padding: 0.75rem;
+    }
+    
+    /* Entry listing styles */
+    .entry-card {
+        transition: transform 0.2s;
+        cursor: pointer;
+        margin-bottom: 0.5rem;
+    }
+    
+    .entry-card:hover {
+        transform: translateY(-3px);
+    }
+    
+    .entry-card.selected {
+        border-color: #0d6efd;
+        background-color: #f0f7ff;
+    }
+    
+    /* Thinking indicator animation */
+    .thinking-indicator {
+        display: none;
+    }
+    
+    .dot-flashing {
+        display: inline-block;
+        position: relative;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #6c757d;
+        animation: dot-flashing 1s infinite linear alternate;
+        animation-delay: 0s;
+    }
+    
+    .dot-flashing::before, .dot-flashing::after {
+        content: '';
+        display: inline-block;
+        position: absolute;
+        top: 0;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #6c757d;
+        animation: dot-flashing 1s infinite alternate;
+    }
+    
+    .dot-flashing::before {
+        left: -15px;
+        animation-delay: 0.5s;
+    }
+    
+    .dot-flashing::after {
+        left: 15px;
+        animation-delay: 1s;
+    }
+    
+    @keyframes dot-flashing {
+        0% { background-color: #6c757d; }
+        50%, 100% { background-color: #c9cccf; }
+    }
+    
+    /* Debug console */
+    #debugConsole {
+        height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.8rem;
+        padding: 0.5rem;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>AI Conversation - Multiple Entries</h2>
+                <a href="{{ url_for('journal.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Left panel: Entries and filters -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Selected Entries ({{ entries|length }})</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Date filter -->
+                    <div class="mb-3">
+                        <form id="filterForm" method="get" action="{{ url_for('ai.multiple_entries_conversation') }}">
+                            <div class="mb-3">
+                                <label for="tag" class="form-label">Filter by Tag</label>
+                                <select class="form-select form-select-sm" id="tag" name="tag">
+                                    <option value="">All Tags</option>
+                                    {% for tag in tags %}
+                                    <option value="{{ tag.id }}" {% if selected_tag and selected_tag.id == tag.id %}selected{% endif %}>
+                                        {{ tag.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="start_date" class="form-label">From</label>
+                                        <input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="end_date" class="form-label">To</label>
+                                        <input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date }}">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="type" class="form-label">Entry Type</label>
+                                <select class="form-select form-select-sm" id="type" name="type">
+                                    <option value="">All Types</option>
+                                    <option value="quick" {% if entry_type == 'quick' %}selected{% endif %}>Quick</option>
+                                    <option value="guided" {% if entry_type == 'guided' %}selected{% endif %}>Guided</option>
+                                </select>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-3">
+                                <button type="submit" class="btn btn-sm btn-primary">Apply Filters</button>
+                                <button type="button" id="clearFilters" class="btn btn-sm btn-outline-secondary">Clear</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Entries List -->
+                    <h6>Journal Entries</h6>
+                    <div id="entriesList">
+                        {% if entries %}
+                            {% for entry in entries %}
+                            <div class="card entry-card" data-entry-id="{{ entry.id }}">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            {% if entry.entry_type == 'guided' %}
+                                                <i class="bi bi-journal-text text-success"></i>
+                                                {% if entry.feeling_value is defined %}
+                                                    <span class="ms-1">{{ entry.feeling_value|feeling_emoji }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <i class="bi bi-pencil-fill text-primary"></i>
+                                            {% endif %}
+                                            <small>{{ entry.date }}</small>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input entry-checkbox" type="checkbox" 
+                                                   id="entry-{{ entry.id }}" value="{{ entry.id }}" checked>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Tags -->
+                                    {% if entry.tags %}
+                                    <div class="mt-1">
+                                        {% for tag in entry.tags %}
+                                            <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Content preview -->
+                                    {% if entry.content %}
+                                    <div class="mt-1">
+                                        <small class="text-muted">{{ entry.content|truncate(60) }}</small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-info">
+                                No entries match your search criteria.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right panel: Chat interface -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Chat with AI about Selected Entries</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Chat messages container -->
+                    <div class="chat-container mb-3" id="chatContainer">
+                        <div class="ai-message message">
+                            <p class="mb-0">
+                                Hello! I'm your AI assistant. I can help you reflect on your journal entries and provide insights.
+                                What would you like to discuss about these entries?
+                            </p>
+                        </div>
+                        <div class="thinking-indicator" id="thinkingIndicator">
+                            <div class="ai-message message">
+                                <div class="dot-flashing"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Message input -->
+                    <form id="messageForm">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="messageInput" 
+                                   placeholder="Type your message here...">
+                            <button class="btn btn-primary" type="submit" id="sendButton">
+                                <i class="bi bi-send"></i> Send
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Suggested questions -->
+                    <div class="mt-3">
+                        <p class="small text-muted mb-2">Suggested questions:</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-sm btn-outline-secondary suggested-question">What emotions am I expressing?</button>
+                            <button class="btn btn-sm btn-outline-secondary suggested-question">What patterns do you notice?</button>
+                            <button class="btn btn-sm btn-outline-secondary suggested-question">How has my mood changed?</button>
+                            <button class="btn btn-sm btn-outline-secondary suggested-question">What are key themes?</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Debug console (only visible in development) -->
+            <div class="card mt-4" id="debugCard">
+                <div class="card-header bg-warning">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Debug Console</h5>
+                        <button id="clearDebug" class="btn btn-sm btn-secondary">Clear</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <pre id="debugConsole"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Debug logging
+    const debugConsole = document.getElementById('debugConsole');
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    
+    function log(message, type = 'log') {
+        const now = new Date().toLocaleTimeString();
+        let formattedMessage = `[${now}] `;
+        
+        if (type === 'error') {
+            formattedMessage += '❌ ERROR: ';
+            formattedMessage += message;
+            if (debugConsole) {
+                debugConsole.innerHTML += `<span style="color: red;">${formattedMessage}</span>\n`;
+                debugConsole.scrollTop = debugConsole.scrollHeight;
+            }
+            originalConsoleError(message);
+        } else {
+            formattedMessage += message;
+            if (debugConsole) {
+                debugConsole.innerHTML += `${formattedMessage}\n`;
+                debugConsole.scrollTop = debugConsole.scrollHeight;
+            }
+            originalConsoleLog(message);
+        }
+    }
+    
+    // Override console methods for debug panel
+    console.log = function(message) {
+        log(message);
+    };
+    
+    console.error = function(message) {
+        log(message, 'error');
+    };
+    
+    // Clear debug console
+    document.getElementById('clearDebug').addEventListener('click', function() {
+        debugConsole.innerHTML = '';
+    });
+    
+    log('Page loaded. Initializing...');
+    
+    // UI Elements
+    const chatContainer = document.getElementById('chatContainer');
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const thinkingIndicator = document.getElementById('thinkingIndicator');
+    const entriesList = document.getElementById('entriesList');
+    const entryCheckboxes = document.querySelectorAll('.entry-checkbox');
+    const suggestedQuestions = document.querySelectorAll('.suggested-question');
+    const clearFiltersBtn = document.getElementById('clearFilters');
+    
+    log(`Found ${entryCheckboxes.length} entry checkboxes`);
+    log(`Found ${suggestedQuestions.length} suggested question buttons`);
+    
+    // Add a message to the chat container
+    function addMessage(message, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = isUser ? 'user-message message' : 'ai-message message';
+        messageDiv.innerHTML = `<p class="mb-0">${message.replace(/\n/g, '<br>')}</p>`;
+        
+        // Insert before the thinking indicator
+        chatContainer.insertBefore(messageDiv, thinkingIndicator);
+        
+        // Scroll to bottom
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Toggle thinking indicator
+    function setThinking(isThinking) {
+        thinkingIndicator.style.display = isThinking ? 'block' : 'none';
+        sendButton.disabled = isThinking;
+        messageInput.disabled = isThinking;
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Get selected entries data
+    function getSelectedEntriesData() {
+        const selectedEntries = [];
+        const checkedBoxes = document.querySelectorAll('.entry-checkbox:checked');
+        
+        // Build the entries array from client-side available data
+        checkedBoxes.forEach(checkbox => {
+            const entryId = checkbox.value;
+            const entryCard = document.querySelector(`.entry-card[data-entry-id="${entryId}"]`);
+            
+            if (entryCard) {
+                // Extract basic information from the card
+                const entryDate = entryCard.querySelector('small').textContent;
+                const isGuided = entryCard.querySelector('.bi-journal-text') !== null;
+                const contentElement = entryCard.querySelector('small.text-muted');
+                const content = contentElement ? contentElement.textContent : '';
+                
+                // Create entry data object
+                const entryData = {
+                    id: parseInt(entryId),
+                    date: entryDate,
+                    entry_type: isGuided ? 'guided' : 'quick',
+                    content: content
+                };
+                
+                // Use server-side provided full entries data if possible
+                const serverSideEntryData = getServerSideEntryData(entryId);
+                if (serverSideEntryData) {
+                    selectedEntries.push(serverSideEntryData);
+                } else {
+                    selectedEntries.push(entryData);
+                }
+            }
+        });
+        
+        log(`Selected ${selectedEntries.length} entries for conversation`);
+        return selectedEntries;
+    }
+    
+    // Get server-side entry data (from template)
+    function getServerSideEntryData(entryId) {
+        // This function gets entry data from the server-provided template data
+        {% for entry in entries %}
+        if ({{ entry.id }} === parseInt(entryId)) {
+            return {
+                id: {{ entry.id }},
+                date: "{{ entry.date }}",
+                entry_type: "{{ entry.entry_type }}",
+                content: {{ entry.content|default('')|tojson }},
+                {% if entry.feeling_value is defined %}
+                feeling_value: {{ entry.feeling_value }},
+                {% endif %}
+                {% if entry.emotions is defined and entry.emotions %}
+                emotions: {{ entry.emotions|tojson }},
+                {% endif %}
+                {% if entry.tags %}
+                tags: [{% for tag in entry.tags %}{{ tag.name|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}]
+                {% endif %}
+            };
+        }
+        {% endfor %}
+        return null;
+    }
+    
+    // Send message to AI
+    async function sendMessageToAI(message) {
+        try {
+            log(`Sending message to AI: "${message}"`);
+            setThinking(true);
+            
+            // Get selected entries data
+            const entriesData = getSelectedEntriesData();
+            
+            if (entriesData.length === 0) {
+                log('No entries selected', 'error');
+                addMessage('Please select at least one journal entry to continue the conversation.', false);
+                setThinking(false);
+                return;
+            }
+            
+            // Create request body
+            const requestBody = {
+                entries: entriesData,
+                question: message
+            };
+            
+            log(`Request prepared with ${entriesData.length} entries`);
+            
+            // Send request to AI API endpoint
+            const apiUrl = "{{ url_for('ai.ai_conversation_api', _external=True) }}";
+            log(`Sending request to: ${apiUrl}`);
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'include',
+                body: JSON.stringify(requestBody)
+            });
+            
+            log(`Response received: status ${response.status}`);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Server returned error: ${response.status} - ${errorText}`);
+            }
+            
+            // Parse the response
+            const responseText = await response.text();
+            log(`Raw response: ${responseText.substring(0, 100)}...`);
+            
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (jsonError) {
+                throw new Error(`Failed to parse response as JSON: ${jsonError.message}`);
+            }
+            
+            // Add response to chat
+            if (data.error) {
+                throw new Error(data.error);
+            } else {
+                addMessage(data.response, false);
+            }
+        } catch (error) {
+            log(`Error: ${error.message}`, 'error');
+            addMessage(`Sorry, I encountered an error: ${error.message}`, false);
+        } finally {
+            setThinking(false);
+        }
+    }
+    
+    // Event Handlers
+    
+    // Message form submission
+    messageForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const message = messageInput.value.trim();
+        if (!message) return;
+        
+        // Add user message to chat
+        addMessage(message, true);
+        
+        // Clear input
+        messageInput.value = '';
+        
+        // Send to AI
+        sendMessageToAI(message);
+    });
+    
+    // Suggested questions
+    suggestedQuestions.forEach(button => {
+        button.addEventListener('click', function() {
+            const question = this.textContent;
+            log(`Suggested question clicked: "${question}"`);
+            
+            // Add user message to chat
+            addMessage(question, true);
+            
+            // Send to AI
+            sendMessageToAI(question);
+        });
+    });
+    
+    // Entry selection
+    entryCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const entryCard = this.closest('.entry-card');
+            if (this.checked) {
+                entryCard.classList.add('selected');
+            } else {
+                entryCard.classList.remove('selected');
+            }
+            
+            log(`Entry ${this.value} ${this.checked ? 'selected' : 'unselected'}`);
+        });
+    });
+    
+    // Clear filters button
+    if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', function() {
+            log('Clearing filters');
+            const form = document.getElementById('filterForm');
+            const elements = form.elements;
+            
+            for (let i = 0; i < elements.length; i++) {
+                const element = elements[i];
+                if (element.type === 'text' || element.type === 'date' || element.tagName === 'SELECT') {
+                    element.value = '';
+                }
+            }
+            
+            form.submit();
+        });
+    }
+    
+    log('Initialization complete.');
+});
+</script>
+{% endblock %}
