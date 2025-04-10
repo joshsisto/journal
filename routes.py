@@ -826,6 +826,209 @@ def search():
     )
 
 
+@journal_bp.route('/mood_tracker', methods=['GET'])
+@login_required
+def mood_tracker():
+    """Mood tracking visualization for journal entries."""
+    # Import TimeUtils for timezone handling
+    from time_utils import TimeUtils
+    # Get filter parameters
+    period = request.args.get('period', 'all')  # Default to show all entries
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    # Calculate date range based on selected period
+    # Use TimeUtils to get today in user's local timezone
+    local_today = TimeUtils.get_local_now()
+    
+    # Get the end of today in user's timezone, then convert to UTC for queries
+    end_day_local = local_today.replace(hour=23, minute=59, second=59)
+    end_date_obj = TimeUtils.get_user_timezone().localize(end_day_local.replace(tzinfo=None)).astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    if period == 'week':
+        # Get start of 7 days ago in user's timezone, then convert to UTC for queries
+        start_day_local = (local_today - timedelta(days=7)).replace(hour=0, minute=0, second=0)
+        start_date_obj = TimeUtils.get_user_timezone().localize(start_day_local.replace(tzinfo=None)).astimezone(pytz.UTC).replace(tzinfo=None)
+    elif period == 'month':
+        start_day_local = (local_today - timedelta(days=30)).replace(hour=0, minute=0, second=0)
+        start_date_obj = TimeUtils.get_user_timezone().localize(start_day_local.replace(tzinfo=None)).astimezone(pytz.UTC).replace(tzinfo=None)
+    elif period == 'quarter':
+        start_day_local = (local_today - timedelta(days=90)).replace(hour=0, minute=0, second=0)
+        start_date_obj = TimeUtils.get_user_timezone().localize(start_day_local.replace(tzinfo=None)).astimezone(pytz.UTC).replace(tzinfo=None)
+    elif period == 'year':
+        start_day_local = (local_today - timedelta(days=365)).replace(hour=0, minute=0, second=0)
+        start_date_obj = TimeUtils.get_user_timezone().localize(start_day_local.replace(tzinfo=None)).astimezone(pytz.UTC).replace(tzinfo=None)
+    elif period == 'all':
+        # Use the date of the first entry
+        first_entry = JournalEntry.query.filter_by(
+            user_id=current_user.id
+        ).order_by(JournalEntry.created_at.asc()).first()
+        
+        if first_entry:
+            start_date_obj = first_entry.created_at.replace(hour=0, minute=0, second=0)  # Start of day
+        else:
+            start_date_obj = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0)  # Default to last 30 days if no entries
+    elif period == 'custom':
+        # Use custom date range if provided
+        try:
+            # Parse the date in local timezone
+            start_day_local = datetime.strptime(start_date, '%Y-%m-%d').replace(hour=0, minute=0, second=0)
+            # Convert to UTC for database query
+            start_date_obj = TimeUtils.get_user_timezone().localize(start_day_local).astimezone(pytz.UTC).replace(tzinfo=None)
+        except (ValueError, TypeError):
+            # Default to 30 days ago in user's timezone
+            start_day_local = (local_today - timedelta(days=30)).replace(hour=0, minute=0, second=0)
+            start_date_obj = TimeUtils.get_user_timezone().localize(start_day_local.replace(tzinfo=None)).astimezone(pytz.UTC).replace(tzinfo=None)
+            
+        try:
+            # Parse the end date in local timezone
+            end_day_local = datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            # Convert to UTC for database query
+            end_date_obj = TimeUtils.get_user_timezone().localize(end_day_local).astimezone(pytz.UTC).replace(tzinfo=None)
+        except (ValueError, TypeError):
+            # Default to today in user's timezone
+            end_day_local = local_today.replace(hour=23, minute=59, second=59)
+            end_date_obj = TimeUtils.get_user_timezone().localize(end_day_local.replace(tzinfo=None)).astimezone(pytz.UTC).replace(tzinfo=None)
+    else:
+        # Default to last 30 days
+        start_date_obj = today - timedelta(days=30)
+    
+    # Format dates for template
+    if not start_date and period == 'custom':
+        start_date = start_date_obj.strftime('%Y-%m-%d')
+    if not end_date and period == 'custom':
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # Get guided journal entries with feeling_scale responses in the date range
+    # Use between for date ranges instead of <= to ensure we catch all entries
+    entries = JournalEntry.query.filter(
+        JournalEntry.user_id == current_user.id,
+        JournalEntry.entry_type == 'guided',
+        JournalEntry.created_at >= start_date_obj,
+        JournalEntry.created_at <= end_date_obj + timedelta(days=1)  # Add a day to make sure we include end date fully
+    ).order_by(JournalEntry.created_at.asc()).all()
+    
+    # Get entry IDs to query for feeling_scale responses
+    entry_ids = [entry.id for entry in entries]
+    
+    # Add debug logging to the server console
+    print(f"Date range: {start_date_obj} to {end_date_obj}")
+    print(f"Found {len(entries)} entries in date range")
+    for entry in entries:
+        print(f"Entry {entry.id}: date={entry.created_at}, type={entry.entry_type}")
+    
+    # Query feeling_scale responses for these entries
+    feeling_responses = GuidedResponse.query.filter(
+        GuidedResponse.journal_entry_id.in_(entry_ids),
+        GuidedResponse.question_id == 'feeling_scale'
+    ).all()
+    
+    # Add debug logging for responses
+    print(f"Found {len(feeling_responses)} feeling_scale responses")
+    for resp in feeling_responses:
+        print(f"Response for entry {resp.journal_entry_id}: value={resp.response}")
+    
+    # Additional emotional data
+    emotion_responses = GuidedResponse.query.filter(
+        GuidedResponse.journal_entry_id.in_(entry_ids),
+        GuidedResponse.question_id == 'additional_emotions'
+    ).all()
+    
+    feeling_reason_responses = GuidedResponse.query.filter(
+        GuidedResponse.journal_entry_id.in_(entry_ids),
+        GuidedResponse.question_id == 'feeling_reason'
+    ).all()
+    
+    # Create dictionaries for easy lookups
+    feeling_data = {}
+    emotion_data = {}
+    feeling_reason_data = {}
+    entry_dates = {}
+    
+    for entry in entries:
+        entry_dates[entry.id] = entry.created_at
+        
+    for resp in feeling_responses:
+        try:
+            feeling_data[resp.journal_entry_id] = int(resp.response)
+        except (ValueError, TypeError):
+            pass
+            
+    for resp in emotion_responses:
+        try:
+            if resp.response:
+                # Try to parse JSON array of emotions
+                try:
+                    emotion_data[resp.journal_entry_id] = json.loads(resp.response)
+                except json.JSONDecodeError:
+                    # Handle comma-separated string format
+                    emotion_data[resp.journal_entry_id] = [e.strip() for e in resp.response.split(',')]
+        except Exception:
+            pass
+            
+    for resp in feeling_reason_responses:
+        feeling_reason_data[resp.journal_entry_id] = resp.response
+    
+    # Prepare data for chart
+    mood_data = []
+    print(f"Building mood_data from {len(feeling_data)} feeling_data entries")
+    for entry_id, feeling_value in feeling_data.items():
+        if entry_id in entry_dates:
+            # Convert UTC timestamp to local timezone
+            utc_datetime = entry_dates[entry_id]
+            local_datetime = TimeUtils.utc_to_local(utc_datetime)
+            
+            mood_data.append({
+                'entry_id': entry_id,
+                'feeling_value': feeling_value,
+                'created_at': local_datetime,  # Now using local time
+                'utc_created_at': utc_datetime,  # Keep original for reference
+                'emotions': emotion_data.get(entry_id, []),
+                'feeling_reason': feeling_reason_data.get(entry_id, '')
+            })
+            print(f"Entry {entry_id}: UTC={utc_datetime}, Local={local_datetime}")
+        else:
+            print(f"Warning: Entry {entry_id} has feeling data but no entry_date")
+    
+    # Sort by date (using local time)
+    mood_data.sort(key=lambda x: x['created_at'])
+    
+    # Prepare data for chart (using local time)
+    dates = [entry['created_at'].strftime('%b %d') for entry in mood_data]  # More readable format (e.g. "Jan 15")
+    friendly_dates = [entry['created_at'].strftime('%A, %b %d') for entry in mood_data]  # For tooltips (e.g. "Monday, Jan 15")
+    mood_values = [entry['feeling_value'] for entry in mood_data]
+    
+    # Calculate statistics
+    avg_mood = sum(mood_values) / len(mood_values) if mood_values else 0
+    highest_mood = max(mood_values) if mood_values else 0
+    lowest_mood = min(mood_values) if mood_values else 0
+    
+    # Get recent entries for display (limit to most recent 6)
+    recent_entries = sorted(mood_data, key=lambda x: x['created_at'], reverse=True)[:6]
+    
+    # Get emotion categories for badge coloring
+    emotions_by_category = get_emotions_by_category()
+    positive_emotions = set(emotions_by_category.get('Positive', []))
+    negative_emotions = set(emotions_by_category.get('Negative', []))
+    
+    return render_template(
+        'mood_tracker.html',
+        mood_data=mood_data,
+        dates=dates,
+        friendly_dates=friendly_dates,
+        mood_values=mood_values,
+        period=period,
+        start_date=start_date,
+        end_date=end_date,
+        avg_mood=avg_mood,
+        highest_mood=highest_mood,
+        lowest_mood=lowest_mood,
+        recent_entries=recent_entries,
+        positive_emotions=positive_emotions,
+        negative_emotions=negative_emotions
+    )
+
+
 @auth_bp.route('/settings', methods=['GET'])
 @login_required
 def settings():

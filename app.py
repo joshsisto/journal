@@ -69,6 +69,13 @@ def create_app(config_class=Config):
     @app.template_filter('feeling_emoji')
     def feeling_emoji_filter(value):
         return get_feeling_emoji(value)
+        
+    # Add datetime formatting filter
+    @app.template_filter('format_datetime')
+    def format_datetime_filter(value, format='%Y-%m-%d %H:%M'):
+        if value is None:
+            return ""
+        return value.strftime(format)
     
     # Add Python's built-in functions to templates
     app.jinja_env.globals.update(max=max)
