@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+
+{% block title %}AI Conversation - Journal App{% endblock %}
+
+{% block styles %}
+<style>
+    .chat-container {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .message {
+        margin-bottom: 1rem;
+        max-width: 80%;
+    }
+    
+    .user-message {
+        margin-left: auto;
+        background-color: #d1ecf1;
+        border-radius: 1rem 1rem 0 1rem;
+        padding: 0.75rem;
+    }
+    
+    .ai-message {
+        background-color: #f1f1f1;
+        border-radius: 1rem 1rem 1rem 0;
+        padding: 0.75rem;
+    }
+    
+    .entry-summary {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .entry-summary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .entry-details {
+        display: none;
+    }
+    
+    .thinking-indicator {
+        display: none;
+        margin-bottom: 1rem;
+    }
+    
+    .dot-flashing {
+        display: inline-block;
+        position: relative;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #6c757d;
+        animation: dot-flashing 1s infinite linear alternate;
+        animation-delay: 0s;
+    }
+    
+    .dot-flashing::before, .dot-flashing::after {
+        content: '';
+        display: inline-block;
+        position: absolute;
+        top: 0;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #6c757d;
+        animation: dot-flashing 1s infinite alternate;
+    }
+    
+    .dot-flashing::before {
+        left: -15px;
+        animation-delay: 0.5s;
+    }
+    
+    .dot-flashing::after {
+        left: 15px;
+        animation-delay: 1s;
+    }
+    
+    @keyframes dot-flashing {
+        0% { background-color: #6c757d; }
+        50%, 100% { background-color: #c9cccf; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>AI Conversation</h2>
+            <div>
+                {% if is_single_entry %}
+                <a href="{{ url_for('journal.view_entry', entry_id=entry_id) }}" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-journal-text"></i> View Entry
+                </a>
+                {% endif %}
+                <a href="{{ url_for('journal.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left panel: Entry information -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    {% if is_single_entry %}
+                        Journal Entry
+                    {% else %}
+                        Selected Entries ({{ entries|length }})
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if is_single_entry %}
+                    <!-- Single entry display -->
+                    <div class="mb-3">
+                        <h6>Date</h6>
+                        <p>{{ entry.date }}</p>
+                    </div>
+                    
+                    {% if entry.feeling_value is defined %}
+                    <div class="mb-3">
+                        <h6>Feeling</h6>
+                        <p>
+                            <span class="fs-4">{{ entry.feeling_value|feeling_emoji }}</span>
+                            <span class="ms-2">{{ entry.feeling_value }}/10</span>
+                        </p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if entry.emotions is defined and entry.emotions %}
+                    <div class="mb-3">
+                        <h6>Emotions</h6>
+                        <div>
+                            {% for emotion in entry.emotions %}
+                                {% if emotion in positive_emotions %}
+                                    <span class="badge bg-success mb-1">{{ emotion }}</span>
+                                {% elif emotion in negative_emotions %}
+                                    <span class="badge bg-danger mb-1">{{ emotion }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary mb-1">{{ emotion }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if entry.content %}
+                    <div class="mb-3">
+                        <h6>Content</h6>
+                        <p class="small">{{ entry.content|truncate(150) }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if entry.guided_responses is defined and entry.guided_responses %}
+                    <div class="mb-3">
+                        <h6>Guided Responses</h6>
+                        <div class="accordion" id="responsesAccordion">
+                            {% for question, response in entry.guided_responses.items() %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading{{ loop.index }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapse{{ loop.index }}" aria-expanded="false" aria-controls="collapse{{ loop.index }}">
+                                        {{ question|truncate(40) }}
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading{{ loop.index }}" data-bs-parent="#responsesAccordion">
+                                    <div class="accordion-body small">
+                                        {{ response }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <!-- Multiple entries display -->
+                    <!-- Filter controls -->
+                    <div class="mb-3">
+                        <form id="filterForm" method="get" action="{{ url_for('ai.multiple_entries_conversation') }}">
+                            <div class="mb-3">
+                                <label for="tag" class="form-label">Filter by Tag</label>
+                                <select class="form-select form-select-sm" id="tag" name="tag">
+                                    <option value="">All Tags</option>
+                                    {% for tag in tags %}
+                                    <option value="{{ tag.id }}" {% if selected_tag and selected_tag.id == tag.id %}selected{% endif %}>
+                                        {{ tag.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="start_date" class="form-label">From</label>
+                                <input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="end_date" class="form-label">To</label>
+                                <input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="type" class="form-label">Entry Type</label>
+                                <select class="form-select form-select-sm" id="type" name="type">
+                                    <option value="">All Types</option>
+                                    <option value="quick" {% if entry_type == 'quick' %}selected{% endif %}>Quick</option>
+                                    <option value="guided" {% if entry_type == 'guided' %}selected{% endif %}>Guided</option>
+                                </select>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-3">
+                                <button type="submit" class="btn btn-sm btn-primary">Apply Filters</button>
+                                <button type="button" id="clearFilters" class="btn btn-sm btn-outline-secondary">Clear</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Entry list -->
+                    <h6>Journal Entries</h6>
+                    {% if entries %}
+                        <div class="list-group mt-3">
+                            {% for entry in entries %}
+                            <div class="list-group-item entry-summary mb-2" data-entry-id="{{ entry.id }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        {% if entry.entry_type == 'guided' %}
+                                            <i class="bi bi-journal-text text-success"></i>
+                                            {% if entry.feeling_value is defined %}
+                                                <span class="ms-1">{{ entry.feeling_value|feeling_emoji }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="bi bi-pencil-fill text-primary"></i>
+                                        {% endif %}
+                                        <small>{{ entry.date }}</small>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-sm btn-link toggle-details p-0">
+                                            <i class="bi bi-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Entry details (initially hidden) -->
+                                <div class="entry-details mt-2">
+                                    <!-- Tags -->
+                                    {% if entry.tags %}
+                                    <div class="mb-2">
+                                        {% for tag in entry.tags %}
+                                            <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Emotions -->
+                                    {% if entry.emotions is defined and entry.emotions %}
+                                    <div class="mb-2">
+                                        {% for emotion in entry.emotions %}
+                                            {% if emotion in positive_emotions %}
+                                                <span class="badge bg-success mb-1">{{ emotion }}</span>
+                                            {% elif emotion in negative_emotions %}
+                                                <span class="badge bg-danger mb-1">{{ emotion }}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary mb-1">{{ emotion }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Content preview -->
+                                    {% if entry.content %}
+                                    <div class="mb-2">
+                                        <small>{{ entry.content|truncate(100) }}</small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- View entry link -->
+                                    <div class="mt-2">
+                                        <a href="{{ url_for('journal.view_entry', entry_id=entry.id) }}" class="btn btn-sm btn-outline-secondary">
+                                            View Entry
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No entries match your search criteria.
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Right panel: AI conversation -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Chat with AI</h5>
+            </div>
+            <div class="card-body">
+                <!-- Conversation area -->
+                <div class="chat-container mb-3" id="chatContainer">
+                    <div class="ai-message message">
+                        <p class="mb-0">
+                            Hello! I'm your AI assistant. I can help you reflect on your journal entries and provide insights.
+                            What would you like to discuss about {% if is_single_entry %}this entry{% else %}these entries{% endif %}?
+                        </p>
+                    </div>
+                    
+                    <div class="thinking-indicator" id="thinkingIndicator">
+                        <div class="ai-message message">
+                            <div class="dot-flashing"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Message input -->
+                <form id="messageForm">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="userMessage" placeholder="Type your message here...">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-send"></i> Send
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Suggested questions -->
+                <div class="mt-3">
+                    <p class="small text-muted mb-2">Suggested questions:</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-sm btn-outline-secondary suggested-question">What emotions am I expressing?</button>
+                        <button class="btn btn-sm btn-outline-secondary suggested-question">What patterns do you notice?</button>
+                        <button class="btn btn-sm btn-outline-secondary suggested-question">How has my mood changed?</button>
+                        <button class="btn btn-sm btn-outline-secondary suggested-question">What are key themes?</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Elements
+    const chatContainer = document.getElementById('chatContainer');
+    const messageForm = document.getElementById('messageForm');
+    const userMessageInput = document.getElementById('userMessage');
+    const thinkingIndicator = document.getElementById('thinkingIndicator');
+    const suggestedQuestions = document.querySelectorAll('.suggested-question');
+    
+    // Toggle entry details (for multiple entries view)
+    document.querySelectorAll('.toggle-details').forEach(button => {
+        button.addEventListener('click', function() {
+            const entryItem = this.closest('.entry-summary');
+            const detailsSection = entryItem.querySelector('.entry-details');
+            const icon = this.querySelector('i');
+            
+            if (detailsSection.style.display === 'block') {
+                detailsSection.style.display = 'none';
+                icon.classList.replace('bi-chevron-up', 'bi-chevron-down');
+            } else {
+                detailsSection.style.display = 'block';
+                icon.classList.replace('bi-chevron-down', 'bi-chevron-up');
+            }
+        });
+    });
+    
+    // Clear filters button
+    const clearFiltersBtn = document.getElementById('clearFilters');
+    if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', function() {
+            const form = document.getElementById('filterForm');
+            const elements = form.elements;
+            
+            for (let i = 0; i < elements.length; i++) {
+                const element = elements[i];
+                if (element.type === 'text' || element.type === 'date' || element.tagName === 'SELECT') {
+                    element.value = '';
+                }
+            }
+            
+            form.submit();
+        });
+    }
+    
+    // Add a message to the chat
+    function addMessage(message, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = isUser ? 'user-message message' : 'ai-message message';
+        messageDiv.innerHTML = `<p class="mb-0">${message.replace(/\n/g, '<br>')}</p>`;
+        
+        // Insert before the thinking indicator
+        chatContainer.insertBefore(messageDiv, thinkingIndicator);
+        
+        // Scroll to bottom
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Show/hide thinking indicator
+    function setThinking(isThinking) {
+        thinkingIndicator.style.display = isThinking ? 'block' : 'none';
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Prepare entry data for sending to the API
+    function prepareEntryData() {
+        try {
+            {% if is_single_entry %}
+            // Single entry mode
+            return [{
+                id: {{ entry.id }},
+                date: "{{ entry.date }}",
+                entry_type: "{{ entry.entry_type }}",
+                content: {{ entry.content|default('')|tojson }},
+                {% if entry.feeling_value is defined %}
+                feeling_value: {{ entry.feeling_value }},
+                {% endif %}
+                {% if entry.emotions is defined and entry.emotions %}
+                emotions: {{ entry.emotions|tojson }},
+                {% endif %}
+                {% if entry.guided_responses is defined and entry.guided_responses %}
+                guided_responses: {
+                    {% for question, response in entry.guided_responses.items() %}
+                    {{ question|tojson }}: {{ response|tojson }}{% if not loop.last %},{% endif %}
+                    {% endfor %}
+                }
+                {% endif %}
+            }];
+            {% else %}
+            // Multiple entries mode
+            return [
+                {% for entry in entries %}
+                {
+                    id: {{ entry.id }},
+                    date: "{{ entry.date }}",
+                    entry_type: "{{ entry.entry_type }}",
+                    content: {{ entry.content|default('')|tojson }},
+                    {% if entry.feeling_value is defined %}
+                    feeling_value: {{ entry.feeling_value }},
+                    {% endif %}
+                    {% if entry.emotions is defined and entry.emotions %}
+                    emotions: {{ entry.emotions|tojson }},
+                    {% endif %}
+                    {% if entry.tags %}
+                    tags: [{% for tag in entry.tags %}{{ tag.name|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}]
+                    {% endif %}
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ];
+            {% endif %}
+        } catch (error) {
+            console.error("Error preparing entry data:", error);
+            return [{error: "Failed to prepare entry data: " + error.message}];
+        }
+    }
+    
+    // Send message to AI
+    async function sendMessageToAI(message) {
+        try {
+            console.log("Sending message to AI:", message);
+            setThinking(true);
+            
+            const entryData = prepareEntryData();
+            console.log("Entry data prepared:", entryData);
+            
+            // Create the request body
+            const requestBody = {
+                entries: entryData,
+                question: message
+            };
+            
+            console.log("Request body:", JSON.stringify(requestBody));
+            
+            // Use an absolute URL to avoid any path issues
+            const apiUrl = "{{ url_for('ai.ai_conversation_api', _external=True) }}";
+            console.log("API URL:", apiUrl);
+            
+            // Show detailed request in console for debugging
+            console.log("Request details:");
+            console.log("- URL:", apiUrl);
+            console.log("- Method: POST");
+            console.log("- Headers:", {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            });
+            console.log("- Body:", JSON.stringify(requestBody).substring(0, 500) + "...");
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify(requestBody)
+            });
+            
+            console.log("Response received:", response.status);
+            console.log("Response headers:", 
+                Array.from(response.headers.entries())
+                    .reduce((obj, [key, val]) => { obj[key] = val; return obj; }, {})
+            );
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Error response:", errorText);
+                throw new Error(`Server returned ${response.status}: ${errorText}`);
+            }
+            
+            const responseText = await response.text();
+            console.log("Raw response text:", responseText);
+            
+            let data;
+            try {
+                data = JSON.parse(responseText);
+                console.log("Parsed response data:", data);
+            } catch (jsonError) {
+                console.error("Error parsing JSON response:", jsonError);
+                throw new Error(`Failed to parse response as JSON: ${responseText.substring(0, 100)}...`);
+            }
+            
+            if (data.error) {
+                console.error("Error in response:", data.error);
+                addMessage(`Error: ${data.error}`, false);
+            } else {
+                addMessage(data.response, false);
+            }
+        } catch (error) {
+            console.error("Error in sendMessageToAI:", error);
+            addMessage(`Sorry, there was an error: ${error.message}. Please try again later.`, false);
+        } finally {
+            setThinking(false);
+        }
+    }
+    
+    // Handle message form submission
+    messageForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const message = userMessageInput.value.trim();
+        if (!message) return;
+        
+        // Add user message to chat
+        addMessage(message, true);
+        
+        // Clear input
+        userMessageInput.value = '';
+        
+        // Send to AI with error handling
+        try {
+            console.log("Submitting message:", message);
+            sendMessageToAI(message);
+        } catch (error) {
+            console.error("Error in message submission:", error);
+            addMessage("Failed to send message: " + error.message, false);
+        }
+    });
+    
+    // Handle suggested questions
+    suggestedQuestions.forEach(button => {
+        button.addEventListener('click', function() {
+            const question = this.textContent;
+            console.log("Suggested question clicked:", question);
+            
+            // Add user message to chat
+            addMessage(question, true);
+            
+            // Send to AI with error handling
+            try {
+                console.log("Sending suggested question to AI");
+                sendMessageToAI(question);
+            } catch (error) {
+                console.error("Error sending suggested question:", error);
+                addMessage("Failed to send question: " + error.message, false);
+            }
+        });
+    });
+    
+    // Add debug output to page (only visible during development)
+    function showDebugInfo() {
+        // Create debug section if it doesn't exist
+        if (!document.getElementById('aiDebugInfo')) {
+            const debugSection = document.createElement('div');
+            debugSection.id = 'aiDebugInfo';
+            debugSection.classList.add('card', 'mt-4');
+            debugSection.innerHTML = `
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">Debug Information</h5>
+                </div>
+                <div class="card-body">
+                    <pre id="debugOutput" style="max-height: 300px; overflow: auto;"></pre>
+                    <button id="clearDebug" class="btn btn-sm btn-secondary">Clear Debug Log</button>
+                </div>
+            `;
+            
+            document.querySelector('.row').appendChild(debugSection);
+            
+            // Add clear button functionality
+            document.getElementById('clearDebug').addEventListener('click', function() {
+                document.getElementById('debugOutput').textContent = '';
+            });
+            
+            // Override console.log and console.error
+            const originalLog = console.log;
+            const originalError = console.error;
+            const debugOutput = document.getElementById('debugOutput');
+            
+            console.log = function() {
+                const args = Array.from(arguments);
+                debugOutput.textContent += "LOG: " + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') + "\\n";
+                debugOutput.scrollTop = debugOutput.scrollHeight;
+                originalLog.apply(console, arguments);
+            };
+            
+            console.error = function() {
+                const args = Array.from(arguments);
+                debugOutput.textContent += "ERROR: " + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') + "\\n";
+                debugOutput.scrollTop = debugOutput.scrollHeight;
+                originalError.apply(console, arguments);
+            };
+        }
+    }
+    
+    // Show debug info in development
+    showDebugInfo();
+});
+</script>
+{% endblock %}
