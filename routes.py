@@ -1971,7 +1971,7 @@ def multiple_entries_conversation():
         entries_data.append(entry_data)
     
     print(f"Multiple entries conversation with {len(entries_data)} entries")
-    return render_template('ai/basic_multiple.html', entries=entries_data)
+    return render_template('ai/chat_multiple.html', entries=entries_data)
 
 @ai_bp.route('/basic', methods=['GET'])
 @login_required
