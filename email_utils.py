@@ -56,7 +56,8 @@ def send_password_reset_email(user, token):
     """
     # Get configuration with defaults
     app_name = current_app.config.get('APP_NAME', 'Journal App')
-    app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
+    # Force the use of the production URL for emails
+    app_url = "https://journal.joshsisto.com"
     
     reset_url = f"{app_url}/reset-password/{token}"
     
@@ -96,7 +97,8 @@ def send_email_change_confirmation(user, token):
     """
     # Get configuration with defaults
     app_name = current_app.config.get('APP_NAME', 'Journal App')
-    app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
+    # Force the use of the production URL for emails
+    app_url = "https://journal.joshsisto.com"
     
     confirm_url = f"{app_url}/confirm-email-change/{token}"
     
