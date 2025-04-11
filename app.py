@@ -32,6 +32,10 @@ def create_app(config_class=Config):
     Returns:
         Flask: Configured Flask application.
     """
+    # Enable more detailed logging for debugging
+    logging.basicConfig(level=logging.DEBUG, 
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
     

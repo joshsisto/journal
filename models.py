@@ -21,7 +21,8 @@ class User(UserMixin, db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=True)  # Email is optional
+    is_email_verified = db.Column(db.Boolean, default=False)  # Track if email is verified
     password_hash = db.Column(db.String(128), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -30,9 +31,16 @@ class User(UserMixin, db.Model):
     reset_token_expiry = db.Column(db.DateTime, nullable=True)
     
     # Email verification fields
+    email_verification_token = db.Column(db.String(100), nullable=True)  # Token for email verification
+    email_verification_expiry = db.Column(db.DateTime, nullable=True)  # Expiry for email verification
     email_change_token = db.Column(db.String(100), nullable=True)
     email_change_token_expiry = db.Column(db.DateTime, nullable=True)
     new_email = db.Column(db.String(120), nullable=True)
+    
+    # Two-factor authentication fields
+    two_factor_enabled = db.Column(db.Boolean, default=False)
+    two_factor_code = db.Column(db.String(10), nullable=True)
+    two_factor_expiry = db.Column(db.DateTime, nullable=True)
     
     # Relationships
     journal_entries = db.relationship('JournalEntry', backref='author', lazy='dynamic')
@@ -89,8 +97,43 @@ class User(UserMixin, db.Model):
             self.new_email = None
             self.email_change_token = None
             self.email_change_token_expiry = None
+            # New email needs verification
+            self.is_email_verified = False
+            # Generate verification token for the new email
+            self.generate_email_verification_token()
             return True
         return False
+        
+    def generate_email_verification_token(self):
+        """Generate a token for email verification."""
+        # Don't generate token if email is None or empty
+        if not self.email:
+            return None
+            
+        self.email_verification_token = secrets.token_urlsafe(64)
+        self.email_verification_expiry = datetime.utcnow() + timedelta(hours=24)
+        return self.email_verification_token
+        
+    def verify_email_verification_token(self, token):
+        """Verify the email verification token."""
+        if (self.email_verification_token != token or 
+            self.email_verification_expiry is None or 
+            datetime.utcnow() > self.email_verification_expiry):
+            return False
+        return True
+        
+    def complete_email_verification(self):
+        """Mark email as verified and clear the verification token."""
+        if self.email and self.email_verification_token:
+            self.is_email_verified = True
+            self.email_verification_token = None
+            self.email_verification_expiry = None
+            return True
+        return False
+        
+    def has_verified_email(self):
+        """Check if user has a verified email address."""
+        return self.email is not None and self.is_email_verified
     
     def __repr__(self):
         return f'<User {self.username}>'

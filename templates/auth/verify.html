@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Login - Journal App{% endblock %}
+
+{% block styles %}
+<style>
+    .verification-code {
+        letter-spacing: 0.5em;
+        font-size: 1.5em;
+        text-align: center;
+    }
+    
+    .form-control:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+    
+    .timer {
+        font-size: 0.9em;
+        color: #6c757d;
+        margin-top: 10px;
+        text-align: center;
+    }
+    
+    .resend-disabled {
+        color: #6c757d;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Two-Factor Authentication</h3>
+            </div>
+            <div class="card-body">
+                <p>A verification code has been sent to your email address.</p>
+                <p>Please enter the 6-digit code to complete the login process.</p>
+                
+                <form method="post" id="verify-form">
+                    <!-- CSRF token -->
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    
+                    <div class="mb-3">
+                        <label for="code" class="form-label">Verification Code</label>
+                        <input type="text" class="form-control verification-code" id="code" name="code" 
+                               required minlength="6" maxlength="6" pattern="[0-9]+"
+                               title="Please enter the 6-digit verification code"
+                               autocomplete="off">
+                        <div class="invalid-feedback">
+                            Please enter a valid 6-digit verification code.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="timer" id="code-timer">Code expires in: <span id="countdown">10:00</span></div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Verify</button>
+                        <a href="#" id="resend-link" class="btn btn-outline-secondary" onclick="resendCode()">Resend Code</a>
+                        <a href="{{ url_for('auth.logout') }}" class="btn btn-link">Cancel and Logout</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Start countdown timer
+    document.addEventListener('DOMContentLoaded', function() {
+        const timerElement = document.getElementById('countdown');
+        const resendLink = document.getElementById('resend-link');
+        let minutes = 10;
+        let seconds = 0;
+        let resendCountdown = 60; // 60 second cooldown for resend
+        
+        // Start the expiry countdown
+        const timerInterval = setInterval(function() {
+            if (seconds === 0) {
+                if (minutes === 0) {
+                    clearInterval(timerInterval);
+                    timerElement.textContent = "Expired";
+                    return;
+                }
+                minutes--;
+                seconds = 59;
+            } else {
+                seconds--;
+            }
+            
+            const displayMinutes = minutes.toString().padStart(2, '0');
+            const displaySeconds = seconds.toString().padStart(2, '0');
+            timerElement.textContent = `${displayMinutes}:${displaySeconds}`;
+        }, 1000);
+        
+        // Start resend cooldown
+        resendLink.classList.add('resend-disabled');
+        const resendInterval = setInterval(function() {
+            resendCountdown--;
+            resendLink.textContent = `Resend Code (${resendCountdown}s)`;
+            
+            if (resendCountdown <= 0) {
+                clearInterval(resendInterval);
+                resendLink.textContent = 'Resend Code';
+                resendLink.classList.remove('resend-disabled');
+            }
+        }, 1000);
+        
+        // Form validation
+        const form = document.getElementById('verify-form');
+        const codeInput = document.getElementById('code');
+        
+        form.addEventListener('submit', function(event) {
+            // Check if expired
+            if (timerElement.textContent === "Expired") {
+                event.preventDefault();
+                alert("The verification code has expired. Please request a new one.");
+                return;
+            }
+            
+            // Validate code
+            if (!codeInput.value || !codeInput.checkValidity()) {
+                codeInput.classList.add('is-invalid');
+                event.preventDefault();
+            } else {
+                codeInput.classList.remove('is-invalid');
+            }
+        });
+        
+        // Auto-format code input - remove non-digits
+        codeInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            if (this.checkValidity()) {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
+    
+    // Function to resend code
+    function resendCode() {
+        const resendLink = document.getElementById('resend-link');
+        
+        // Check if disabled
+        if (resendLink.classList.contains('resend-disabled')) {
+            return;
+        }
+        
+        // Disable button temporarily
+        resendLink.classList.add('resend-disabled');
+        
+        // Send request to resend code
+        fetch('{{ url_for("auth.resend_code") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reset timer
+                document.getElementById('countdown').textContent = '10:00';
+                
+                // Start resend cooldown
+                let resendCountdown = 60;
+                resendLink.textContent = `Resend Code (${resendCountdown}s)`;
+                
+                const resendInterval = setInterval(function() {
+                    resendCountdown--;
+                    resendLink.textContent = `Resend Code (${resendCountdown}s)`;
+                    
+                    if (resendCountdown <= 0) {
+                        clearInterval(resendInterval);
+                        resendLink.textContent = 'Resend Code';
+                        resendLink.classList.remove('resend-disabled');
+                    }
+                }, 1000);
+                
+                // Show success message
+                alert('Verification code has been resent to your email.');
+            } else {
+                // Show error message
+                alert(data.message || 'Failed to resend code. Please try again later.');
+                resendLink.classList.remove('resend-disabled');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again later.');
+            resendLink.classList.remove('resend-disabled');
+        });
+    }
+</script>
+{% endblock %}

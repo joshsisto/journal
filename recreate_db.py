@@ -90,15 +90,21 @@ def recreate_database():
     CREATE TABLE users (
         id INTEGER PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
-        email TEXT NOT NULL UNIQUE,
+        email TEXT UNIQUE,                       -- Email is now optional (removed NOT NULL)
+        is_email_verified BOOLEAN DEFAULT 0,     -- Track if email is verified
         password_hash TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         timezone TEXT DEFAULT 'UTC',
         reset_token TEXT,
         reset_token_expiry TIMESTAMP,
+        email_verification_token TEXT,          -- Token for email verification
+        email_verification_expiry TIMESTAMP,    -- Expiry for email verification
         email_change_token TEXT,
         email_change_token_expiry TIMESTAMP,
-        new_email TEXT
+        new_email TEXT,
+        two_factor_enabled BOOLEAN DEFAULT 0,   -- 2FA settings
+        two_factor_code TEXT,
+        two_factor_expiry TIMESTAMP
     )
     ''')
     
@@ -167,10 +173,18 @@ def recreate_database():
         email = input("Enter email (default: admin@example.com): ") or "admin@example.com"
         password = getpass.getpass("Enter password (default: password): ") or "password"
         
-        cursor.execute(
-            "INSERT INTO users (username, email, password_hash, timezone) VALUES (?, ?, ?, ?)",
-            (username, email, generate_password_hash(password), 'UTC')
-        )
+        # Ask if email should be entered
+        use_email = input("Do you want to add an email for this user? (y/n): ")
+        if use_email.lower() == 'y':
+            cursor.execute(
+                "INSERT INTO users (username, email, password_hash, timezone) VALUES (?, ?, ?, ?)",
+                (username, email, generate_password_hash(password), 'UTC')
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO users (username, password_hash, timezone) VALUES (?, ?, ?)",
+                (username, generate_password_hash(password), 'UTC')
+            )
     
     # Commit changes and close
     conn.commit()
