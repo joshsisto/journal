@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response, current_app, send_file
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response, current_app, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -10,6 +10,7 @@ import json
 import re
 import os
 import uuid
+from security import limiter  # Import limiter for rate limiting
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo
 from export_utils import format_entry_for_text, format_multi_entry_filename
@@ -29,43 +30,95 @@ ai_bp = Blueprint('ai', __name__)
 
 # Authentication routes
 @auth_bp.route('/register', methods=['GET', 'POST'])
+@limiter.limit("3 per minute")  # Rate limiting
 def register():
+    from validators import (
+        sanitize_username, sanitize_email, validate_password,
+        ValidationError
+    )
+    from security import csrf_protect
+    
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
     
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        timezone = request.form.get('timezone', 'UTC')
-        
-        # Validate timezone
         try:
-            pytz.timezone(timezone)
-        except pytz.exceptions.UnknownTimeZoneError:
-            timezone = 'UTC'  # Default to UTC if invalid
+            # Check CSRF token
+            token = session.get('_csrf_token')
+            form_token = request.form.get('_csrf_token')
+            
+            if not token or token != form_token:
+                current_app.logger.warning(f'CSRF attack detected from {request.remote_addr}')
+                flash('Invalid form submission. Please try again.', 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Get and sanitize inputs
+            try:
+                username = sanitize_username(request.form.get('username', ''))
+                email = sanitize_email(request.form.get('email', ''))
+                password = request.form.get('password', '')
+                timezone = request.form.get('timezone', 'UTC')
+                
+                # Validate password
+                validate_password(password)
+                
+                # Validate timezone
+                try:
+                    pytz.timezone(timezone)
+                except pytz.exceptions.UnknownTimeZoneError:
+                    timezone = 'UTC'  # Default to UTC if invalid
+            except ValidationError as e:
+                error_message = str(e)
+                # Log the validation error for debugging
+                current_app.logger.info(f"Validation error during registration: {error_message}")
+                flash(error_message, 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Check if username exists
+            user = User.query.filter_by(username=username).first()
+            if user:
+                flash('Username already exists.', 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Check if email exists
+            user = User.query.filter_by(email=email).first()
+            if user:
+                flash('Email already registered.', 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Check for common passwords
+            common_passwords = ['password', '123456', 'qwerty', 'admin', 'welcome']
+            if password.lower() in common_passwords:
+                flash('Please choose a stronger password.', 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Create new user with timezone
+            new_user = User(username=username, email=email, timezone=timezone)
+            new_user.set_password(password)
+            
+            db.session.add(new_user)
+            db.session.commit()
+            
+            current_app.logger.info(f'New user registered: {username}')
+            flash('Registration successful. Please log in.', 'success')
+            return redirect(url_for('auth.login'))
         
-        # Check if username exists
-        user = User.query.filter_by(username=username).first()
-        if user:
-            flash('Username already exists.')
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            current_app.logger.error(f'Registration error: {str(e)}\n{error_details}')
+            
+            # More user-friendly error message
+            if 'email' in str(e).lower():
+                flash('There was a problem with the email address. Please try a different one.', 'danger')
+            elif 'username' in str(e).lower():
+                flash('There was a problem with the username. Please try a different one.', 'danger')
+            elif 'password' in str(e).lower():
+                flash('There was a problem with the password. Please make sure it meets the requirements.', 'danger')
+            else:
+                flash('An error occurred during registration. Please try again.', 'danger')
+                
             return redirect(url_for('auth.register'))
-        
-        # Check if email exists
-        user = User.query.filter_by(email=email).first()
-        if user:
-            flash('Email already registered.')
-            return redirect(url_for('auth.register'))
-        
-        # Create new user with timezone
-        new_user = User(username=username, email=email, timezone=timezone)
-        new_user.set_password(password)
-        
-        db.session.add(new_user)
-        db.session.commit()
-        
-        flash('Registration successful. Please log in.')
-        return redirect(url_for('auth.login'))
     
     # Get common timezones
     common_timezones = pytz.common_timezones
@@ -74,23 +127,54 @@ def register():
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")  # Rate limiting
 def login():
+    import time
+    from validators import sanitize_text
+    
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
     
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        remember = 'remember' in request.form
+        # Check CSRF token
+        token = session.get('_csrf_token')
+        form_token = request.form.get('_csrf_token')
         
-        user = User.query.filter_by(username=username).first()
-        
-        if not user or not user.check_password(password):
-            flash('Invalid username or password.')
+        if not token or token != form_token:
+            current_app.logger.warning(f'CSRF attack detected on login from {request.remote_addr}')
+            flash('Invalid form submission. Please try again.', 'danger')
             return redirect(url_for('auth.login'))
         
-        login_user(user, remember=remember)
+        # Add slight delay to prevent timing attacks
+        time.sleep(0.1)
+        
+        # Get and sanitize inputs
+        username = sanitize_text(request.form.get('username', ''))
+        password = request.form.get('password', '')
+        remember = 'remember' in request.form
+        
+        # Attempt to find the user
+        user = User.query.filter_by(username=username).first()
+        
+        login_failure = False
+        
+        # Check if user exists and password is correct
+        if not user or not user.check_password(password):
+            login_failure = True
+            current_app.logger.warning(f'Failed login attempt for user: {username} from IP: {request.remote_addr}')
+            flash('Invalid username or password.', 'danger')
+            return redirect(url_for('auth.login'))
+        
+        # Log successful login
+        current_app.logger.info(f'User logged in: {username} from IP: {request.remote_addr}')
+        
+        # Check for 'next' parameter to prevent open redirect
         next_page = request.args.get('next')
+        if next_page and not next_page.startswith('/'):
+            next_page = None  # Only allow relative paths
+        
+        # Login the user and redirect
+        login_user(user, remember=remember)
         return redirect(next_page or url_for('journal.index'))
     
     return render_template('login.html')
@@ -375,89 +459,156 @@ def dashboard():
 @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
 @login_required
 def quick_journal():
+    from validators import sanitize_journal_content, sanitize_tag_name, validate_color_hex, ValidationError
+    
     if request.method == 'POST':
-        content = request.form.get('content')
-        tag_ids = request.form.getlist('tags')
-        new_tags_json = request.form.get('new_tags', '[]')
+        # Check CSRF token
+        token = session.get('_csrf_token')
+        form_token = request.form.get('_csrf_token')
         
-        if not content:
-            flash('Journal entry cannot be empty.')
+        if not token or token != form_token:
+            current_app.logger.warning(f'CSRF attack detected on quick journal from {request.remote_addr}')
+            flash('Invalid form submission. Please try again.', 'danger')
             return redirect(url_for('journal.quick_journal'))
         
-        entry = JournalEntry(
-            user_id=current_user.id,
-            content=content,
-            entry_type='quick'
-        )
-        
-        # Add selected existing tags
-        if tag_ids:
-            tags = Tag.query.filter(
-                Tag.id.in_(tag_ids), 
-                Tag.user_id == current_user.id
-            ).all()
-            entry.tags = tags
-        else:
-            entry.tags = []
-        
-        # Create and add new tags
-        if new_tags_json:
-            try:
-                new_tags_data = json.loads(new_tags_json)
-                for tag_data in new_tags_data:
-                    # Check if tag with this name already exists for this user
-                    existing_tag = Tag.query.filter_by(
-                        name=tag_data.get('name'),
-                        user_id=current_user.id
-                    ).first()
-                    
-                    if existing_tag:
-                        # Use existing tag if it exists
-                        if existing_tag not in entry.tags:
-                            entry.tags.append(existing_tag)
-                    else:
-                        # Create new tag
-                        new_tag = Tag(
-                            name=tag_data.get('name'),
-                            color=tag_data.get('color', '#6c757d'),
-                            user_id=current_user.id
-                        )
-                        db.session.add(new_tag)
-                        db.session.flush()  # Get ID without committing
-                        entry.tags.append(new_tag)
-            except json.JSONDecodeError:
-                # If JSON parsing fails, just continue
-                pass
-        
-        db.session.add(entry)
-        db.session.flush()  # Get ID without committing
-        
-        # Handle photo uploads
-        photos = request.files.getlist('photos')
-        if photos:
-            for photo in photos:
-                if photo and photo.filename and allowed_file(photo.filename):
-                    # Create a secure filename with a UUID prefix
-                    original_filename = photo.filename
-                    filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
-                    
-                    # Save file to upload folder
-                    upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                    photo_path = os.path.join(upload_folder, filename)
-                    photo.save(photo_path)
-                    
-                    # Create photo record in database
-                    new_photo = Photo(
-                        journal_entry_id=entry.id,
-                        filename=filename,
-                        original_filename=original_filename
-                    )
-                    db.session.add(new_photo)
-        
-        db.session.commit()
-        
-        flash('Journal entry saved successfully.')
-        return redirect(url_for('journal.index'))
+        try:
+            # Sanitize content
+            raw_content = request.form.get('content', '')
+            content = sanitize_journal_content(raw_content)
+            
+            # Validate content
+            if not content or len(content.strip()) == 0:
+                flash('Journal entry cannot be empty.', 'danger')
+                return redirect(url_for('journal.quick_journal'))
+            
+            if len(content) > 10000:  # 10KB limit
+                flash('Journal entry is too long. Please shorten your entry.', 'danger')
+                return redirect(url_for('journal.quick_journal'))
+            
+            # Get tag IDs
+            tag_ids = request.form.getlist('tags')
+            new_tags_json = request.form.get('new_tags', '[]')
+            
+            # Create journal entry
+            entry = JournalEntry(
+                user_id=current_user.id,
+                content=content,
+                entry_type='quick'
+            )
+            
+            # Add selected existing tags
+            valid_tag_ids = []
+            if tag_ids:
+                # Validate tag IDs (ensure they are integers and belong to the user)
+                for tag_id in tag_ids:
+                    try:
+                        tag_id_int = int(tag_id)
+                        valid_tag_ids.append(tag_id_int)
+                    except (ValueError, TypeError):
+                        # Skip invalid IDs
+                        pass
+                
+                # Get tags belonging to the current user
+                tags = Tag.query.filter(
+                    Tag.id.in_(valid_tag_ids), 
+                    Tag.user_id == current_user.id
+                ).all()
+                entry.tags = tags
+            else:
+                entry.tags = []
+            
+            # Create and add new tags
+            if new_tags_json:
+                try:
+                    new_tags_data = json.loads(new_tags_json)
+                    for tag_data in new_tags_data:
+                        try:
+                            # Sanitize tag name
+                            tag_name = sanitize_tag_name(tag_data.get('name', ''))
+                            tag_color = validate_color_hex(tag_data.get('color', '#6c757d'))
+                            
+                            # Check if tag with this name already exists for this user
+                            existing_tag = Tag.query.filter_by(
+                                name=tag_name,
+                                user_id=current_user.id
+                            ).first()
+                            
+                            if existing_tag:
+                                # Use existing tag if it exists
+                                if existing_tag not in entry.tags:
+                                    entry.tags.append(existing_tag)
+                            else:
+                                # Create new tag
+                                new_tag = Tag(
+                                    name=tag_name,
+                                    color=tag_color,
+                                    user_id=current_user.id
+                                )
+                                db.session.add(new_tag)
+                                db.session.flush()  # Get ID without committing
+                                entry.tags.append(new_tag)
+                        except ValidationError as e:
+                            # Log error but continue with other tags
+                            current_app.logger.warning(f'Tag validation error: {str(e)}')
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, log it but continue
+                    current_app.logger.warning(f'Invalid JSON for new tags: {new_tags_json[:100]}')
+            
+            db.session.add(entry)
+            db.session.flush()  # Get ID without committing
+            
+            # Handle photo uploads
+            photos = request.files.getlist('photos')
+            if photos:
+                for photo in photos:
+                    if photo and photo.filename and allowed_file(photo.filename):
+                        try:
+                            # Create a secure filename with a UUID prefix
+                            original_filename = secure_filename(photo.filename)  # Sanitize original filename
+                            if len(original_filename) > 255:
+                                original_filename = original_filename[-255:]  # Truncate if too long
+                                
+                            # Create unique filename
+                            filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
+                            
+                            # Save file to upload folder
+                            upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
+                            photo_path = os.path.join(upload_folder, filename)
+                            
+                            # Check file size before saving
+                            photo.seek(0, os.SEEK_END)
+                            file_size = photo.tell()
+                            photo.seek(0)  # Reset file pointer
+                            
+                            if file_size > current_app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024):
+                                # Skip files that are too large
+                                current_app.logger.warning(f'Photo upload too large: {file_size} bytes')
+                                continue
+                                
+                            # Save the file
+                            photo.save(photo_path)
+                            
+                            # Create photo record in database
+                            new_photo = Photo(
+                                journal_entry_id=entry.id,
+                                filename=filename,
+                                original_filename=original_filename
+                            )
+                            db.session.add(new_photo)
+                        except Exception as e:
+                            # Log error but continue with other photos
+                            current_app.logger.error(f'Photo upload error: {str(e)}')
+            
+            # Commit changes
+            db.session.commit()
+            
+            flash('Journal entry saved successfully.', 'success')
+            return redirect(url_for('journal.index'))
+        except Exception as e:
+            # Log unexpected errors
+            current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
+            flash('An error occurred while saving your journal entry. Please try again.', 'danger')
+            return redirect(url_for('journal.quick_journal'))
     
     # Get user's tags
     tags = Tag.query.filter_by(user_id=current_user.id).all()
@@ -1073,27 +1224,59 @@ def update_timezone():
 @login_required
 def change_password():
     """Change user password."""
-    current_password = request.form.get('current_password')
-    new_password = request.form.get('new_password')
-    confirm_password = request.form.get('confirm_password')
+    from validators import validate_password, ValidationError
+    import time
     
-    # Validate passwords
+    # Check CSRF token
+    token = session.get('_csrf_token')
+    form_token = request.form.get('_csrf_token')
+    
+    if not token or token != form_token:
+        current_app.logger.warning(f'CSRF attack detected on password change from {request.remote_addr}')
+        flash('Invalid form submission. Please try again.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Add slight delay to prevent timing attacks
+    time.sleep(0.1)
+    
+    # Get form data
+    current_password = request.form.get('current_password', '')
+    new_password = request.form.get('new_password', '')
+    confirm_password = request.form.get('confirm_password', '')
+    
+    # Validate current password
     if not current_user.check_password(current_password):
+        current_app.logger.warning(f'Failed password change attempt for user: {current_user.username}')
         flash('Current password is incorrect.', 'danger')
         return redirect(url_for('auth.settings'))
     
+    # Validate new password
     if new_password != confirm_password:
         flash('New passwords do not match.', 'danger')
         return redirect(url_for('auth.settings'))
     
-    if len(new_password) < 8:
-        flash('Password must be at least 8 characters long.', 'danger')
+    try:
+        validate_password(new_password)
+    except ValidationError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Check for common passwords
+    common_passwords = ['password', '123456', 'qwerty', 'admin', 'welcome']
+    if new_password.lower() in common_passwords:
+        flash('Please choose a stronger password.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Prevent using the same password
+    if current_user.check_password(new_password):
+        flash('New password must be different from current password.', 'danger')
         return redirect(url_for('auth.settings'))
     
     # Update password
     current_user.set_password(new_password)
     db.session.commit()
     
+    current_app.logger.info(f'Password changed for user: {current_user.username}')
     flash('Password updated successfully.', 'success')
     return redirect(url_for('auth.settings'))
 
@@ -1156,6 +1339,7 @@ def confirm_email_change(token):
 
 
 @auth_bp.route('/request-reset', methods=['GET', 'POST'])
+@limiter.limit("3 per minute")  # Rate limiting
 def request_reset():
     """Request password reset."""
     if current_user.is_authenticated:
@@ -1982,8 +2166,10 @@ def basic_multiple_conversation():
 
 @ai_bp.route('/api/conversation', methods=['POST', 'OPTIONS'])
 @login_required
+@limiter.limit("10 per minute")  # Rate limiting
 def ai_conversation_api():
     """API endpoint for AI conversations."""
+    from validators import sanitize_text
     
     # For debugging
     print("="*50)
@@ -1992,7 +2178,6 @@ def ai_conversation_api():
     print(f"Method: {request.method}")
     print(f"Headers: {dict(request.headers)}")
     print(f"URL: {request.url}")
-    print(f"Raw data: {request.data.decode('utf-8')[:1000] if request.data else 'None'}")
     
     # Handle OPTIONS requests for CORS
     if request.method == 'OPTIONS':
@@ -2000,14 +2185,13 @@ def ai_conversation_api():
         response = current_app.make_default_options_response()
         response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Accept'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Accept, X-CSRF-Token'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Max-Age'] = '3600'
         print(f"OPTIONS response headers: {dict(response.headers)}")
         return response
-        
+    
     # Handle regular POST requests
-    """API endpoint for AI conversations."""
     print("="*50)
     print(f"AI conversation API called by user: {current_user.username}")
     print("="*50)
@@ -2016,7 +2200,13 @@ def ai_conversation_api():
     print(f"Request method: {request.method}")
     print(f"Request headers: {dict(request.headers)}")
     print(f"Request endpoint: {request.endpoint}")
-    print(f"Request data: {request.data.decode('utf-8')[:500] if request.data else 'empty'}")
+    
+    # Check CSRF token in header
+    csrf_token = request.headers.get('X-CSRF-Token')
+    if not csrf_token or csrf_token != session.get('_csrf_token'):
+        print(f"CSRF token verification failed")
+        current_app.logger.warning(f'CSRF token verification failed for AI API from {request.remote_addr}')
+        return jsonify({'error': 'Invalid CSRF token'}), 403
     
     # Check if request has JSON
     if not request.is_json:
@@ -2045,14 +2235,64 @@ def ai_conversation_api():
     entries_data = data.get('entries', [])
     question = data.get('question', '')
     
+    # Sanitize the question
+    question = sanitize_text(question, 500)  # Limit to 500 chars
+    
     print(f"Entries count: {len(entries_data)}")
     print(f"Question: '{question}'")
     
+    # Validate request
     if not entries_data:
         return jsonify({'error': 'No journal entries provided'}), 400
     
     if not question:
         return jsonify({'error': 'No question provided'}), 400
+    
+    # Limit the number of entries to prevent abuse
+    if len(entries_data) > 20:
+        print(f"Too many entries: {len(entries_data)}")
+        return jsonify({'error': 'Too many entries provided. Please limit to 20 entries.'}), 400
+    
+    # Sanitize entries data
+    sanitized_entries = []
+    for entry in entries_data:
+        # Ensure all entries belong to the current user
+        entry_id = entry.get('id')
+        if entry_id:
+            db_entry = JournalEntry.query.filter_by(id=entry_id, user_id=current_user.id).first()
+            if not db_entry:
+                print(f"Entry {entry_id} does not belong to user {current_user.id}")
+                continue  # Skip entries that don't belong to the user
+        
+        # Sanitize entry fields
+        sanitized_entry = {
+            'id': entry.get('id'),
+            'date': entry.get('date'),
+            'entry_type': entry.get('entry_type'),
+            'content': sanitize_text(entry.get('content', ''), 10000)
+        }
+        
+        # Only include additional fields if they exist
+        if 'feeling_value' in entry:
+            try:
+                sanitized_entry['feeling_value'] = int(entry['feeling_value'])
+            except (ValueError, TypeError):
+                pass
+                
+        if 'emotions' in entry and isinstance(entry['emotions'], list):
+            sanitized_entry['emotions'] = [sanitize_text(e, 100) for e in entry['emotions'] if isinstance(e, str)]
+            
+        if 'guided_responses' in entry and isinstance(entry['guided_responses'], dict):
+            sanitized_responses = {}
+            for key, value in entry['guided_responses'].items():
+                sanitized_responses[sanitize_text(key, 100)] = sanitize_text(value, 5000)
+            sanitized_entry['guided_responses'] = sanitized_responses
+            
+        sanitized_entries.append(sanitized_entry)
+    
+    if not sanitized_entries:
+        print(f"No valid entries after sanitization")
+        return jsonify({'error': 'No valid entries provided'}), 400
     
     try:
         # Import AI utils
@@ -2060,8 +2300,11 @@ def ai_conversation_api():
         
         print(f"Calling AI response function")
         # Get AI response (now synchronous)
-        response = get_ai_response(entries_data, question)
+        response = get_ai_response(sanitized_entries, question)
         print(f"AI response received, length: {len(response) if response else 0}")
+        
+        # Sanitize response to prevent XSS
+        response = sanitize_text(response, 10000)
         
         # Create response and log it
         result = {'response': response}
@@ -2081,4 +2324,4 @@ def ai_conversation_api():
         current_app.logger.error(f"AI conversation error: {error_msg}\n{trace}")
         print(f"AI conversation error: {error_msg}\n{trace}")
         print("="*50)
-        return jsonify({'error': f"Error: {error_msg}"}), 500
+        return jsonify({'error': f"An error occurred processing your request"}), 500
