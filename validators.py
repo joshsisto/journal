@@ -33,7 +33,8 @@ sanitizer = Sanitizer({
 
 # Regular expressions for validation
 USERNAME_REGEX = re.compile(r'^[a-zA-Z0-9_-]{3,30}$')
-PASSWORD_REGEX = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$')
+# Simplified password regex - at least 8 chars with at least one letter and one number
+PASSWORD_REGEX = re.compile(r'^(?=.*[A-Za-z])(?=.*\d).{8,}$')
 # More permissive email regex that allows for a wider range of valid email formats
 EMAIL_REGEX = re.compile(r'^[^@]+@[^@]+\.[^@]+$')
 TAG_NAME_REGEX = re.compile(r'^[a-zA-Z0-9 _-]{1,50}$')
@@ -141,13 +142,14 @@ def sanitize_email(email):
         email (str): Email to sanitize
         
     Returns:
-        str: Sanitized email
+        str: Sanitized email or None if empty
         
     Raises:
         ValidationError: If email is invalid
     """
-    if not email:
-        raise ValidationError('Email is required')
+    # Handle None or empty string
+    if not email or email.strip() == '':
+        return None  # Email is optional
     
     # Basic cleanup - just trim whitespace and convert to lowercase
     email = email.strip().lower()
@@ -184,7 +186,17 @@ def validate_password(password):
     if len(password) > MAX_PASSWORD_LENGTH:
         raise ValidationError(f'Password cannot exceed {MAX_PASSWORD_LENGTH} characters')
     
-    if not PASSWORD_REGEX.match(password):
+    # Manual check for letter and number instead of regex
+    has_letter = False
+    has_number = False
+    
+    for char in password:
+        if char.isalpha():
+            has_letter = True
+        elif char.isdigit():
+            has_number = True
+    
+    if not has_letter or not has_number:
         raise ValidationError('Password must contain at least one letter and one number')
     
     return True
@@ -270,9 +282,16 @@ def sanitize_question_response(response):
 class RegisterSchema(BaseModel):
     """Schema for user registration data validation."""
     username: constr(min_length=3, max_length=30, pattern=r'^[a-zA-Z0-9_-]+$')
-    email: EmailStr
+    email: str = None  # Make email optional
     password: constr(min_length=8, max_length=100)
     timezone: str = 'UTC'
+    
+    @validator('email')
+    def validate_optional_email(cls, v):
+        """Allow None or empty string for email."""
+        if v is None or v == "":
+            return None
+        return v
     
     @validator('username')
     def validate_username(cls, v):

@@ -32,7 +32,7 @@ def find_database_file():
         sys.exit(1)
 
 def update_database():
-    """Add new columns to the users table."""
+    """Add new columns to the users table and fix email constraints."""
     # Find database
     db_path = find_database_file()
     print(f"Using database at: {db_path}")
@@ -59,7 +59,13 @@ def update_database():
         "reset_token_expiry": "TIMESTAMP",
         "email_change_token": "TEXT",
         "email_change_token_expiry": "TIMESTAMP",
-        "new_email": "TEXT"
+        "new_email": "TEXT",
+        "is_email_verified": "BOOLEAN DEFAULT 0",
+        "email_verification_token": "TEXT",
+        "email_verification_expiry": "TIMESTAMP",
+        "two_factor_enabled": "BOOLEAN DEFAULT 0",
+        "two_factor_code": "TEXT",
+        "two_factor_expiry": "TIMESTAMP"
     }
     
     # Add missing columns
@@ -70,6 +76,55 @@ def update_database():
                 print(f"Added {column} column")
             except sqlite3.OperationalError as e:
                 print(f"Error adding {column} column: {e}")
+    
+    # Create a new table with correct constraints for email
+    print("Rebuilding users table to ensure email is optional...")
+    try:
+        # Create a new table with the proper structure
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users_new (
+            id INTEGER PRIMARY KEY,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT UNIQUE,        -- Email is now optional (no NOT NULL)
+            is_email_verified BOOLEAN DEFAULT 0,
+            password_hash TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            timezone TEXT DEFAULT 'UTC',
+            reset_token TEXT,
+            reset_token_expiry TIMESTAMP,
+            email_verification_token TEXT,
+            email_verification_expiry TIMESTAMP,
+            email_change_token TEXT,
+            email_change_token_expiry TIMESTAMP,
+            new_email TEXT,
+            two_factor_enabled BOOLEAN DEFAULT 0,
+            two_factor_code TEXT,
+            two_factor_expiry TIMESTAMP
+        )
+        ''')
+        
+        # Copy all data
+        cursor.execute('''
+        INSERT INTO users_new 
+        SELECT id, username, email, 
+               COALESCE(is_email_verified, 0) as is_email_verified,
+               password_hash, created_at, 
+               COALESCE(timezone, 'UTC') as timezone,
+               reset_token, reset_token_expiry,
+               email_verification_token, email_verification_expiry,
+               email_change_token, email_change_token_expiry,
+               new_email,
+               COALESCE(two_factor_enabled, 0) as two_factor_enabled,
+               two_factor_code, two_factor_expiry
+        FROM users
+        ''')
+        
+        # Delete old table and rename new one
+        cursor.execute('DROP TABLE users')
+        cursor.execute('ALTER TABLE users_new RENAME TO users')
+        print("Users table rebuilt with correct structure for optional email")
+    except sqlite3.Error as e:
+        print(f"Error rebuilding users table: {e}")
     
     # Commit changes and close connection
     conn.commit()

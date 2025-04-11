@@ -76,10 +76,10 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                        <div class="invalid-feedback">
-                            Please enter a valid email address.
+                        <label for="email" class="form-label">Email (Optional)</label>
+                        <input type="email" class="form-control" id="email" name="email">
+                        <div class="form-text">
+                            Email is optional but recommended for password recovery and two-factor authentication.
                         </div>
                     </div>
                     <div class="mb-3">
@@ -186,9 +186,9 @@
                 username.classList.remove('is-invalid');
             }
             
-            // Validate email
+            // Email is optional, only validate if it has a value
             const email = document.getElementById('email');
-            if (!email.value || !email.checkValidity()) {
+            if (email.value && !email.checkValidity()) {
                 email.classList.add('is-invalid');
                 isValid = false;
             } else {
@@ -196,8 +196,11 @@
             }
             
             // Validate password
-            if (!passwordInput.value || passwordInput.value.length < 8 || 
-                !passwordInput.value.match(/[a-zA-Z]/) || !passwordInput.value.match(/\d/)) {
+            if (!passwordInput.value || passwordInput.value.length < 8) {
+                passwordInput.classList.add('is-invalid');
+                isValid = false;
+            } else if (!passwordInput.value.match(/[A-Za-z]/) || !passwordInput.value.match(/\d/)) {
+                // Make sure it has at least one letter and one number
                 passwordInput.classList.add('is-invalid');
                 isValid = false;
             } else {

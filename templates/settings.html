@@ -11,6 +11,7 @@
             </div>
             <div class="card-body">
                 <form method="post" action="{{ url_for('auth.update_timezone') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                     <div class="mb-3">
                         <label for="timezone" class="form-label">Your Timezone</label>
                         <select class="form-select" id="timezone" name="timezone" required>
@@ -35,6 +36,7 @@
             </div>
             <div class="card-body">
                 <form method="post" action="{{ url_for('auth.change_password') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                     <div class="mb-3">
                         <label for="current_password" class="form-label">Current Password</label>
                         <input type="password" class="form-control" id="current_password" name="current_password" required>
@@ -52,29 +54,120 @@
             </div>
         </div>
         
-        <div class="card mb-4">
+        <div class="card mb-4" id="email-section">
             <div class="card-header">
-                <h3 class="card-title">Change Email Address</h3>
+                <h3 class="card-title">Email Settings</h3>
             </div>
             <div class="card-body">
-                <form method="post" action="{{ url_for('auth.change_email') }}">
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Current Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                {% if current_user.email %}
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5>Current Email</h5>
+                            <p class="mb-0">{{ current_user.email }}
+                                {% if current_user.is_email_verified %}
+                                    <span class="badge bg-success">Verified</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Unverified</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        {% if not current_user.is_email_verified %}
+                        <form method="post" action="{{ url_for('auth.resend_verification') }}">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-outline-primary">Resend Verification Email</button>
+                        </form>
+                        {% endif %}
                     </div>
-                    <div class="mb-3">
-                        <label for="new_email" class="form-label">New Email Address</label>
-                        <input type="email" class="form-control" id="new_email" name="new_email" required>
+                    
+                    <hr>
+                    
+                    <h5>Change Email Address</h5>
+                    <form method="post" action="{{ url_for('auth.change_email') }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_email" class="form-label">New Email Address</label>
+                            <input type="email" class="form-control" id="new_email" name="new_email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_email" class="form-label">Confirm New Email</label>
+                            <input type="email" class="form-control" id="confirm_email" name="confirm_email" required>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> A verification link will be sent to your new email address. Your current email will remain active until the new one is verified.
+                        </div>
+                        <button type="submit" class="btn btn-primary">Change Email</button>
+                    </form>
+                {% else %}
+                    <h5>Add Email Address</h5>
+                    <p class="text-muted">You don't have an email address associated with your account.</p>
+                    <p>Adding an email address enables:</p>
+                    <ul>
+                        <li>Password recovery</li>
+                        <li>Two-factor authentication</li>
+                        <li>Important account notifications</li>
+                    </ul>
+                    
+                    <form method="post" action="{{ url_for('auth.add_email') }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> A verification link will be sent to this email address.
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Email</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title">Two-Factor Authentication</h3>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5>Email-based 2FA</h5>
+                        <p class="text-muted">Add an extra layer of security by requiring a verification code sent to your email when logging in.</p>
                     </div>
-                    <div class="mb-3">
-                        <label for="confirm_email" class="form-label">Confirm New Email</label>
-                        <input type="email" class="form-control" id="confirm_email" name="confirm_email" required>
+                    <div class="form-check form-switch">
+                        <form method="post" action="{{ url_for('auth.toggle_two_factor') }}" id="two-factor-form">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                            <input class="form-check-input" type="checkbox" id="two-factor-toggle" name="enabled" 
+                                   {% if current_user.two_factor_enabled %}checked{% endif %}
+                                   onchange="document.getElementById('two-factor-form').submit();">
+                        </form>
                     </div>
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> A verification link will be sent to your new email address.
-                    </div>
-                    <button type="submit" class="btn btn-primary">Change Email</button>
-                </form>
+                </div>
+                
+                {% if current_user.two_factor_enabled %}
+                <div class="alert alert-success">
+                    <i class="bi bi-shield-check"></i> Two-factor authentication is enabled.
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-shield-exclamation"></i> Two-factor authentication is disabled. We recommend enabling it for better security.
+                </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <p>When enabled, you will receive a verification code via email when:</p>
+                    <ul>
+                        <li>You log in from a new device or browser</li>
+                        <li>You haven't logged in for more than 30 days</li>
+                        <li>You make sensitive account changes</li>
+                    </ul>
+                </div>
             </div>
         </div>
         
@@ -104,7 +197,22 @@
                     <strong>Username:</strong> {{ current_user.username }}
                 </p>
                 <p>
-                    <strong>Email address:</strong> {{ current_user.email }}
+                    <strong>Email address:</strong> 
+                    {% if current_user.email %}
+                        {{ current_user.email }}
+                        {% if current_user.is_email_verified %}
+                            <span class="badge bg-success">Verified</span>
+                        {% else %}
+                            <span class="badge bg-warning">Unverified</span>
+                            <form method="post" action="{{ url_for('auth.resend_verification') }}" class="d-inline">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Resend Verification</button>
+                            </form>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted">No email address</span>
+                        <a href="#email-section" class="btn btn-sm btn-outline-primary">Add Email</a>
+                    {% endif %}
                 </p>
                 <p>
                     <strong>Account created:</strong> {{ format_datetime(current_user.created_at, '%Y-%m-%d') }}

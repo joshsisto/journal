@@ -37,6 +37,7 @@ def register():
         ValidationError
     )
     from security import csrf_protect
+    from email_utils import send_email
     
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
@@ -55,9 +56,20 @@ def register():
             # Get and sanitize inputs
             try:
                 username = sanitize_username(request.form.get('username', ''))
-                email = sanitize_email(request.form.get('email', ''))
+                email_input = request.form.get('email', '').strip()
                 password = request.form.get('password', '')
                 timezone = request.form.get('timezone', 'UTC')
+                
+                # Debug print inputs
+                print(f"Registration attempt: username={username}, email_input={email_input}, timezone={timezone}")
+                
+                # Email is now optional
+                email = None
+                if email_input:
+                    email = sanitize_email(email_input)
+                
+                # Debug print sanitized email
+                print(f"Sanitized email: {email}")
                 
                 # Validate password
                 validate_password(password)
@@ -80,11 +92,12 @@ def register():
                 flash('Username already exists.', 'danger')
                 return redirect(url_for('auth.register'))
             
-            # Check if email exists
-            user = User.query.filter_by(email=email).first()
-            if user:
-                flash('Email already registered.', 'danger')
-                return redirect(url_for('auth.register'))
+            # Check if email exists (if provided)
+            if email:
+                user = User.query.filter_by(email=email).first()
+                if user:
+                    flash('Email already registered.', 'danger')
+                    return redirect(url_for('auth.register'))
             
             # Check for common passwords
             common_passwords = ['password', '123456', 'qwerty', 'admin', 'welcome']
@@ -92,15 +105,79 @@ def register():
                 flash('Please choose a stronger password.', 'danger')
                 return redirect(url_for('auth.register'))
             
-            # Create new user with timezone
-            new_user = User(username=username, email=email, timezone=timezone)
+            # Create new user with timezone - explicitly set all fields
+            new_user = User()
+            new_user.username = username
+            new_user.timezone = timezone
+            if email:  # Only set email if provided
+                new_user.email = email
+            else:
+                new_user.email = None  # Explicitly set to None
+                
+            # Set is_email_verified based on whether email was provided
+            new_user.is_email_verified = False
+            
             new_user.set_password(password)
+            print(f"Creating user: username={username}, email={new_user.email}, timezone={timezone}")
+            
+            # Generate email verification token if email provided
+            if email:
+                verification_token = new_user.generate_email_verification_token()
             
             db.session.add(new_user)
             db.session.commit()
             
             current_app.logger.info(f'New user registered: {username}')
-            flash('Registration successful. Please log in.', 'success')
+            
+            # Send verification email if email was provided
+            if email and verification_token:
+                try:
+                    # Get configuration with defaults
+                    app_name = current_app.config.get('APP_NAME', 'Journal App')
+                    app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
+                    
+                    # Force production URL for emails
+                    app_url = "https://journal.joshsisto.com"
+                    
+                    verify_url = f"{app_url}/verify-email/{verification_token}"
+                    
+                    subject = f"{app_name} - Verify Your Email"
+                    
+                    # Plain text email
+                    text_body = f"""
+Hello {new_user.username},
+
+Please verify your email address by visiting the following link:
+{verify_url}
+
+This link will expire in 24 hours.
+
+If you did not create an account with us, you can safely ignore this email.
+
+Thank you,
+{app_name} Team
+                    """
+                    
+                    # HTML email
+                    html_body = f"""
+<p>Hello {new_user.username},</p>
+<p>Please verify your email address by <a href="{verify_url}">clicking here</a>.</p>
+<p>Alternatively, you can paste the following link in your browser's address bar:</p>
+<p>{verify_url}</p>
+<p>This link will expire in 24 hours.</p>
+<p>If you did not create an account with us, you can safely ignore this email.</p>
+<p>Thank you,<br>{app_name} Team</p>
+                    """
+                    
+                    send_email(subject, [email], text_body, html_body)
+                    
+                    flash('Registration successful. Please check your email to verify your address, then log in.', 'success')
+                except Exception as e:
+                    current_app.logger.error(f"Failed to send verification email: {str(e)}")
+                    flash('Registration successful, but we could not send a verification email. You can verify your email later from settings.', 'warning')
+            else:
+                flash('Registration successful. Please log in.', 'success')
+                
             return redirect(url_for('auth.login'))
         
         except Exception as e:
@@ -108,16 +185,12 @@ def register():
             error_details = traceback.format_exc()
             current_app.logger.error(f'Registration error: {str(e)}\n{error_details}')
             
+            # Debug log the exact error
+            print(f'Registration error detail: {str(e)} (Type: {type(e).__name__})')
+            print(f'Traceback: {error_details}')
+            
             # More user-friendly error message
-            if 'email' in str(e).lower():
-                flash('There was a problem with the email address. Please try a different one.', 'danger')
-            elif 'username' in str(e).lower():
-                flash('There was a problem with the username. Please try a different one.', 'danger')
-            elif 'password' in str(e).lower():
-                flash('There was a problem with the password. Please make sure it meets the requirements.', 'danger')
-            else:
-                flash('An error occurred during registration. Please try again.', 'danger')
-                
+            flash(f'Registration error: {str(e)}', 'danger')
             return redirect(url_for('auth.register'))
     
     # Get common timezones
@@ -131,6 +204,7 @@ def register():
 def login():
     import time
     from validators import sanitize_text
+    from two_factor import is_verification_required, send_verification_code
     
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
@@ -156,14 +230,30 @@ def login():
         # Attempt to find the user
         user = User.query.filter_by(username=username).first()
         
-        login_failure = False
-        
         # Check if user exists and password is correct
         if not user or not user.check_password(password):
-            login_failure = True
             current_app.logger.warning(f'Failed login attempt for user: {username} from IP: {request.remote_addr}')
             flash('Invalid username or password.', 'danger')
             return redirect(url_for('auth.login'))
+        
+        # Store user ID in session for 2FA
+        session['pre_verified_user_id'] = user.id
+        session['pre_verified_remember'] = remember
+        
+        # Check if 2FA is required
+        if user.two_factor_enabled and is_verification_required(user.id):
+            # Send verification code
+            success, message = send_verification_code(user.id)
+            
+            if not success:
+                flash(f'Failed to send verification code: {message}', 'danger')
+                return redirect(url_for('auth.login'))
+            
+            # Set flag in session
+            session['requires_verification'] = True
+            
+            # Redirect to verification page
+            return redirect(url_for('auth.verify_login'))
         
         # Log successful login
         current_app.logger.info(f'User logged in: {username} from IP: {request.remote_addr}')
@@ -178,6 +268,115 @@ def login():
         return redirect(next_page or url_for('journal.index'))
     
     return render_template('login.html')
+
+
+@auth_bp.route('/verify', methods=['GET', 'POST'])
+def verify_login():
+    """Verify login with 2FA code."""
+    from two_factor import verify_code, mark_verified
+    
+    # Check if verification is required
+    if 'requires_verification' not in session or 'pre_verified_user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    user_id = session.get('pre_verified_user_id')
+    remember = session.get('pre_verified_remember', False)
+    
+    # Get user
+    user = User.query.get(user_id)
+    if not user:
+        flash('Invalid session. Please log in again.', 'danger')
+        return redirect(url_for('auth.login'))
+    
+    if request.method == 'POST':
+        # Check CSRF token
+        token = session.get('_csrf_token')
+        form_token = request.form.get('_csrf_token')
+        
+        if not token or token != form_token:
+            current_app.logger.warning(f'CSRF attack detected on verification from {request.remote_addr}')
+            flash('Invalid form submission. Please try again.', 'danger')
+            return redirect(url_for('auth.verify_login'))
+        
+        # Get verification code
+        code = request.form.get('code', '')
+        
+        # Verify code
+        success, message = verify_code(user_id, code)
+        
+        if not success:
+            flash(f'Verification failed: {message}', 'danger')
+            return redirect(url_for('auth.verify_login'))
+        
+        # Mark as verified
+        mark_verified(user_id)
+        
+        # Log successful login with 2FA
+        current_app.logger.info(f'User {user.username} completed 2FA verification from IP: {request.remote_addr}')
+        
+        # Login user
+        login_user(user, remember=remember)
+        
+        # Clear verification session
+        if 'requires_verification' in session:
+            session.pop('requires_verification')
+        if 'pre_verified_user_id' in session:
+            session.pop('pre_verified_user_id')
+        if 'pre_verified_remember' in session:
+            session.pop('pre_verified_remember')
+        
+        # Redirect to dashboard
+        return redirect(url_for('journal.index'))
+    
+    return render_template('auth/verify.html')
+
+
+@auth_bp.route('/resend-code', methods=['POST'])
+@limiter.limit("1/minute")  # Strict rate limiting
+def resend_code():
+    """Resend verification code."""
+    from two_factor import send_verification_code
+    
+    # Check if verification is required
+    if 'requires_verification' not in session or 'pre_verified_user_id' not in session:
+        return jsonify({'success': False, 'message': 'Invalid session'})
+    
+    user_id = session.get('pre_verified_user_id')
+    
+    # Resend code
+    success, message = send_verification_code(user_id)
+    
+    return jsonify({'success': success, 'message': message})
+
+
+@auth_bp.route('/toggle-two-factor', methods=['POST'])
+@login_required
+def toggle_two_factor():
+    """Toggle two-factor authentication."""
+    # Check CSRF token
+    token = session.get('_csrf_token')
+    form_token = request.form.get('_csrf_token')
+    
+    if not token or token != form_token:
+        current_app.logger.warning(f'CSRF attack detected on 2FA toggle from {request.remote_addr}')
+        flash('Invalid form submission. Please try again.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Get enabled state
+    enabled = 'enabled' in request.form
+    
+    # Update user
+    current_user.two_factor_enabled = enabled
+    db.session.commit()
+    
+    if enabled:
+        flash('Two-factor authentication has been enabled.', 'success')
+        current_app.logger.info(f'User {current_user.username} enabled 2FA')
+    else:
+        flash('Two-factor authentication has been disabled.', 'warning')
+        current_app.logger.info(f'User {current_user.username} disabled 2FA')
+    
+    return redirect(url_for('auth.settings'))
 
 
 @auth_bp.route('/logout')
@@ -1285,6 +1484,15 @@ def change_password():
 @login_required
 def change_email():
     """Initiate email change process."""
+    # Check CSRF token
+    token = session.get('_csrf_token')
+    form_token = request.form.get('_csrf_token')
+    
+    if not token or token != form_token:
+        current_app.logger.warning(f'CSRF attack detected on email change from {request.remote_addr}')
+        flash('Invalid form submission. Please try again.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
     password = request.form.get('password')
     new_email = request.form.get('new_email')
     confirm_email = request.form.get('confirm_email')
@@ -1313,6 +1521,204 @@ def change_email():
     
     flash('A confirmation link has been sent to your new email address. Please check your inbox.', 'info')
     return redirect(url_for('auth.settings'))
+
+
+@auth_bp.route('/settings/add-email', methods=['POST'])
+@login_required
+def add_email():
+    """Add email to an account that doesn't have one."""
+    # Check CSRF token
+    token = session.get('_csrf_token')
+    form_token = request.form.get('_csrf_token')
+    
+    if not token or token != form_token:
+        current_app.logger.warning(f'CSRF attack detected on add email from {request.remote_addr}')
+        flash('Invalid form submission. Please try again.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Only allow adding email if user doesn't have one
+    if current_user.email:
+        flash('You already have an email address. Use the change email form instead.', 'warning')
+        return redirect(url_for('auth.settings'))
+    
+    password = request.form.get('password')
+    email = request.form.get('email')
+    
+    # Validate inputs
+    if not email or not password:
+        flash('Email and password are required.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    if not current_user.check_password(password):
+        flash('Password is incorrect.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Validate email format
+    try:
+        from validators import sanitize_email
+        email = sanitize_email(email)
+    except Exception as e:
+        flash(f'Invalid email address: {str(e)}', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Check if email is already in use
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        flash('This email address is already in use.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Update user's email and generate verification token
+    current_user.email = email
+    verification_token = current_user.generate_email_verification_token()
+    db.session.commit()
+    
+    # Send verification email
+    try:
+        app_name = current_app.config.get('APP_NAME', 'Journal App')
+        app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
+        
+        # Force production URL for emails
+        app_url = "https://journal.joshsisto.com"
+        
+        verify_url = f"{app_url}/verify-email/{verification_token}"
+        
+        subject = f"{app_name} - Verify Your Email"
+        
+        # Plain text email
+        text_body = f"""
+Hello {current_user.username},
+
+Please verify your email address by visiting the following link:
+{verify_url}
+
+This link will expire in 24 hours.
+
+If you did not add this email to your account, please contact support.
+
+Thank you,
+{app_name} Team
+        """
+        
+        # HTML email
+        html_body = f"""
+<p>Hello {current_user.username},</p>
+<p>Please verify your email address by <a href="{verify_url}">clicking here</a>.</p>
+<p>Alternatively, you can paste the following link in your browser's address bar:</p>
+<p>{verify_url}</p>
+<p>This link will expire in 24 hours.</p>
+<p>If you did not add this email to your account, please contact support.</p>
+<p>Thank you,<br>{app_name} Team</p>
+        """
+        
+        from email_utils import send_email
+        send_email(subject, [email], text_body, html_body)
+        
+        flash('Email address added. Please check your inbox to verify your email.', 'success')
+    except Exception as e:
+        current_app.logger.error(f"Failed to send verification email: {str(e)}")
+        flash('Email address added, but we could not send a verification email. You can resend it from settings.', 'warning')
+    
+    return redirect(url_for('auth.settings'))
+
+
+@auth_bp.route('/settings/resend-verification', methods=['POST'])
+@login_required
+@limiter.limit("3/hour")  # Prevent abuse
+def resend_verification():
+    """Resend email verification link."""
+    # Check CSRF token
+    token = session.get('_csrf_token')
+    form_token = request.form.get('_csrf_token')
+    
+    if not token or token != form_token:
+        current_app.logger.warning(f'CSRF attack detected on resend verification from {request.remote_addr}')
+        flash('Invalid form submission. Please try again.', 'danger')
+        return redirect(url_for('auth.settings'))
+    
+    # Check if user has an email
+    if not current_user.email:
+        flash('You need to add an email address first.', 'warning')
+        return redirect(url_for('auth.settings'))
+    
+    # Check if email is already verified
+    if current_user.is_email_verified:
+        flash('Your email is already verified.', 'info')
+        return redirect(url_for('auth.settings'))
+    
+    # Generate a new verification token
+    verification_token = current_user.generate_email_verification_token()
+    db.session.commit()
+    
+    # Send verification email
+    try:
+        app_name = current_app.config.get('APP_NAME', 'Journal App')
+        app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
+        
+        # Force production URL for emails
+        app_url = "https://journal.joshsisto.com"
+        
+        verify_url = f"{app_url}/verify-email/{verification_token}"
+        
+        subject = f"{app_name} - Verify Your Email"
+        
+        # Plain text email
+        text_body = f"""
+Hello {current_user.username},
+
+Please verify your email address by visiting the following link:
+{verify_url}
+
+This link will expire in 24 hours.
+
+If you did not request this verification, please contact support.
+
+Thank you,
+{app_name} Team
+        """
+        
+        # HTML email
+        html_body = f"""
+<p>Hello {current_user.username},</p>
+<p>Please verify your email address by <a href="{verify_url}">clicking here</a>.</p>
+<p>Alternatively, you can paste the following link in your browser's address bar:</p>
+<p>{verify_url}</p>
+<p>This link will expire in 24 hours.</p>
+<p>If you did not request this verification, please contact support.</p>
+<p>Thank you,<br>{app_name} Team</p>
+        """
+        
+        from email_utils import send_email
+        send_email(subject, [current_user.email], text_body, html_body)
+        
+        flash('Verification email sent. Please check your inbox.', 'success')
+    except Exception as e:
+        current_app.logger.error(f"Failed to send verification email: {str(e)}")
+        flash('Could not send verification email. Please try again later.', 'danger')
+    
+    return redirect(url_for('auth.settings'))
+
+
+@auth_bp.route('/verify-email/<token>')
+def verify_email(token):
+    """Verify email address with token."""
+    # Find user by token
+    user = User.query.filter_by(email_verification_token=token).first()
+    
+    if not user or not user.verify_email_verification_token(token):
+        flash('Invalid or expired verification link.', 'danger')
+        return redirect(url_for('auth.login'))
+    
+    # Mark email as verified
+    user.complete_email_verification()
+    db.session.commit()
+    
+    flash('Your email address has been verified successfully.', 'success')
+    
+    # If user is logged in, redirect to settings, otherwise to login
+    if current_user.is_authenticated:
+        return redirect(url_for('auth.settings'))
+    else:
+        return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/confirm-email-change/<token>')
