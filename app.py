@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from flask_login import LoginManager
 from flask_mail import Mail
 from config import Config
@@ -8,6 +8,8 @@ import logging
 import os
 import jinja2
 import markupsafe
+from security import setup_security, csp, talisman, limiter
+from validators import sanitize_html, sanitize_text
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -16,7 +18,10 @@ mail = Mail()
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    try:
+        return User.query.get(int(user_id))
+    except (ValueError, TypeError):
+        return None
 
 def create_app(config_class=Config):
     """Create and configure the Flask application.
@@ -55,6 +60,59 @@ def create_app(config_class=Config):
     db.init_app(app)
     login_manager.init_app(app)
     mail.init_app(app)
+    
+    # Configure session security
+    app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = app.config.get('APP_URL', '').startswith('https://')
+    app.config['WTF_CSRF_ENABLED'] = True
+    app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
+    
+    # Set security-related configuration
+    app.config['SECURITY_PASSWORD_SALT'] = os.environ.get('SECURITY_PASSWORD_SALT', 'change-me-in-production')
+    app.config['FORCE_HTTPS'] = app.config.get('APP_URL', '').startswith('https://')
+    app.config['SESSION_COOKIE_SECURE'] = app.config.get('FORCE_HTTPS', False)
+    
+    # Configure upload limits
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+    
+    # Setup security features
+    setup_security(app)
+    
+    # Apply request hook to log all requests
+    @app.before_request
+    def log_request_info():
+        app.logger.debug('Request Headers: %s', request.headers)
+        app.logger.debug('Request Path: %s', request.path)
+        app.logger.debug('Request Method: %s', request.method)
+        app.logger.debug('Request Remote Address: %s', request.remote_addr)
+    
+    # Apply request hook for automatic parameter sanitization
+    @app.before_request
+    def sanitize_request_data():
+        # Sanitize URL parameters
+        for key, value in list(request.args.items()):
+            if key and value and isinstance(value, str):
+                request.args = request.args.copy()
+                request.args[key] = sanitize_text(value)
+    
+    # Apply security checks before each request
+    @app.before_request
+    def security_checks():
+        # Block requests with suspicious SQL or script injection attempts
+        if request.args:
+            suspicious_patterns = [
+                "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", 
+                "UNION", "1=1", "--", "<script>", "eval(", "javascript:"
+            ]
+            
+            for key, value in request.args.items():
+                if isinstance(value, str):
+                    value_upper = value.upper()
+                    for pattern in suspicious_patterns:
+                        if pattern.upper() in value_upper:
+                            app.logger.warning(f'Blocked suspicious request with parameter {key}={value[:50]}')
+                            return "Bad request", 400
 
     # Register time utilities for templates
     register_template_utils(app)    
@@ -66,6 +124,9 @@ def create_app(config_class=Config):
     app.register_blueprint(tag_bp, url_prefix='/tags')
     app.register_blueprint(export_bp, url_prefix='/export')
     app.register_blueprint(ai_bp, url_prefix='/ai')
+    
+    # Rate limits are applied directly on the route functions
+    # No need to apply them here
     
     # Add custom Jinja2 filters
     @app.template_filter('nl2br')
