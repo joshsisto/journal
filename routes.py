@@ -2570,6 +2570,12 @@ def basic_multiple_conversation():
     # Redirect to the main multiple conversation route
     return redirect(url_for('ai.multiple_entries_conversation'))
 
+@ai_bp.route('/test-cors', methods=['GET'])
+@login_required
+def test_cors():
+    """Test page for debugging CORS issues."""
+    return render_template('ai/test_cors.html')
+
 @ai_bp.route('/api/conversation', methods=['POST', 'OPTIONS'])
 @login_required
 @limiter.limit("10 per minute")  # Rate limiting

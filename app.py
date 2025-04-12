@@ -211,12 +211,11 @@ def create_app(config_class=Config):
 if __name__ == '__main__':
     app = create_app()
     
-    # Note: The first app.run() will execute but the second one will never be reached
-    # Combine the parameters into a single app.run() call
+    # Run without SSL for testing (this should fix AI conversation issues)
     #app.run(host="0.0.0.0", debug=True)
     
-    # Uncomment the following line to run with HTTPS (needed for camera access from non-localhost)
-    app.run(host="0.0.0.0", debug=True, ssl_context='adhoc')
+    # For HTTPS (needed for camera access from non-localhost)
+    app.run(host="0.0.0.0", debug=False, ssl_context='adhoc')
     
     # For production with proper certificates:
     # app.run(host="0.0.0.0", ssl_context=('cert.pem', 'key.pem'))

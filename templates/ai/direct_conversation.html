@@ -322,10 +322,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 const apiUrl = "{{ url_for('ai.ai_conversation_api', _external=True) }}";
                 debug(`Sending request to: ${apiUrl}`);
                 
-                const response = await fetch(apiUrl, {
+                // Get the correct API URL
+                const apiUrl = "{{ url_for('ai.ai_conversation_api') }}";
+                const fullApiUrl = window.location.origin + apiUrl;
+                
+                const response = await fetch(fullApiUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'include',
                     body: JSON.stringify(requestData)

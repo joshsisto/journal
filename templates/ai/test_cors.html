@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}CORS Test - Journal App{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>CORS & API Test</h2>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-3">
+                <div class="card-header">
+                    Test API Connection
+                </div>
+                <div class="card-body">
+                    <button id="testAPIBtn" class="btn btn-primary">Test API Connection</button>
+                    <button id="testXHRBtn" class="btn btn-secondary">Test with XMLHttpRequest</button>
+                    <button id="testFetchBtn" class="btn btn-info">Test with Fetch</button>
+                    <button id="clearLogBtn" class="btn btn-warning">Clear Log</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    Results Log
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <pre id="resultsLog" style="white-space: pre-wrap;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const resultsLog = document.getElementById('resultsLog');
+    const testAPIBtn = document.getElementById('testAPIBtn');
+    const testXHRBtn = document.getElementById('testXHRBtn');
+    const testFetchBtn = document.getElementById('testFetchBtn');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    
+    // Get the API URL correctly from Flask (with consistent format)
+    const apiUrl = "{{ url_for('ai.ai_conversation_api') }}";
+    const fullApiUrl = window.location.origin + apiUrl;
+    const csrfToken = "{{ csrf_token }}";
+    
+    function log(message, isError = false) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        logEntry.style.color = isError ? 'red' : 'black';
+        logEntry.style.marginBottom = '5px';
+        logEntry.style.borderBottom = '1px solid #eee';
+        logEntry.textContent = `[${timestamp}] ${message}`;
+        
+        resultsLog.appendChild(logEntry);
+        resultsLog.scrollTop = resultsLog.scrollHeight;
+        
+        console.log(`[${isError ? 'ERROR' : 'INFO'}] ${message}`);
+    }
+    
+    function testWithXHR() {
+        log('Testing API with XMLHttpRequest...');
+        
+        // Create minimal test data
+        const testData = {
+            entries: [{ id: 1, content: 'Test entry', date: '2023-01-01', entry_type: 'quick' }],
+            question: 'Test question'
+        };
+        
+        // Log request details
+        log(`API URL (relative): ${apiUrl}`);
+        log(`API URL (full): ${fullApiUrl}`);
+        log(`CSRF Token: ${csrfToken ? csrfToken.substring(0, 10) + '...' : 'Not found'}`);
+        log(`Session cookie: ${document.cookie.includes('session') ? 'Present' : 'Not found'}`);
+        
+        // Send XHR request
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', fullApiUrl, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+        
+        xhr.onreadystatechange = function() {
+            log(`XHR state changed: ${xhr.readyState} (status: ${xhr.status})`);
+            
+            if (xhr.readyState === 4) {
+                log(`Response headers: ${xhr.getAllResponseHeaders()}`);
+                
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    log(`Success! Response: ${xhr.responseText.substring(0, 100)}`);
+                } else {
+                    log(`Error: Status ${xhr.status} - ${xhr.statusText}`, true);
+                    log(`Response: ${xhr.responseText}`, true);
+                }
+            }
+        };
+        
+        xhr.onerror = function(e) {
+            log(`Network error occurred: ${e}`, true);
+            log(`Error details: ${JSON.stringify(e)}`, true);
+        };
+        
+        log(`Sending data: ${JSON.stringify(testData)}`);
+        xhr.send(JSON.stringify(testData));
+    }
+    
+    async function testWithFetch() {
+        log('Testing API with fetch...');
+        
+        // Create minimal test data
+        const testData = {
+            entries: [{ id: 1, content: 'Test entry', date: '2023-01-01', entry_type: 'quick' }],
+            question: 'Test question'
+        };
+        
+        // Log request details
+        log(`API URL (relative): ${apiUrl}`);
+        log(`API URL (full): ${fullApiUrl}`);
+        log(`CSRF Token: ${csrfToken ? csrfToken.substring(0, 10) + '...' : 'Not found'}`);
+        
+        try {
+            // Send fetch request
+            const response = await fetch(fullApiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'include',
+                body: JSON.stringify(testData)
+            });
+            
+            log(`Fetch response received: ${response.status} ${response.statusText}`);
+            log(`Response headers: ${Array.from(response.headers.entries()).map(h => h[0] + ': ' + h[1]).join(', ')}`);
+            
+            if (response.ok) {
+                const text = await response.text();
+                log(`Success! Response: ${text.substring(0, 100)}`);
+                try {
+                    const json = JSON.parse(text);
+                    log(`Parsed as JSON: ${JSON.stringify(json).substring(0, 100)}`);
+                } catch (e) {
+                    log(`Could not parse response as JSON: ${e}`, true);
+                }
+            } else {
+                const text = await response.text();
+                log(`Error: ${response.status} ${response.statusText}`, true);
+                log(`Error response: ${text}`, true);
+            }
+        } catch (e) {
+            log(`Fetch error: ${e}`, true);
+            log(`Error details: ${e.stack}`, true);
+        }
+    }
+    
+    function testAPI() {
+        log('==== Testing API connection ====');
+        
+        // Log browser environment info
+        log(`Browser: ${navigator.userAgent}`);
+        log(`Protocol: ${window.location.protocol}`);
+        log(`Host: ${window.location.host}`);
+        log(`Page URL: ${window.location.href}`);
+        
+        // Test both methods
+        testWithXHR();
+        testWithFetch();
+    }
+    
+    // Button handlers
+    testAPIBtn.addEventListener('click', testAPI);
+    testXHRBtn.addEventListener('click', testWithXHR);
+    testFetchBtn.addEventListener('click', testWithFetch);
+    clearLogBtn.addEventListener('click', function() {
+        resultsLog.innerHTML = '';
+        log('Log cleared');
+    });
+    
+    // Initial log
+    log('CORS test page loaded');
+    log(`CSRF token available: ${csrfToken ? 'Yes' : 'No'}`);
+    log(`Current URL: ${window.location.href}`);
+});
+</script>
+{% endblock %}
