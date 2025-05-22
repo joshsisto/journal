@@ -4,6 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from sqlalchemy.exc import SQLAlchemyError # Import for error handling
+from flask import current_app # Import current_app for logging within model
 
 db = SQLAlchemy()
 
@@ -41,6 +43,10 @@ class User(UserMixin, db.Model):
     two_factor_enabled = db.Column(db.Boolean, default=False)
     two_factor_code = db.Column(db.String(10), nullable=True)
     two_factor_expiry = db.Column(db.DateTime, nullable=True)
+    
+    # New fields for "Remember Me" for 2FA
+    two_factor_remember_me_token = db.Column(db.String(100), nullable=True, index=True) # Index for faster lookups
+    two_factor_remember_me_expiry = db.Column(db.DateTime, nullable=True)
     
     # Relationships
     journal_entries = db.relationship('JournalEntry', backref='author', lazy='dynamic')
@@ -97,16 +103,13 @@ class User(UserMixin, db.Model):
             self.new_email = None
             self.email_change_token = None
             self.email_change_token_expiry = None
-            # New email needs verification
             self.is_email_verified = False
-            # Generate verification token for the new email
             self.generate_email_verification_token()
             return True
         return False
         
     def generate_email_verification_token(self):
         """Generate a token for email verification."""
-        # Don't generate token if email is None or empty
         if not self.email:
             return None
             
@@ -134,6 +137,39 @@ class User(UserMixin, db.Model):
     def has_verified_email(self):
         """Check if user has a verified email address."""
         return self.email is not None and self.is_email_verified
+
+    # --- 2FA Remember Me Methods ---
+    def generate_2fa_remember_me_token(self):
+        """Generates and stores a secure token and expiry for 2FA remember me."""
+        try:
+            self.two_factor_remember_me_token = secrets.token_urlsafe(64)
+            # Expiry set to 30 days from now
+            self.two_factor_remember_me_expiry = datetime.utcnow() + timedelta(days=current_app.config.get('REMEMBER_ME_2FA_COOKIE_DURATION_DAYS', 30))
+            # The caller should commit the session after calling this method
+            # db.session.commit() # Removed commit from here, should be handled by the route
+            return self.two_factor_remember_me_token
+        except Exception as e: # Catch generic exception during token generation
+            # Log error, but don't necessarily roll back here as this might be part of a larger transaction
+            current_app.logger.error(f"Error generating 2FA remember me token for user {self.id}: {str(e)}\n{traceback.format_exc()}")
+            return None
+
+    def verify_2fa_remember_me_token(self, token):
+        """Verifies the 2FA remember me token and its expiry."""
+        if not token or not self.two_factor_remember_me_token or not self.two_factor_remember_me_expiry:
+            return False
+        if not secrets.compare_digest(token, self.two_factor_remember_me_token): # Use compare_digest for security
+            return False
+        if datetime.utcnow() > self.two_factor_remember_me_expiry:
+            self.clear_2fa_remember_me_token() # Expired token, clear it (caller should commit)
+            return False
+        return True
+
+    def clear_2fa_remember_me_token(self):
+        """Clears the 2FA remember me token and expiry from the database."""
+        self.two_factor_remember_me_token = None
+        self.two_factor_remember_me_expiry = None
+        # The caller should commit the session after calling this method
+        # db.session.commit() # Removed commit from here
     
     def __repr__(self):
         return f'<User {self.username}>'
@@ -309,3 +345,5 @@ class QuestionManager:
         """
         questions = QuestionManager.get_questions()
         return [q for q in questions if q['condition'](response_data)]
+
+[end of models.py]
