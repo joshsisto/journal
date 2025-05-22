@@ -1,0 +1,78 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('journal.index') }}">{{ config.get('APP_NAME', 'Journal App') }}</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'journal.dashboard' %}active{% endif %}" href="{{ url_for('journal.dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint.startswith('journal.') and request.endpoint not in ['journal.dashboard', 'journal.search', 'journal.search_guided_questions'] %}active{% endif %}" href="#" id="journalDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Journal
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="journalDropdown">
+                            <li><a class="dropdown-item {% if request.endpoint == 'journal.quick_journal' %}active{% endif %}" href="{{ url_for('journal.quick_journal') }}">Quick Entry</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'journal.guided_journal' %}active{% endif %}" href="{{ url_for('journal.guided_journal') }}">Guided Entry</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'journal.search' %}active{% endif %}" href="{{ url_for('journal.search') }}">Search All Entries</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'journal.search_guided_questions' %}active{% endif %}" href="{{ url_for('journal.search_guided_questions') }}">Search Guided Questions</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'tag.manage_tags' %}active{% endif %}" href="{{ url_for('tag.manage_tags') }}">Manage Tags</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'journal.mood_tracker' %}active{% endif %}" href="{{ url_for('journal.mood_tracker') }}">Mood Tracker</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint.startswith('export.') %}active{% endif %}" href="#" id="exportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Export
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="exportDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('export.export_all_entries') }}">Export All Entries</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('export.export_search_entries', q=request.args.get('q', ''), tag=request.args.get('tag', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), type=request.args.get('type', '')) }}">Export Current Search/Filter</a></li>
+                        </ul>
+                    </li>
+                     <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint.startswith('ai.') %}active{% endif %}" href="#" id="aiToolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            AI Tools
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="aiToolsDropdown">
+                             <li><a class="dropdown-item {% if request.endpoint == 'ai.multiple_entries_conversation' %}active{% endif %}" href="{{ url_for('ai.multiple_entries_conversation') }}">AI Chat (Recent Entries)</a></li>
+                            <!-- Add other AI tool links here if needed -->
+                        </ul>
+                    </li>
+                {% endif %}
+            </ul>
+            <ul class="navbar-nav ms-auto">
+                {% if current_user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint.startswith('auth.') and request.endpoint not in ['auth.login', 'auth.register', 'auth.request_reset', 'auth.reset_password'] %}active{% endif %}" href="#" id="accountDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="accountDropdown">
+                            <li><a class="dropdown-item {% if request.endpoint == 'auth.settings' %}active{% endif %}" href="{{ url_for('auth.settings') }}">Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'auth.login' %}active{% endif %}" href="{{ url_for('auth.login') }}">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'auth.register' %}active{% endif %}" href="{{ url_for('auth.register') }}">Register</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-3">
+    {% from "macros.html" import render_flash_messages %}
+    {{ render_flash_messages(get_flashed_messages(with_categories=true)) }}
+</div>

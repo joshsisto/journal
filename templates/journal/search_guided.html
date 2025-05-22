@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "macros.html" import render_flash_messages, csrf_token_field %}
+
+{% block title %}Search Guided Journal - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Search Guided Journal Questions & Responses</h2>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('journal.search_guided_questions') }}">
+                {{ csrf_token_field() }}
+                <div class="input-group">
+                    <input type="text" class="form-control" name="search_term" placeholder="Enter search term for questions or responses..." value="{{ search_term or '' }}" aria-label="Search term" aria-describedby="button-search">
+                    <button class="btn btn-primary" type="submit" id="button-search">Search</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if search_term %}
+        <h3 class="mb-3">Search Results for "{{ search_term }}"</h3>
+        {% if results %}
+            <div class="list-group">
+                {% for response in results %}
+                    <div class="list-group-item mb-3 shadow-sm">
+                        <h5 class="mb-1">
+                            <a href="{{ url_for('journal.view_entry', entry_id=response.journal_entry.id) }}">
+                                Entry from: {{ response.journal_entry.created_at | format_datetime_local }}
+                            </a>
+                        </h5>
+                        <p class="mb-1">
+                            <strong>Question:</strong> {{ get_question_text_by_id(response.question_id) }}
+                        </p>
+                        <p class="mb-0 text-muted">
+                            <small>Response ID: {{ response.id }} | Question ID: {{ response.question_id }}</small>
+                        </p>
+                        <p class="card-text mt-2">
+                            {{ response.response | nl2br }}
+                        </p>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info" role="alert">
+                No guided responses or questions found matching your query.
+            </div>
+        {% endif %}
+    {% elif request.method == 'POST' and not search_term %}
+         {# This case should ideally be handled by redirect in the route, but as a fallback in template #}
+        <div class="alert alert-warning" role="alert">
+            Please enter a search term.
+        </div>
+    {% else %}
+        {# Initial state on GET request or if search_term is empty #}
+        <div class="alert alert-secondary" role="alert">
+            Enter a term above to search through your guided journal questions and responses.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .list-group-item {
+        border-radius: .5rem; /* Softer edges */
+    }
+</style>
+{% endblock %}
