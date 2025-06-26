@@ -498,39 +498,39 @@ def dashboard():
     )
 
 
-# from services.journal_service import create_quick_entry
+from services.journal_service import create_quick_entry
 
-# @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
-# @login_required
-# def quick_journal():
-#     if request.method == 'POST':
-#         # Check CSRF token
-#         token = session.get('_csrf_token')
-#         form_token = request.form.get('_csrf_token')
+@journal_bp.route('/journal/quick', methods=['GET', 'POST'])
+@login_required
+def quick_journal():
+    if request.method == 'POST':
+        # Check CSRF token
+        token = session.get('_csrf_token')
+        form_token = request.form.get('_csrf_token')
 
-#         if not token or token != form_token:
-#             current_app.logger.warning(f'CSRF attack detected on quick journal from {request.remote_addr}')
-#             flash('Invalid form submission. Please try again.', 'danger')
-#             return redirect(url_for('journal.quick_journal'))
+        if not token or token != form_token:
+            current_app.logger.warning(f'CSRF attack detected on quick journal from {request.remote_addr}')
+            flash('Invalid form submission. Please try again.', 'danger')
+            return redirect(url_for('journal.quick_journal'))
 
-#         content = request.form.get('content', '')
-#         tag_ids = request.form.getlist('tags')
-#         new_tags_json = request.form.get('new_tags', '[]')
-#         photos = request.files.getlist('photos')
+        content = request.form.get('content', '')
+        tag_ids = request.form.getlist('tags')
+        new_tags_json = request.form.get('new_tags', '[]')
+        photos = request.files.getlist('photos')
 
-#         entry, error = create_quick_entry(current_user.id, content, tag_ids, new_tags_json, photos)
+        entry, error = create_quick_entry(current_user.id, content, tag_ids, new_tags_json, photos)
 
-#         if error:
-#             flash(error, 'danger')
-#             return redirect(url_for('journal.quick_journal'))
+        if error:
+            flash(error, 'danger')
+            return redirect(url_for('journal.quick_journal'))
 
-#         flash('Journal entry saved successfully.', 'success')
-#         return redirect(url_for('journal.index'))
+        flash('Journal entry saved successfully.', 'success')
+        return redirect(url_for('journal.index'))
 
-#     # Get user's tags
-#     tags = Tag.query.filter_by(user_id=current_user.id).all()
+    # Get user's tags
+    tags = Tag.query.filter_by(user_id=current_user.id).all()
 
-#     return render_template('journal/quick.html', tags=tags)
+    return render_template('journal/quick.html', tags=tags)
 
 
 from services.journal_service import create_guided_entry

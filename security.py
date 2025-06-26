@@ -9,6 +9,7 @@ from flask_talisman import Talisman
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import functools
+import re
 
 # Initialize CSP settings
 csp = {
