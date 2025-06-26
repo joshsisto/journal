@@ -2,7 +2,9 @@ from datetime import datetime, timedelta
 import secrets
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask_bcrypt import Bcrypt
+
+bcrypt = Bcrypt()
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 db = SQLAlchemy()
@@ -49,11 +51,11 @@ class User(UserMixin, db.Model):
     
     def set_password(self, password):
         """Set password hash."""
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
     
     def check_password(self, password):
         """Check password hash."""
-        return check_password_hash(self.password_hash, password)
+        return bcrypt.check_password_hash(self.password_hash, password)
     
     def generate_reset_token(self):
         """Generate a password reset token."""

@@ -10,7 +10,6 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import functools
 import re
-from validators import sanitize_text
 
 # Initialize CSP settings
 csp = {
@@ -58,54 +57,9 @@ limiter = Limiter(
 
 # Security decorators and helpers
 
-def csrf_protect():
-    """
-    Decorator to protect against CSRF attacks.
-    
-    This works with the CSRF token in the base template,
-    validating the token on POST requests.
-    
-    Returns:
-        decorator: Function decorator
-    """
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
-            if request.method == 'POST':
-                token = session.get('_csrf_token')
-                form_token = request.form.get('_csrf_token')
-                
-                if not token or token != form_token:
-                    current_app.logger.warning(f'CSRF attack detected from {request.remote_addr}')
-                    abort(403)  # Forbidden
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
 
-def sanitize_params():
-    """
-    Decorator to sanitize URL parameters.
-    
-    Returns:
-        decorator: Function decorator
-    """
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
-            # Sanitize URL parameters
-            for key, value in list(request.args.items()):
-                if value:
-                    clean_value = sanitize_text(value)
-                    if clean_value != value:
-                        # Modify request args if sanitized value is different
-                        args_dict = request.args.copy()
-                        args_dict[key] = clean_value
-                        request.args = args_dict
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
+
+
 
 def check_authorization(f):
     """
@@ -188,18 +142,6 @@ def setup_security(app):
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
     
-    # Generate CSRF token and add it to session
-    @app.before_request
-    def csrf_protect():
-        if '_csrf_token' not in session:
-            import secrets
-            session['_csrf_token'] = secrets.token_hex(16)
-    
-    # Add CSRF token to render_template context
-    @app.context_processor
-    def inject_csrf_token():
-        return {'csrf_token': session.get('_csrf_token', '')}
-    
     # Log security events
     @app.before_request
     def log_suspicious_activity():
@@ -220,4 +162,4 @@ def setup_security(app):
                 
                 if isinstance(value, str) and sql_injection_pattern.search(value):
                     app.logger.warning(f'Possible SQL injection attempt in form data from {request.remote_addr}: {key}={value[:50]}...')
-                    # Don't abort here but log the attempt
+                    # Don't abort here but log the attempt'}

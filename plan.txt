@@ -1,0 +1,109 @@
+# Journal App Improvement Plan
+
+This document outlines a plan to refactor and improve the Journal App codebase.
+
+## 1. Code Restructuring and Refactoring
+
+### 1.1. Introduce a Service Layer
+
+- **Objective:** Decouple business logic from the route handlers to improve modularity, testability, and maintainability.
+- **Actions:**
+  - Create a new directory `services`.
+  - Create `services/journal_service.py`:
+    - Move all logic related to creating, reading, updating, and deleting journal entries from `routes.py` to this file.
+    - Functions to include: `create_quick_entry`, `create_guided_entry`, `get_entry_by_id`, `get_all_entries_for_user`, `delete_entry`, `search_entries`, `update_entry_tags`.
+  - Create `services/user_service.py`:
+    - Move user-related logic like registration, login, password changes, and email management.
+    - Functions to include: `register_user`, `authenticate_user`, `change_password`, `update_timezone`, `manage_2fa`.
+  - Create `services/tag_service.py`:
+    - Move all tag management logic.
+    - Functions to include: `create_tag`, `edit_tag`, `delete_tag`, `get_all_tags_for_user`.
+  - Refactor `routes.py` to call these service functions. The route functions should only be responsible for handling the request and response objects.
+
+### 1.2. Refactor Large Functions
+
+- **Objective:** Break down large functions in `routes.py` into smaller, more manageable functions.
+- **Actions:**
+  - Refactor `dashboard()`:
+    - Move the logic for filtering and pagination into `journal_service.py`.
+    - The `dashboard` route should primarily fetch the data from the service and render the template.
+  - Refactor `register()`:
+    - Move the user creation logic to `user_service.py`.
+    - The `register` route should handle form validation and call the service.
+  - Refactor `quick_journal()` and `guided_journal()`:
+    - Abstract the common logic for handling tags and photo uploads into a helper function or a part of the `journal_service.py`.
+
+### 1.3. Improve Code Reusability
+
+- **Objective:** Reduce code duplication by creating utility functions and decorators.
+- **Actions:**
+  - Create a `utils.py` file for general-purpose utility functions.
+  - Create decorators for common tasks:
+    - `@csrf_protect`: A decorator to handle CSRF token verification.
+    - `@validate_form(form_class)`: A decorator for validating WTForms.
+
+## 2. Security Enhancements
+
+### 2.1. Input Validation and Sanitization
+
+- **Objective:** Strengthen the application against XSS and other injection attacks.
+- **Actions:**
+  - Review all input fields and ensure they are properly validated and sanitized.
+  - Use a library like `bleach` for more robust HTML sanitization.
+
+### 2.2. Password Hashing
+
+- **Objective:** Use a more secure password hashing algorithm.
+- **Actions:**
+  - Replace the current `werkzeug.security` functions with `Flask-Bcrypt`.
+
+### 2.3. Security Headers
+
+- **Objective:** Implement more comprehensive security headers to protect against various attacks.
+- **Actions:**
+  - Use a library like `Flask-Talisman` to set security headers like `Content-Security-Policy`, `Strict-Transport-Security`, etc.
+
+## 3. Configuration Management
+
+### 3.1. Use Flask-Env
+
+- **Objective:** Improve the management of configuration and environment variables.
+- **Actions:**
+  - Integrate `Flask-Env` to load configuration from `.env` files.
+  - Structure the `config.py` file to have separate configurations for development, testing, and production.
+
+## 4. Front-end Improvements
+
+### 4.1. Front-end Build Process
+
+- **Objective:** Modernize the front-end development workflow.
+- **Actions:**
+  - Set up a front-end build process using Webpack or Parcel.
+  - Manage front-end dependencies using `package.json`.
+  - Minify and bundle CSS and JavaScript files for production.
+
+### 4.2. Modern Front-end Framework
+
+- **Objective:** Create a more interactive and responsive user experience.
+- **Actions:**
+  - (Optional, long-term) Rewrite the front-end using a modern JavaScript framework like React or Vue.js.
+  - This would involve creating a separate front-end application that communicates with the Flask back-end via a REST API.
+
+## 5. Database
+
+### 5.1. Database Migrations
+
+- **Objective:** Manage database schema changes in a more structured way.
+- **Actions:**
+  - Use `Flask-Migrate` (which uses Alembic) to handle database migrations.
+  - This will allow for versioning of the database schema and make it easier to apply changes.
+
+## Implementation Strategy
+
+The improvements will be implemented in the following order:
+
+1.  **Code Restructuring and Refactoring:** This is the highest priority as it will lay the foundation for all other improvements.
+2.  **Security Enhancements:** Once the code is better structured, we will focus on improving its security.
+3.  **Configuration Management:** This will be done in parallel with the other changes.
+4.  **Database Migrations:** This will be implemented to manage the database schema.
+5.  **Front-end Improvements:** This is a lower priority and can be addressed after the back-end is in a good state.

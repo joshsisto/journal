@@ -528,7 +528,8 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("- Headers:", {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token() }}'
             });
             console.log("- Body:", JSON.stringify(requestBody).substring(0, 500) + "...");
             
@@ -537,7 +538,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token() }}'
                 },
                 credentials: 'include',
                 body: JSON.stringify(requestBody)
