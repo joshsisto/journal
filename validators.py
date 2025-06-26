@@ -362,16 +362,7 @@ class LoginSchema(BaseModel):
     password: str
     remember: bool = False
 
-class QuickJournalSchema(BaseModel):
-    """Schema for quick journal entry validation."""
-    content: constr(max_length=MAX_JOURNAL_CONTENT_LENGTH)
-    tags: list = []
-    new_tags: str = "[]"
 
-class TagSchema(BaseModel):
-    """Schema for tag validation."""
-    name: constr(min_length=1, max_length=50, pattern=r'^[a-zA-Z0-9 _-]+$')
-    color: constr(pattern=r'^#[0-9a-fA-F]{6}$') = "#6c757d"
 
 # Flask route decorators for validation
 

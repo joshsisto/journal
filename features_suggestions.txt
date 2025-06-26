@@ -1,0 +1,37 @@
+## Journal App Feature Suggestions
+
+Here are some additional features that would enhance the Journal App:
+
+### 1. Rich Text Editor for Journal Entries
+- **Benefit:** Allow users to format their journal entries with bold, italics, headings, lists, etc., making entries more expressive and readable. This moves beyond plain text and enhances the user's ability to capture their thoughts comprehensively.
+- **Implementation Idea:** Integrate a JavaScript-based rich text editor (e.g., TinyMCE, Quill.js, or CKEditor) into the quick and guided journal entry forms. The content would be stored as HTML (sanitized using `bleach` on the backend to prevent XSS).
+
+### 2. Journal Entry Reminders/Notifications
+- **Benefit:** Help users maintain a consistent journaling habit by sending daily or custom reminders via email or in-app notifications. This addresses a common challenge in habit formation.
+- **Implementation Idea:**
+  - **Backend:** Add a new model for `Reminder` (e.g., `Reminder(user_id, frequency, time_of_day, last_sent)`). Implement a scheduled task (e.g., using APScheduler or a simple cron job) to check for due reminders and send emails using `Flask-Mail`.
+  - **Frontend:** Add a section in user settings to configure reminders (frequency, time, enable/disable).
+
+### 3. Advanced Mood Tracking and Analytics
+- **Benefit:** Provide deeper insights into mood patterns over time, correlating moods with tags or guided responses. Users could identify triggers, positive influences, and long-term emotional trends.
+- **Implementation Idea:**
+  - **Backend:** Enhance the `mood_tracker` route to perform more complex queries (e.g., average mood per tag, mood trends over custom periods).
+  - **Frontend:** Utilize a more powerful charting library (e.g., Chart.js, D3.js) to create interactive graphs showing mood trends, distribution of emotions, and correlation with activities/tags.
+
+### 4. Journal Sharing (Optional & Secure)
+- **Benefit:** Allow users to securely share specific journal entries or collections with trusted individuals (e.g., therapists, close friends) with granular control over access and expiry. This can be invaluable for personal growth and communication.
+- **Implementation Idea:**
+  - **Backend:** Implement a `SharedEntry` model with fields like `entry_id`, `shared_with_user_id`, `access_token`, `expiry_date`. Create new routes for sharing and viewing shared entries. Ensure robust access control and token management.
+  - **Frontend:** Add sharing options to individual entries and a "Shared with me" section on the dashboard.
+
+### 5. Voice-to-Text for Journaling
+- **Benefit:** Offer an alternative input method for users who prefer speaking their thoughts over typing, making journaling more accessible and convenient, especially for on-the-go reflections.
+- **Implementation Idea:**
+  - **Frontend:** Integrate Web Speech API (for browser-based voice recognition) into the journal entry forms.
+  - **Backend:** If more advanced or server-side processing is needed, consider a speech-to-text API (e.g., Google Cloud Speech-to-Text, AssemblyAI), though this adds complexity and potential cost.
+
+### 6. Integration with External Calendars (e.g., Google Calendar)
+- **Benefit:** Allow users to see their journal entries alongside their calendar events, providing a holistic view of their day and helping them connect events with their thoughts and feelings.
+- **Implementation Idea:**
+  - **Backend:** Implement OAuth2 for Google Calendar API integration. Fetch calendar events and display them on the dashboard or a dedicated calendar view.
+  - **Frontend:** Display calendar events on the dashboard or a new calendar page.

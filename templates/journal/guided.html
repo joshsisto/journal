@@ -9,7 +9,46 @@
         <p class="text-muted">Answer the prompts to complete your journal entry.</p>
         
         <form method="post" id="guidedJournalForm" enctype="multipart/form-data">
+                        {{ form.hidden_tag() }}
             <!-- Photo Upload -->
+            <div class="mb-4 card">
+                <div class="card-body">
+                    <h5 class="card-title">Add Photos</h5>
+                    <p class="text-muted">Add photos to your journal entry</p>
+                    
+                    <div class="d-flex gap-2 mb-2">
+                        <input class="form-control" type="file" id="photos" name="photos" accept="image/*" multiple>
+                        <button type="button" class="btn btn-primary" id="camera-btn">
+                            <i class="bi bi-camera"></i> Take Photo
+                        </button>
+                    </div>
+                    <div class="form-text">You can select multiple photos or use your camera (max 16MB total)</div>
+                    <div id="photo-preview" class="d-flex flex-wrap gap-2 mt-2"></div>
+                    
+                    <!-- Camera Modal -->
+                    <div class="modal fade" id="cameraModal" tabindex="-1" aria-labelledby="cameraModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="cameraModalLabel">Take a Photo</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="camera-container">
+                                        <video id="camera-preview" class="w-100" autoplay playsinline></video>
+                                        <canvas id="camera-canvas" style="display: none;"></canvas>
+                                    </div>
+                                    <div id="camera-error" class="alert alert-danger mt-2" style="display: none;"></div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-primary" id="capture-btn">Capture Photo</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="mb-4 card">
                 <div class="card-body">
                     <h5 class="card-title">Add Photos</h5>
@@ -206,8 +245,10 @@
                     
                     {% elif question.type == 'text' %}
                     <div class="mb-3">
-                        <textarea class="form-control" name="question_{{ question.id }}" 
-                                  id="{{ question.id }}_text" rows="3"></textarea>
+                        {{ form.content(class="form-control tinymce", rows="3") }}
+                        {% for error in form.content.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     
                     {% endif %}
@@ -306,6 +347,15 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+    tinymce.init({
+        selector: 'textarea.tinymce',
+        plugins: 'advlist autolink lists link image charmap preview anchor',
+        toolbar_mode: 'floating',
+        toolbar: 'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help'
+    });
+</script>
 <script>
     // Photo preview script
     document.getElementById('photos').addEventListener('change', function(event) {

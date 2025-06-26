@@ -1,6 +1,9 @@
 from validators import BaseForm, RegisterSchema, LoginSchema
-from wtforms import StringField, PasswordField, BooleanField
+from wtforms import StringField, PasswordField, BooleanField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo, Length
+
+class TinyMCEField(TextAreaField):
+    pass
 
 class RegistrationForm(BaseForm):
     pydantic_model = RegisterSchema
@@ -37,3 +40,14 @@ class ResetPasswordForm(BaseForm):
     password = PasswordField('Password', validators=[DataRequired(), Length(min=8, max=100)])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
 
+class QuickJournalForm(BaseForm):
+    content = TinyMCEField('Content', validators=[DataRequired(), Length(max=10000)])
+    tags = StringField('Tags') # This will be handled by JS
+    new_tags = StringField('New Tags') # This will be handled by JS
+
+class GuidedJournalForm(BaseForm):
+    # Guided journal questions are dynamic, so we'll handle them in the route
+    # The content field will be used for the main guided response
+    content = TinyMCEField('Content', validators=[Length(max=10000)])
+    tags = StringField('Tags') # This will be handled by JS
+    new_tags = StringField('New Tags') # This will be handled by JS
