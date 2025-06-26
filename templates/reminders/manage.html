@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Reminders - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h2>Manage Reminders</h2>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Add New Reminder</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('reminder.manage_reminders') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label for="frequency" class="form-label">Frequency</label>
+                        <select class="form-select" id="frequency" name="frequency" required>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="time_of_day" class="form-label">Time of Day (HH:MM)</label>
+                        <input type="time" class="form-control" id="time_of_day" name="time_of_day" value="09:00">
+                    </div>
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Message (Optional)</label>
+                        <input type="text" class="form-control" id="message" name="message" placeholder="e.g., Time to journal!">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Reminder</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Your Reminders</h5>
+            </div>
+            <div class="card-body">
+                {% if reminders %}
+                <ul class="list-group">
+                    {% for reminder in reminders %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ reminder.frequency|capitalize }}</strong> at {{ reminder.time_of_day.strftime('%H:%M') if reminder.time_of_day else 'N/A' }}
+                            {% if reminder.message %}
+                                <br><small class="text-muted">"{{ reminder.message }}"</small>
+                            {% endif %}
+                            {% if not reminder.enabled %}
+                                <span class="badge bg-warning ms-2">Disabled</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <a href="{{ url_for('reminder.edit_reminder', reminder_id=reminder.id) }}" class="btn btn-sm btn-secondary">Edit</a>
+                            <form action="{{ url_for('reminder.delete_reminder', reminder_id=reminder.id) }}" method="post" class="d-inline">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this reminder?');">Delete</button>
+                            </form>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">You haven't set any reminders yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

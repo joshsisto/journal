@@ -230,6 +230,24 @@ class Photo(db.Model):
         return f'<Photo {self.id} for JournalEntry {self.journal_entry_id}>'
 
 
+class Reminder(db.Model):
+    """Reminder model for journal entries."""
+    __tablename__ = 'reminders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    frequency = db.Column(db.String(50), nullable=False)  # e.g., 'daily', 'weekly', 'monthly'
+    time_of_day = db.Column(db.Time, nullable=True)  # Time for daily reminders
+    last_sent = db.Column(db.DateTime, nullable=True)
+    enabled = db.Column(db.Boolean, default=True)
+    message = db.Column(db.String(255), nullable=True)
+
+    user = db.relationship('User', backref='reminders')
+
+    def __repr__(self):
+        return f'<Reminder {self.id} for User {self.user_id} - {self.frequency}>'
+
+
 class QuestionManager:
     """Class to manage guided journal questions."""
     

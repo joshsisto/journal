@@ -35,6 +35,7 @@ journal_bp = Blueprint('journal', __name__)
 tag_bp = Blueprint('tag', __name__)
 export_bp = Blueprint('export', __name__)
 ai_bp = Blueprint('ai', __name__)
+reminder_bp = Blueprint('reminder', __name__)
 
 # Authentication routes
 from services.user_service import register_user
@@ -521,8 +522,7 @@ def quick_journal():
         except SQLAlchemyError as e:
             db.session.rollback(); current_app.logger.error(f"Database error in quick_journal: {str(e)} {traceback.format_exc()}"); flash('A database error occurred. Please try again or contact support if the issue persists.', 'danger'); return redirect(url_for('journal.quick_journal'))
         except Exception as e:
-            db.session.rollback(); current_app.logger.error(f'Error saving quick journal entry: {str(e)}
-{traceback.format_exc()}'); flash('An error occurred while saving your journal entry. Please try again.', 'danger'); return redirect(url_for('journal.quick_journal'))
+            db.session.rollback(); current_app.logger.error(f'Error saving quick journal entry: {str(e)}'); current_app.logger.error(traceback.format_exc()); flash('An error occurred while saving your journal entry. Please try again.', 'danger'); return redirect(url_for('journal.quick_journal'))
     return render_template('journal/quick.html', tags=Tag.query.filter_by(user_id=current_user.id).all(), form=form)
 
 
@@ -549,8 +549,7 @@ def guided_journal():
         except SQLAlchemyError as e:
             db.session.rollback(); current_app.logger.error(f"Database error in guided_journal: {str(e)} {traceback.format_exc()}"); flash('A database error occurred. Please try again or contact support if the issue persists.', 'danger'); return redirect(url_for('journal.guided_journal'))
         except Exception as e:
-            db.session.rollback(); current_app.logger.error(f'Error saving guided journal entry: {str(e)}
-{traceback.format_exc()}'); flash('An error occurred while saving your guided journal entry. Please try again.', 'danger'); return redirect(url_for('journal.guided_journal'))
+            db.session.rollback(); current_app.logger.error(f'Error saving guided journal entry: {str(e)}'); current_app.logger.error(traceback.format_exc()); flash('An error occurred while saving your guided journal entry. Please try again.', 'danger'); return redirect(url_for('journal.guided_journal'))
     context = prepare_guided_journal_context(); questions = QuestionManager.get_applicable_questions(context)
     for q_item in questions:
         if '{time_since}' in q_item.get('text', ''): q_item['text'] = q_item['text'].format(time_since=context.get('time_since', 'your last entry')) 
@@ -1200,6 +1199,7 @@ def reset_password_route(token):
 
 
 from services.tag_service import get_all_tags_for_user, create_tag, edit_tag, delete_tag
+from services.reminder_service import create_reminder, get_reminders_for_user, get_reminder_by_id, update_reminder, delete_reminder
 
 # Tag Management Routes
 @tag_bp.route('/tags', methods=['GET'])
@@ -1245,6 +1245,74 @@ def delete_tag(tag_id):
         flash(message, 'danger')
     return redirect(url_for('tag.manage_tags'))
 
+
+# Reminder Routes
+@reminder_bp.route('/', methods=['GET', 'POST'])
+@login_required
+def manage_reminders():
+    if request.method == 'POST':
+        frequency = request.form.get('frequency')
+        time_of_day_str = request.form.get('time_of_day')
+        message = request.form.get('message')
+
+        time_of_day = None
+        if time_of_day_str:
+            try:
+                time_of_day = datetime.strptime(time_of_day_str, '%H:%M').time()
+            except ValueError:
+                flash('Invalid time format. Please use HH:MM.', 'danger')
+                return redirect(url_for('reminder.manage_reminders'))
+
+        reminder, msg = create_reminder(current_user.id, frequency, time_of_day, message)
+        if reminder:
+            flash(msg, 'success')
+        else:
+            flash(msg, 'danger')
+        return redirect(url_for('reminder.manage_reminders'))
+
+    reminders = get_reminders_for_user(current_user.id)
+    return render_template('reminders/manage.html', reminders=reminders)
+
+@reminder_bp.route('/edit/<int:reminder_id>', methods=['GET', 'POST'])
+@login_required
+def edit_reminder(reminder_id):
+    reminder = get_reminder_by_id(reminder_id, current_user.id)
+    if not reminder:
+        flash('Reminder not found.', 'danger')
+        return redirect(url_for('reminder.manage_reminders'))
+
+    if request.method == 'POST':
+        frequency = request.form.get('frequency')
+        time_of_day_str = request.form.get('time_of_day')
+        message = request.form.get('message')
+        enabled = 'enabled' in request.form
+
+        time_of_day = None
+        if time_of_day_str:
+            try:
+                time_of_day = datetime.strptime(time_of_day_str, '%H:%M').time()
+            except ValueError:
+                flash('Invalid time format. Please use HH:MM.', 'danger')
+                return redirect(url_for('reminder.edit_reminder', reminder_id=reminder_id))
+
+        updated_reminder = update_reminder(reminder_id, current_user.id, frequency, time_of_day, message, enabled)
+        if updated_reminder:
+            flash('Reminder updated successfully.', 'success')
+        else:
+            flash('Error updating reminder.', 'danger')
+        return redirect(url_for('reminder.manage_reminders'))
+
+    return render_template('reminders/edit.html', reminder=reminder)
+
+@reminder_bp.route('/delete/<int:reminder_id>', methods=['POST'])
+@login_required
+def delete_reminder(reminder_id):
+    success, message = delete_reminder(reminder_id, current_user.id)
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+    return redirect(url_for('reminder.manage_reminders'))
 
 # Export routes
 @export_bp.route('/export/entry/<int:entry_id>')

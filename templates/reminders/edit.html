@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Reminder - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h2>Edit Reminder</h2>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Reminder Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('reminder.edit_reminder', reminder_id=reminder.id) }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label for="frequency" class="form-label">Frequency</label>
+                        <select class="form-select" id="frequency" name="frequency" required>
+                            <option value="daily" {% if reminder.frequency == 'daily' %}selected{% endif %}>Daily</option>
+                            <option value="weekly" {% if reminder.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+                            <option value="monthly" {% if reminder.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="time_of_day" class="form-label">Time of Day (HH:MM)</label>
+                        <input type="time" class="form-control" id="time_of_day" name="time_of_day" value="{{ reminder.time_of_day.strftime('%H:%M') if reminder.time_of_day else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Message (Optional)</label>
+                        <input type="text" class="form-control" id="message" name="message" value="{{ reminder.message if reminder.message else '' }}" placeholder="e.g., Time to journal!">
+                    </div>
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enabled" name="enabled" {% if reminder.enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="enabled">Enabled</label>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('reminder.manage_reminders') }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Update Reminder</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

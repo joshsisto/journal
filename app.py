@@ -122,6 +122,7 @@ def create_app(config_class=Config):
     app.register_blueprint(tag_bp, url_prefix='/tags')
     app.register_blueprint(export_bp, url_prefix='/export')
     app.register_blueprint(ai_bp, url_prefix='/ai')
+    app.register_blueprint(reminder_bp, url_prefix='/reminders')
     
     # Rate limits are applied directly on the route functions
     # No need to apply them here
