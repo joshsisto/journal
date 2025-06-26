@@ -211,11 +211,11 @@ def create_app(config_class=Config):
 if __name__ == '__main__':
     app = create_app()
     
-    # Run without SSL for testing (this should fix AI conversation issues)
-    #app.run(host="0.0.0.0", debug=True)
+    # Development configuration - run on port 5001 without SSL
+    app.run(host="0.0.0.0", port=5001, debug=True)
     
-    # For HTTPS (needed for camera access from non-localhost)
-    app.run(host="0.0.0.0", debug=False, ssl_context='adhoc')
+    # Production configuration - uncomment for production use
+    # app.run(host="0.0.0.0", debug=False, ssl_context='adhoc')
     
     # For production with proper certificates:
     # app.run(host="0.0.0.0", ssl_context=('cert.pem', 'key.pem'))

@@ -118,12 +118,12 @@ def get_ai_response(entries_data: List[Dict[str, Any]], question: str) -> str:
         print(f"Prompt start: {prompt[:100]}...")
         print(f"Prompt end: ...{prompt[-100:]}")
         
-        # Try available models in order of preference
+        # Try available models in order of preference (latest models from API)
         available_models = [
-            'models/gemini-1.5-flash-001',  # Use full model name format
+            'models/gemini-2.5-flash',
+            'models/gemini-2.0-flash',
+            'models/gemini-1.5-flash-latest',
             'models/gemini-1.5-flash',
-            'models/gemini-1.0-pro-latest',
-            'models/gemini-pro-vision',
             'models/gemini-1.5-pro-latest',
             'models/gemini-1.5-pro'
         ]
