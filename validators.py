@@ -6,7 +6,68 @@ to protect against common web vulnerabilities like XSS, CSRF, SQLi, etc.
 """
 import re
 import bleach
+from wtforms import Form, StringField
 from wtforms.validators import ValidationError
+from flask_wtf import FlaskForm
+
+class PydanticModelField(StringField):
+    def __init__(self, *args, **kwargs):
+        self.pydantic_model = kwargs.pop('pydantic_model', None)
+        super(PydanticModelField, self).__init__(*args, **kwargs)
+
+    def _value(self):
+        return self.data
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            self.data = valuelist[0]
+            try:
+                if self.pydantic_model:
+                    self.pydantic_model.parse_raw(self.data)
+            except Exception as e:
+                raise ValidationError(str(e))
+
+class BaseForm(FlaskForm):
+    class Meta:
+        def build_pydantic_field(form, field_name, **kwargs):
+            return PydanticModelField(pydantic_model=getattr(form.pydantic_model, field_name), **kwargs)
+
+    def __init__(self, *args, **kwargs):
+        super(BaseForm, self).__init__(*args, **kwargs)
+        self.pydantic_model = None
+
+    def validate(self, extra_validators=None):
+        if not super(BaseForm, self).validate():
+            return False
+
+        if self.pydantic_model:
+            try:
+                self.pydantic_model(**self.data)
+            except Exception as e:
+                self.errors['pydantic'] = [str(e)]
+                return False
+        return True
+
+# Regular expressions for validation
+
+class PydanticModelField(StringField):
+    def __init__(self, *args, **kwargs):
+        self.pydantic_model = kwargs.pop('pydantic_model', None)
+        super(PydanticModelField, self).__init__(*args, **kwargs)
+
+    def _value(self):
+        return self.data
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            self.data = valuelist[0]
+            try:
+                if self.pydantic_model:
+                    self.pydantic_model.parse_raw(self.data)
+            except Exception as e:
+                raise ValidationError(str(e))
+
+# Regular expressions for validation
 from marshmallow import Schema, fields, validate, ValidationError as MarshmallowValidationError
 from pydantic import BaseModel, Field, EmailStr, constr, validator
 import functools
@@ -33,7 +94,7 @@ COLOR_HEX_REGEX = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 # Maximum lengths for text inputs
 MAX_USERNAME_LENGTH = 30
-MAX_PASSWORD_LENGTH = 100
+
 MAX_EMAIL_LENGTH = 120
 MAX_JOURNAL_CONTENT_LENGTH = 10000  # 10KB
 MAX_TAG_NAME_LENGTH = 50
@@ -347,39 +408,7 @@ def validate_form(schema_class):
         return decorated_function
     return decorator
 
-def sanitize_input(f):
-    """
-    Decorator to sanitize request input data.
-    
-    Args:
-        f: Function to decorate
-        
-    Returns:
-        decorated_function: Decorated function
-    """
-    @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
-        from flask import request
-        
-        if request.method == 'POST':
-            # Sanitize form data
-            for key in request.form:
-                if key == 'password' or key == 'current_password' or key == 'new_password' or key == 'confirm_password':
-                    # Skip password fields
-                    continue
-                
-                value = request.form[key]
-                if key in ['content', 'response', 'question_feeling_reason', 'question_about_day', 'question_anything_else']:
-                    # HTML content fields
-                    request.form = request.form.copy()
-                    request.form[key] = sanitize_journal_content(value)
-                else:
-                    # Regular text fields
-                    request.form = request.form.copy()
-                    request.form[key] = sanitize_text(value)
-        
-        return f(*args, **kwargs)
-    return decorated_function
+
 
 # Rate limiting helpers
 

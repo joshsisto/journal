@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, make_response, current_app, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
+from security import limiter  # Import limiter for rate limiting
+
 from werkzeug.utils import secure_filename
 from flask_mail import Mail
 from sqlalchemy import func, or_, and_, desc
@@ -10,16 +11,23 @@ import json
 import re
 import os
 import uuid
-from security import limiter  # Import limiter for rate limiting
+
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo
+from services.user_service import (
+    register_user, authenticate_user, update_user_timezone, change_user_password,
+    change_user_email, add_user_email, resend_verification_email, request_password_reset, reset_password
+)
+from services.journal_service import create_quick_entry, create_guided_entry
+from services.tag_service import get_all_tags_for_user, create_tag, edit_tag, delete_tag
 from export_utils import format_entry_for_text, format_multi_entry_filename
-from email_utils import send_password_reset_email, send_email_change_confirmation
+
 from emotions import get_emotions_by_category
 from helpers import (
     get_time_since_last_entry, format_time_since, has_exercised_today,
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
 )
+from services.journal_service import create_quick_entry, create_guided_entry
 
 # Blueprints
 auth_bp = Blueprint('auth', __name__)
@@ -29,245 +37,80 @@ export_bp = Blueprint('export', __name__)
 ai_bp = Blueprint('ai', __name__)
 
 # Authentication routes
+from services.user_service import register_user
+
+from forms import RegistrationForm
+
 @auth_bp.route('/register', methods=['GET', 'POST'])
 @limiter.limit("3 per minute")  # Rate limiting
 def register():
-    from validators import (
-        sanitize_username, sanitize_email, validate_password,
-        ValidationError
-    )
-    from security import csrf_protect
-    from email_utils import send_email
-    
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
-    
-    if request.method == 'POST':
-        try:
-            # Check CSRF token
-            token = session.get('_csrf_token')
-            form_token = request.form.get('_csrf_token')
-            
-            if not token or token != form_token:
-                current_app.logger.warning(f'CSRF attack detected from {request.remote_addr}')
-                flash('Invalid form submission. Please try again.', 'danger')
-                return redirect(url_for('auth.register'))
-            
-            # Get and sanitize inputs
-            try:
-                username = sanitize_username(request.form.get('username', ''))
-                email_input = request.form.get('email', '').strip()
-                password = request.form.get('password', '')
-                timezone = request.form.get('timezone', 'UTC')
-                
-                # Debug print inputs
-                print(f"Registration attempt: username={username}, email_input={email_input}, timezone={timezone}")
-                
-                # Email is now optional
-                email = None
-                if email_input:
-                    email = sanitize_email(email_input)
-                
-                # Debug print sanitized email
-                print(f"Sanitized email: {email}")
-                
-                # Validate password
-                validate_password(password)
-                
-                # Validate timezone
-                try:
-                    pytz.timezone(timezone)
-                except pytz.exceptions.UnknownTimeZoneError:
-                    timezone = 'UTC'  # Default to UTC if invalid
-            except ValidationError as e:
-                error_message = str(e)
-                # Log the validation error for debugging
-                current_app.logger.info(f"Validation error during registration: {error_message}")
-                flash(error_message, 'danger')
-                return redirect(url_for('auth.register'))
-            
-            # Check if username exists
-            user = User.query.filter_by(username=username).first()
-            if user:
-                flash('Username already exists.', 'danger')
-                return redirect(url_for('auth.register'))
-            
-            # Check if email exists (if provided)
-            if email:
-                user = User.query.filter_by(email=email).first()
-                if user:
-                    flash('Email already registered.', 'danger')
-                    return redirect(url_for('auth.register'))
-            
-            # Check for common passwords
-            common_passwords = ['password', '123456', 'qwerty', 'admin', 'welcome']
-            if password.lower() in common_passwords:
-                flash('Please choose a stronger password.', 'danger')
-                return redirect(url_for('auth.register'))
-            
-            # Create new user with timezone - explicitly set all fields
-            new_user = User()
-            new_user.username = username
-            new_user.timezone = timezone
-            if email:  # Only set email if provided
-                new_user.email = email
-            else:
-                new_user.email = None  # Explicitly set to None
-                
-            # Set is_email_verified based on whether email was provided
-            new_user.is_email_verified = False
-            
-            new_user.set_password(password)
-            print(f"Creating user: username={username}, email={new_user.email}, timezone={timezone}")
-            
-            # Generate email verification token if email provided
-            if email:
-                verification_token = new_user.generate_email_verification_token()
-            
-            db.session.add(new_user)
-            db.session.commit()
-            
-            current_app.logger.info(f'New user registered: {username}')
-            
-            # Send verification email if email was provided
-            if email and verification_token:
-                try:
-                    # Get configuration with defaults
-                    app_name = current_app.config.get('APP_NAME', 'Journal App')
-                    app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
-                    
-                    # Force production URL for emails
-                    app_url = "https://journal.joshsisto.com"
-                    
-                    verify_url = f"{app_url}/verify-email/{verification_token}"
-                    
-                    subject = f"{app_name} - Verify Your Email"
-                    
-                    # Plain text email
-                    text_body = f"""
-Hello {new_user.username},
 
-Please verify your email address by visiting the following link:
-{verify_url}
-
-This link will expire in 24 hours.
-
-If you did not create an account with us, you can safely ignore this email.
-
-Thank you,
-{app_name} Team
-                    """
-                    
-                    # HTML email
-                    html_body = f"""
-<p>Hello {new_user.username},</p>
-<p>Please verify your email address by <a href="{verify_url}">clicking here</a>.</p>
-<p>Alternatively, you can paste the following link in your browser's address bar:</p>
-<p>{verify_url}</p>
-<p>This link will expire in 24 hours.</p>
-<p>If you did not create an account with us, you can safely ignore this email.</p>
-<p>Thank you,<br>{app_name} Team</p>
-                    """
-                    
-                    send_email(subject, [email], text_body, html_body)
-                    
-                    flash('Registration successful. Please check your email to verify your address, then log in.', 'success')
-                except Exception as e:
-                    current_app.logger.error(f"Failed to send verification email: {str(e)}")
-                    flash('Registration successful, but we could not send a verification email. You can verify your email later from settings.', 'warning')
-            else:
-                flash('Registration successful. Please log in.', 'success')
-                
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        user, message = register_user(form.username.data, form.email.data, form.password.data, form.timezone.data)
+        if user:
+            flash(message, 'success')
             return redirect(url_for('auth.login'))
-        
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            current_app.logger.error(f'Registration error: {str(e)}\n{error_details}')
-            
-            # Debug log the exact error
-            print(f'Registration error detail: {str(e)} (Type: {type(e).__name__})')
-            print(f'Traceback: {error_details}')
-            
-            # More user-friendly error message
-            flash(f'Registration error: {str(e)}', 'danger')
-            return redirect(url_for('auth.register'))
-    
+        else:
+            flash(message, 'danger')
+
     # Get common timezones
     common_timezones = pytz.common_timezones
-    
-    return render_template('register.html', timezones=common_timezones)
 
+    return render_template('register.html', form=form, timezones=common_timezones)
+
+
+from forms import LoginForm
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @limiter.limit("5 per minute")  # Rate limiting
 def login():
-    import time
-    from validators import sanitize_text
-    from two_factor import is_verification_required, send_verification_code
-    
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
-    
-    if request.method == 'POST':
-        # Check CSRF token
-        token = session.get('_csrf_token')
-        form_token = request.form.get('_csrf_token')
-        
-        if not token or token != form_token:
-            current_app.logger.warning(f'CSRF attack detected on login from {request.remote_addr}')
-            flash('Invalid form submission. Please try again.', 'danger')
-            return redirect(url_for('auth.login'))
-        
-        # Add slight delay to prevent timing attacks
-        time.sleep(0.1)
-        
-        # Get and sanitize inputs
-        username = sanitize_text(request.form.get('username', ''))
-        password = request.form.get('password', '')
-        remember = 'remember' in request.form
-        
-        # Attempt to find the user
-        user = User.query.filter_by(username=username).first()
-        
-        # Check if user exists and password is correct
-        if not user or not user.check_password(password):
-            current_app.logger.warning(f'Failed login attempt for user: {username} from IP: {request.remote_addr}')
+
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = authenticate_user(form.username.data, form.password.data)
+
+        if not user:
+            current_app.logger.warning(f'Failed login attempt for user: {form.username.data} from IP: {request.remote_addr}')
             flash('Invalid username or password.', 'danger')
             return redirect(url_for('auth.login'))
-        
+
         # Store user ID in session for 2FA
         session['pre_verified_user_id'] = user.id
-        session['pre_verified_remember'] = remember
-        
+        session['pre_verified_remember'] = form.remember.data
+
         # Check if 2FA is required
         if user.two_factor_enabled and is_verification_required(user.id):
             # Send verification code
             success, message = send_verification_code(user.id)
-            
+
             if not success:
                 flash(f'Failed to send verification code: {message}', 'danger')
                 return redirect(url_for('auth.login'))
-            
+
             # Set flag in session
             session['requires_verification'] = True
-            
+
             # Redirect to verification page
             return redirect(url_for('auth.verify_login'))
-        
+
         # Log successful login
-        current_app.logger.info(f'User logged in: {username} from IP: {request.remote_addr}')
-        
+        current_app.logger.info(f'User logged in: {form.username.data} from IP: {request.remote_addr}')
+
         # Check for 'next' parameter to prevent open redirect
         next_page = request.args.get('next')
         if next_page and not next_page.startswith('/'):
             next_page = None  # Only allow relative paths
-        
+
         # Login the user and redirect
-        login_user(user, remember=remember)
+        login_user(user, remember=form.remember.data)
         return redirect(next_page or url_for('journal.index'))
-    
-    return render_template('login.html')
+
+    return render_template('login.html', form=form)
 
 
 @auth_bp.route('/verify', methods=['GET', 'POST'])
@@ -655,310 +498,81 @@ def dashboard():
     )
 
 
-@journal_bp.route('/journal/quick', methods=['GET', 'POST'])
-@login_required
-def quick_journal():
-    from validators import sanitize_journal_content, sanitize_tag_name, validate_color_hex, ValidationError
-    
-    if request.method == 'POST':
-        # Check CSRF token
-        token = session.get('_csrf_token')
-        form_token = request.form.get('_csrf_token')
-        
-        if not token or token != form_token:
-            current_app.logger.warning(f'CSRF attack detected on quick journal from {request.remote_addr}')
-            flash('Invalid form submission. Please try again.', 'danger')
-            return redirect(url_for('journal.quick_journal'))
-        
-        try:
-            # Sanitize content
-            raw_content = request.form.get('content', '')
-            content = sanitize_journal_content(raw_content)
-            
-            # Validate content
-            if not content or len(content.strip()) == 0:
-                flash('Journal entry cannot be empty.', 'danger')
-                return redirect(url_for('journal.quick_journal'))
-            
-            if len(content) > 10000:  # 10KB limit
-                flash('Journal entry is too long. Please shorten your entry.', 'danger')
-                return redirect(url_for('journal.quick_journal'))
-            
-            # Get tag IDs
-            tag_ids = request.form.getlist('tags')
-            new_tags_json = request.form.get('new_tags', '[]')
-            
-            # Create journal entry
-            entry = JournalEntry(
-                user_id=current_user.id,
-                content=content,
-                entry_type='quick'
-            )
-            
-            # Add selected existing tags
-            valid_tag_ids = []
-            if tag_ids:
-                # Validate tag IDs (ensure they are integers and belong to the user)
-                for tag_id in tag_ids:
-                    try:
-                        tag_id_int = int(tag_id)
-                        valid_tag_ids.append(tag_id_int)
-                    except (ValueError, TypeError):
-                        # Skip invalid IDs
-                        pass
-                
-                # Get tags belonging to the current user
-                tags = Tag.query.filter(
-                    Tag.id.in_(valid_tag_ids), 
-                    Tag.user_id == current_user.id
-                ).all()
-                entry.tags = tags
-            else:
-                entry.tags = []
-            
-            # Create and add new tags
-            if new_tags_json:
-                try:
-                    new_tags_data = json.loads(new_tags_json)
-                    for tag_data in new_tags_data:
-                        try:
-                            # Sanitize tag name
-                            tag_name = sanitize_tag_name(tag_data.get('name', ''))
-                            tag_color = validate_color_hex(tag_data.get('color', '#6c757d'))
-                            
-                            # Check if tag with this name already exists for this user
-                            existing_tag = Tag.query.filter_by(
-                                name=tag_name,
-                                user_id=current_user.id
-                            ).first()
-                            
-                            if existing_tag:
-                                # Use existing tag if it exists
-                                if existing_tag not in entry.tags:
-                                    entry.tags.append(existing_tag)
-                            else:
-                                # Create new tag
-                                new_tag = Tag(
-                                    name=tag_name,
-                                    color=tag_color,
-                                    user_id=current_user.id
-                                )
-                                db.session.add(new_tag)
-                                db.session.flush()  # Get ID without committing
-                                entry.tags.append(new_tag)
-                        except ValidationError as e:
-                            # Log error but continue with other tags
-                            current_app.logger.warning(f'Tag validation error: {str(e)}')
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, log it but continue
-                    current_app.logger.warning(f'Invalid JSON for new tags: {new_tags_json[:100]}')
-            
-            db.session.add(entry)
-            db.session.flush()  # Get ID without committing
-            
-            # Handle photo uploads
-            photos = request.files.getlist('photos')
-            if photos:
-                for photo in photos:
-                    if photo and photo.filename and allowed_file(photo.filename):
-                        try:
-                            # Create a secure filename with a UUID prefix
-                            original_filename = secure_filename(photo.filename)  # Sanitize original filename
-                            if len(original_filename) > 255:
-                                original_filename = original_filename[-255:]  # Truncate if too long
-                                
-                            # Create unique filename
-                            filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
-                            
-                            # Save file to upload folder
-                            upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                            photo_path = os.path.join(upload_folder, filename)
-                            
-                            # Check file size before saving
-                            photo.seek(0, os.SEEK_END)
-                            file_size = photo.tell()
-                            photo.seek(0)  # Reset file pointer
-                            
-                            if file_size > current_app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024):
-                                # Skip files that are too large
-                                current_app.logger.warning(f'Photo upload too large: {file_size} bytes')
-                                continue
-                                
-                            # Save the file
-                            photo.save(photo_path)
-                            
-                            # Create photo record in database
-                            new_photo = Photo(
-                                journal_entry_id=entry.id,
-                                filename=filename,
-                                original_filename=original_filename
-                            )
-                            db.session.add(new_photo)
-                        except Exception as e:
-                            # Log error but continue with other photos
-                            current_app.logger.error(f'Photo upload error: {str(e)}')
-            
-            # Commit changes
-            db.session.commit()
-            
-            flash('Journal entry saved successfully.', 'success')
-            return redirect(url_for('journal.index'))
-        except Exception as e:
-            # Log unexpected errors
-            current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
-            flash('An error occurred while saving your journal entry. Please try again.', 'danger')
-            return redirect(url_for('journal.quick_journal'))
-    
-    # Get user's tags
-    tags = Tag.query.filter_by(user_id=current_user.id).all()
-    
-    return render_template('journal/quick.html', tags=tags)
+# from services.journal_service import create_quick_entry
 
+# @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
+# @login_required
+# def quick_journal():
+#     if request.method == 'POST':
+#         # Check CSRF token
+#         token = session.get('_csrf_token')
+#         form_token = request.form.get('_csrf_token')
+
+#         if not token or token != form_token:
+#             current_app.logger.warning(f'CSRF attack detected on quick journal from {request.remote_addr}')
+#             flash('Invalid form submission. Please try again.', 'danger')
+#             return redirect(url_for('journal.quick_journal'))
+
+#         content = request.form.get('content', '')
+#         tag_ids = request.form.getlist('tags')
+#         new_tags_json = request.form.get('new_tags', '[]')
+#         photos = request.files.getlist('photos')
+
+#         entry, error = create_quick_entry(current_user.id, content, tag_ids, new_tags_json, photos)
+
+#         if error:
+#             flash(error, 'danger')
+#             return redirect(url_for('journal.quick_journal'))
+
+#         flash('Journal entry saved successfully.', 'success')
+#         return redirect(url_for('journal.index'))
+
+#     # Get user's tags
+#     tags = Tag.query.filter_by(user_id=current_user.id).all()
+
+#     return render_template('journal/quick.html', tags=tags)
+
+
+from services.journal_service import create_guided_entry
 
 @journal_bp.route('/journal/guided', methods=['GET', 'POST'])
 @login_required
 def guided_journal():
     if request.method == 'POST':
-        # Get tag IDs from form
         tag_ids = request.form.getlist('tags')
         new_tags_json = request.form.get('new_tags', '[]')
-        
-        # First, create the journal entry
-        entry = JournalEntry(
-            user_id=current_user.id,
-            entry_type='guided'
-        )
-        
-        # Add selected existing tags
-        if tag_ids:
-            tags = Tag.query.filter(
-                Tag.id.in_(tag_ids), 
-                Tag.user_id == current_user.id
-            ).all()
-            entry.tags = tags
-        else:
-            entry.tags = []
-            
-        # Create and add new tags
-        if new_tags_json:
-            try:
-                new_tags_data = json.loads(new_tags_json)
-                for tag_data in new_tags_data:
-                    # Check if tag with this name already exists for this user
-                    existing_tag = Tag.query.filter_by(
-                        name=tag_data.get('name'),
-                        user_id=current_user.id
-                    ).first()
-                    
-                    if existing_tag:
-                        # Use existing tag if it exists
-                        if existing_tag not in entry.tags:
-                            entry.tags.append(existing_tag)
-                    else:
-                        # Create new tag
-                        new_tag = Tag(
-                            name=tag_data.get('name'),
-                            color=tag_data.get('color', '#6c757d'),
-                            user_id=current_user.id
-                        )
-                        db.session.add(new_tag)
-                        db.session.flush()  # Get ID without committing
-                        entry.tags.append(new_tag)
-            except json.JSONDecodeError:
-                # If JSON parsing fails, just continue
-                pass
-        
-        db.session.add(entry)
-        db.session.flush()  # Get the ID without committing
-        
-        # Process form data
-        for key, value in request.form.items():
-            if key.startswith('question_'):
-                question_id = key.replace('question_', '')
-                
-                # Special handling for exercise question
-                if question_id == 'exercise' and value == 'Yes':
-                    today = datetime.utcnow().date()
-                    exercise_log = ExerciseLog.query.filter_by(
-                        user_id=current_user.id,
-                        date=today
-                    ).first()
-                    
-                    if not exercise_log:
-                        exercise_log = ExerciseLog(
-                            user_id=current_user.id,
-                            date=today,
-                            has_exercised=True
-                        )
-                        db.session.add(exercise_log)
-                    else:
-                        exercise_log.has_exercised = True
-                    
-                    # If there's an exercise type question, get its value and update workout_type
-                    workout_type = request.form.get('question_exercise_type')
-                    if workout_type:
-                        exercise_log.workout_type = workout_type
-                
-                # Handle additional emotions (JSON array from multiselect)
-                if question_id == 'additional_emotions' and value:
-                    # Store emotions as a JSON string
-                    value = value
-                
-                # Save the response
-                guided_response = GuidedResponse(
-                    journal_entry_id=entry.id,
-                    question_id=question_id,
-                    response=value
-                )
-                db.session.add(guided_response)
-        
-        # Handle photo uploads
         photos = request.files.getlist('photos')
-        if photos:
-            for photo in photos:
-                if photo and photo.filename and allowed_file(photo.filename):
-                    # Create a secure filename with a UUID prefix
-                    original_filename = photo.filename
-                    filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
-                    
-                    # Save file to upload folder
-                    upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                    photo_path = os.path.join(upload_folder, filename)
-                    photo.save(photo_path)
-                    
-                    # Create photo record in database
-                    new_photo = Photo(
-                        journal_entry_id=entry.id,
-                        filename=filename,
-                        original_filename=original_filename
-                    )
-                    db.session.add(new_photo)
-        
-        db.session.commit()
+
+        entry, error = create_guided_entry(current_user.id, request.form, tag_ids, new_tags_json, photos)
+
+        if error:
+            flash(error, 'danger')
+            return redirect(url_for('journal.guided_journal'))
+
         flash('Guided journal entry saved successfully.')
         return redirect(url_for('journal.index'))
-    
+
     # Prepare context data for conditionals
     context = prepare_guided_journal_context()
-    
+
     # Get applicable questions
     questions = QuestionManager.get_applicable_questions(context)
-    
+
     # Format the time_since placeholder in questions
     for q in questions:
         if '{time_since}' in q.get('text', ''):
             q['text'] = q['text'].format(time_since=context['time_since'])
-    
+
     # Get user's tags
     tags = Tag.query.filter_by(user_id=current_user.id).all()
-    
+
     # Get emotions by category for the template
     emotions_by_category = get_emotions_by_category()
-    
+
     return render_template(
-        'journal/guided.html', 
-        questions=questions, 
-        tags=tags, 
+        'journal/guided.html',
+        questions=questions,
+        tags=tags,
         emotions_by_category=emotions_by_category
     )
 
@@ -1046,7 +660,7 @@ def update_entry_tags(entry_id):
 @journal_bp.route('/journal/exercise/check')
 @login_required
 def check_exercise():
-    """API endpoint to check if user has exercised today."""
+    # API endpoint to check if user has exercised today.
     return jsonify({
         'exercised_today': has_exercised_today()
     })
@@ -1055,7 +669,7 @@ def check_exercise():
 @journal_bp.route('/search', methods=['GET'])
 @login_required
 def search():
-    """Search journal entries."""
+    # Search journal entries.
     query = request.args.get('q', '').strip()
     tag_id = request.args.get('tag')
     start_date = request.args.get('start_date')
@@ -1180,7 +794,7 @@ def search():
 @journal_bp.route('/mood_tracker', methods=['GET'])
 @login_required
 def mood_tracker():
-    """Mood tracking visualization for journal entries."""
+    # Mood tracking visualization for journal entries.
     # Import TimeUtils for timezone handling
     from time_utils import TimeUtils
     # Get filter parameters
@@ -1383,249 +997,124 @@ def mood_tracker():
 @auth_bp.route('/settings', methods=['GET'])
 @login_required
 def settings():
-    """Display user settings page."""
+    # Display user settings page.
     # Get list of common timezones for the form
     common_timezones = pytz.common_timezones
     
     # Get user's tags for the settings page
     tags = Tag.query.filter_by(user_id=current_user.id).all()
     
+    password_change_form = PasswordChangeForm()
+    email_change_form = EmailChangeForm()
+    add_email_form = AddEmailForm()
     return render_template(
         'settings.html', 
         timezones=common_timezones, 
         current_timezone=current_user.timezone,
-        tags=tags
+        tags=tags,
+        password_change_form=password_change_form,
+        email_change_form=email_change_form,
+        add_email_form=add_email_form
     )
 
+
+from services.user_service import update_user_timezone
 
 @auth_bp.route('/settings/timezone', methods=['POST'])
 @login_required
 def update_timezone():
-    """Update user timezone."""
+    # Update user timezone.
     timezone = request.form.get('timezone')
-    
-    try:
-        # Validate timezone
-        pytz.timezone(timezone)
-        
-        # Update user's timezone
-        current_user.timezone = timezone
-        db.session.commit()
-        
-        flash('Timezone updated successfully.')
-    except pytz.exceptions.UnknownTimeZoneError:
-        flash('Invalid timezone selected.')
-    
+    success, message = update_user_timezone(current_user.id, timezone)
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
     return redirect(url_for('auth.settings'))
 
+
+from services.user_service import change_user_password
+
+from forms import PasswordChangeForm
 
 @auth_bp.route('/settings/password', methods=['POST'])
 @login_required
 def change_password():
-    """Change user password."""
-    from validators import validate_password, ValidationError
+    # Change user password.
     import time
-    
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on password change from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
     
     # Add slight delay to prevent timing attacks
     time.sleep(0.1)
-    
-    # Get form data
-    current_password = request.form.get('current_password', '')
-    new_password = request.form.get('new_password', '')
-    confirm_password = request.form.get('confirm_password', '')
-    
-    # Validate current password
-    if not current_user.check_password(current_password):
-        current_app.logger.warning(f'Failed password change attempt for user: {current_user.username}')
-        flash('Current password is incorrect.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Validate new password
-    if new_password != confirm_password:
-        flash('New passwords do not match.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    try:
-        validate_password(new_password)
-    except ValidationError as e:
-        flash(str(e), 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Check for common passwords
-    common_passwords = ['password', '123456', 'qwerty', 'admin', 'welcome']
-    if new_password.lower() in common_passwords:
-        flash('Please choose a stronger password.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Prevent using the same password
-    if current_user.check_password(new_password):
-        flash('New password must be different from current password.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Update password
-    current_user.set_password(new_password)
-    db.session.commit()
-    
-    current_app.logger.info(f'Password changed for user: {current_user.username}')
-    flash('Password updated successfully.', 'success')
+
+    form = PasswordChangeForm()
+    if form.validate_on_submit():
+        success, message = change_user_password(
+            current_user.id,
+            form.current_password.data,
+            form.new_password.data,
+            form.confirm_new_password.data
+        )
+
+        if success:
+            flash(message, 'success')
+        else:
+            flash(message, 'danger')
+
     return redirect(url_for('auth.settings'))
 
+
+
+
+from forms import EmailChangeForm, AddEmailForm
 
 @auth_bp.route('/settings/email', methods=['POST'])
 @login_required
 def change_email():
-    """Initiate email change process."""
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on email change from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    password = request.form.get('password')
-    new_email = request.form.get('new_email')
-    confirm_email = request.form.get('confirm_email')
-    
-    # Validate inputs
-    if not current_user.check_password(password):
-        flash('Password is incorrect.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    if new_email != confirm_email:
-        flash('Email addresses do not match.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Check if email is already in use
-    existing_user = User.query.filter_by(email=new_email).first()
-    if existing_user and existing_user.id != current_user.id:
-        flash('This email address is already in use.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Generate token and update user
-    token = current_user.generate_email_change_token(new_email)
-    db.session.commit()
-    
-    # Send confirmation email
-    send_email_change_confirmation(current_user, token)
-    
-    flash('A confirmation link has been sent to your new email address. Please check your inbox.', 'info')
+    # Initiate email change process.
+    form = EmailChangeForm()
+    if form.validate_on_submit():
+        success, message = change_user_email(
+            current_user.id,
+            form.password.data,
+            form.new_email.data,
+            form.confirm_new_email.data
+        )
+
+        if success:
+            flash(message, 'info')
+        else:
+            flash(message, 'danger')
+
     return redirect(url_for('auth.settings'))
 
 
 @auth_bp.route('/settings/add-email', methods=['POST'])
 @login_required
 def add_email():
-    """Add email to an account that doesn't have one."""
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on add email from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Only allow adding email if user doesn't have one
-    if current_user.email:
-        flash('You already have an email address. Use the change email form instead.', 'warning')
-        return redirect(url_for('auth.settings'))
-    
-    password = request.form.get('password')
-    email = request.form.get('email')
-    
-    # Validate inputs
-    if not email or not password:
-        flash('Email and password are required.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    if not current_user.check_password(password):
-        flash('Password is incorrect.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Validate email format
-    try:
-        from validators import sanitize_email
-        email = sanitize_email(email)
-    except Exception as e:
-        flash(f'Invalid email address: {str(e)}', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Check if email is already in use
-    existing_user = User.query.filter_by(email=email).first()
-    if existing_user:
-        flash('This email address is already in use.', 'danger')
-        return redirect(url_for('auth.settings'))
-    
-    # Update user's email and generate verification token
-    current_user.email = email
-    verification_token = current_user.generate_email_verification_token()
-    db.session.commit()
-    
-    # Send verification email
-    try:
-        app_name = current_app.config.get('APP_NAME', 'Journal App')
-        app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
-        
-        # Force production URL for emails
-        app_url = "https://journal.joshsisto.com"
-        
-        verify_url = f"{app_url}/verify-email/{verification_token}"
-        
-        subject = f"{app_name} - Verify Your Email"
-        
-        # Plain text email
-        text_body = f"""
-Hello {current_user.username},
+    # Add email to an account that doesn't have one.
+    form = AddEmailForm()
+    if form.validate_on_submit():
+        success, message = add_user_email(
+            current_user.id,
+            form.password.data,
+            form.email.data
+        )
 
-Please verify your email address by visiting the following link:
-{verify_url}
+        if success:
+            flash(message, 'success')
+        else:
+            flash(message, 'danger')
 
-This link will expire in 24 hours.
-
-If you did not add this email to your account, please contact support.
-
-Thank you,
-{app_name} Team
-        """
-        
-        # HTML email
-        html_body = f"""
-<p>Hello {current_user.username},</p>
-<p>Please verify your email address by <a href="{verify_url}">clicking here</a>.</p>
-<p>Alternatively, you can paste the following link in your browser's address bar:</p>
-<p>{verify_url}</p>
-<p>This link will expire in 24 hours.</p>
-<p>If you did not add this email to your account, please contact support.</p>
-<p>Thank you,<br>{app_name} Team</p>
-        """
-        
-        from email_utils import send_email
-        send_email(subject, [email], text_body, html_body)
-        
-        flash('Email address added. Please check your inbox to verify your email.', 'success')
-    except Exception as e:
-        current_app.logger.error(f"Failed to send verification email: {str(e)}")
-        flash('Email address added, but we could not send a verification email. You can resend it from settings.', 'warning')
-    
     return redirect(url_for('auth.settings'))
 
+
+from services.user_service import resend_verification_email
 
 @auth_bp.route('/settings/resend-verification', methods=['POST'])
 @login_required
 @limiter.limit("3/hour")  # Prevent abuse
 def resend_verification():
-    """Resend email verification link."""
+    # Resend email verification link.
     # Check CSRF token
     token = session.get('_csrf_token')
     form_token = request.form.get('_csrf_token')
@@ -1635,72 +1124,19 @@ def resend_verification():
         flash('Invalid form submission. Please try again.', 'danger')
         return redirect(url_for('auth.settings'))
     
-    # Check if user has an email
-    if not current_user.email:
-        flash('You need to add an email address first.', 'warning')
-        return redirect(url_for('auth.settings'))
-    
-    # Check if email is already verified
-    if current_user.is_email_verified:
-        flash('Your email is already verified.', 'info')
-        return redirect(url_for('auth.settings'))
-    
-    # Generate a new verification token
-    verification_token = current_user.generate_email_verification_token()
-    db.session.commit()
-    
-    # Send verification email
-    try:
-        app_name = current_app.config.get('APP_NAME', 'Journal App')
-        app_url = current_app.config.get('APP_URL', 'http://localhost:5000')
-        
-        # Force production URL for emails
-        app_url = "https://journal.joshsisto.com"
-        
-        verify_url = f"{app_url}/verify-email/{verification_token}"
-        
-        subject = f"{app_name} - Verify Your Email"
-        
-        # Plain text email
-        text_body = f"""
-Hello {current_user.username},
+    success, message = resend_verification_email(current_user.id)
 
-Please verify your email address by visiting the following link:
-{verify_url}
-
-This link will expire in 24 hours.
-
-If you did not request this verification, please contact support.
-
-Thank you,
-{app_name} Team
-        """
-        
-        # HTML email
-        html_body = f"""
-<p>Hello {current_user.username},</p>
-<p>Please verify your email address by <a href="{verify_url}">clicking here</a>.</p>
-<p>Alternatively, you can paste the following link in your browser's address bar:</p>
-<p>{verify_url}</p>
-<p>This link will expire in 24 hours.</p>
-<p>If you did not request this verification, please contact support.</p>
-<p>Thank you,<br>{app_name} Team</p>
-        """
-        
-        from email_utils import send_email
-        send_email(subject, [current_user.email], text_body, html_body)
-        
-        flash('Verification email sent. Please check your inbox.', 'success')
-    except Exception as e:
-        current_app.logger.error(f"Failed to send verification email: {str(e)}")
-        flash('Could not send verification email. Please try again later.', 'danger')
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
     
     return redirect(url_for('auth.settings'))
 
 
 @auth_bp.route('/verify-email/<token>')
 def verify_email(token):
-    """Verify email address with token."""
+    # Verify email address with token.
     # Find user by token
     user = User.query.filter_by(email_verification_token=token).first()
     
@@ -1723,7 +1159,7 @@ def verify_email(token):
 
 @auth_bp.route('/confirm-email-change/<token>')
 def confirm_email_change(token):
-    """Confirm email change with token."""
+    # Confirm email change with token.
     # Find user by token
     user = User.query.filter_by(email_change_token=token).first()
     
@@ -1744,75 +1180,52 @@ def confirm_email_change(token):
         return redirect(url_for('auth.login'))
 
 
+from services.user_service import request_password_reset, reset_password
+
+from forms import RequestResetForm, ResetPasswordForm
+
 @auth_bp.route('/request-reset', methods=['GET', 'POST'])
 @limiter.limit("3 per minute")  # Rate limiting
 def request_reset():
-    """Request password reset."""
+    # Request password reset.
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
     
-    if request.method == 'POST':
-        email = request.form.get('email')
-        
-        # Find user by email
-        user = User.query.filter_by(email=email).first()
-        
-        # Always show success message even if email not found (security)
-        if user:
-            token = user.generate_reset_token()
-            db.session.commit()
-            
-            # Send password reset email
-            send_password_reset_email(user, token)
-        
-        flash('If your email address exists in our database, you will receive a password reset link at your email address.', 'info')
+    form = RequestResetForm()
+    if form.validate_on_submit():
+        message = request_password_reset(form.email.data)
+        flash(message, 'info')
         return redirect(url_for('auth.login'))
     
-    return render_template('auth/request_reset.html')
+    return render_template('auth/request_reset.html', form=form)
 
 
 @auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    """Reset password with token."""
+def reset_password_route(token):
+    # Reset password with token.
     if current_user.is_authenticated:
         return redirect(url_for('journal.index'))
     
-    # Find user by token
-    user = User.query.filter_by(reset_token=token).first()
-    
-    if not user or not user.verify_reset_token(token):
-        flash('Invalid or expired reset link.', 'danger')
-        return redirect(url_for('auth.request_reset'))
-    
-    if request.method == 'POST':
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        
-        # Validate passwords
-        if password != confirm_password:
-            flash('Passwords do not match.', 'danger')
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        success, message = reset_password(token, form.password.data, form.confirm_password.data)
+        if success:
+            flash(message, 'success')
+            return redirect(url_for('auth.login'))
+        else:
+            flash(message, 'danger')
             return redirect(url_for('auth.reset_password', token=token))
-        
-        if len(password) < 8:
-            flash('Password must be at least 8 characters long.', 'danger')
-            return redirect(url_for('auth.reset_password', token=token))
-        
-        # Update password
-        user.set_password(password)
-        user.clear_reset_token()
-        db.session.commit()
-        
-        flash('Your password has been reset successfully. You can now log in with your new password.', 'success')
-        return redirect(url_for('auth.login'))
     
-    return render_template('auth/reset_password.html')
+    return render_template('auth/reset_password.html', form=form)
 
+
+from services.tag_service import get_all_tags_for_user, create_tag, edit_tag, delete_tag
 
 # Tag Management Routes
 @tag_bp.route('/tags', methods=['GET'])
 @login_required
 def manage_tags():
-    tags = Tag.query.filter_by(user_id=current_user.id).all()
+    tags = get_all_tags_for_user(current_user.id)
     return render_template('tags/manage.html', tags=tags)
 
 
@@ -1821,67 +1234,35 @@ def manage_tags():
 def add_tag():
     name = request.form.get('name', '').strip()
     color = request.form.get('color', '#6c757d')
-    
-    if not name:
-        flash('Tag name is required.', 'danger')
-        return redirect(url_for('tag.manage_tags'))
-    
-    # Check if tag already exists
-    existing_tag = Tag.query.filter_by(user_id=current_user.id, name=name).first()
-    if existing_tag:
-        flash(f'A tag named "{name}" already exists.', 'danger')
-        return redirect(url_for('tag.manage_tags'))
-    
-    # Create new tag
-    tag = Tag(name=name, color=color, user_id=current_user.id)
-    db.session.add(tag)
-    db.session.commit()
-    
-    flash(f'Tag "{name}" created successfully.', 'success')
+    tag, message = create_tag(current_user.id, name, color)
+    if tag:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
     return redirect(url_for('tag.manage_tags'))
 
 
 @tag_bp.route('/tags/edit/<int:tag_id>', methods=['POST'])
 @login_required
 def edit_tag(tag_id):
-    tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first_or_404()
-    
     name = request.form.get('name', '').strip()
     color = request.form.get('color', '#6c757d')
-    
-    if not name:
-        flash('Tag name is required.', 'danger')
-        return redirect(url_for('tag.manage_tags'))
-    
-    # Check if a different tag with the same name exists
-    existing_tag = Tag.query.filter_by(user_id=current_user.id, name=name).first()
-    if existing_tag and existing_tag.id != tag.id:
-        flash(f'A tag named "{name}" already exists.', 'danger')
-        return redirect(url_for('tag.manage_tags'))
-    
-    # Update tag
-    tag.name = name
-    tag.color = color
-    db.session.commit()
-    
-    flash(f'Tag "{name}" updated successfully.', 'success')
+    tag, message = edit_tag(current_user.id, tag_id, name, color)
+    if tag:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
     return redirect(url_for('tag.manage_tags'))
 
 
 @tag_bp.route('/tags/delete/<int:tag_id>', methods=['POST'])
 @login_required
 def delete_tag(tag_id):
-    tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first_or_404()
-    
-    # Remove tag from all entries
-    for entry in tag.entries:
-        entry.tags.remove(tag)
-    
-    # Delete the tag
-    db.session.delete(tag)
-    db.session.commit()
-    
-    flash(f'Tag "{tag.name}" deleted successfully.', 'success')
+    success, message = delete_tag(current_user.id, tag_id)
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
     return redirect(url_for('tag.manage_tags'))
 
 
@@ -1889,7 +1270,7 @@ def delete_tag(tag_id):
 @export_bp.route('/export/entry/<int:entry_id>')
 @login_required
 def export_entry(entry_id):
-    """Export a single journal entry as text."""
+    # Export a single journal entry as text.
     # Get the entry
     entry = JournalEntry.query.filter_by(
         id=entry_id,
@@ -1925,7 +1306,7 @@ def export_entry(entry_id):
 @export_bp.route('/export/search')
 @login_required
 def export_search_entries():
-    """Export journal entries based on search criteria."""
+    # Export journal entries based on search criteria.
     query = request.args.get('q', '').strip()
     tag_id = request.args.get('tag')
     start_date = request.args.get('start_date')
@@ -1998,7 +1379,7 @@ def export_search_entries():
 @export_bp.route('/export/all')
 @login_required
 def export_all_entries():
-    """Export all journal entries."""
+    # Export all journal entries.
     # Get all entries sorted by date
     entries = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2007,16 +1388,13 @@ def export_all_entries():
     return export_entries_as_text(entries)
 
 
-def allowed_file(filename):
-    """Check if file has an allowed extension."""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_PHOTO_EXTENSIONS']
+
 
 
 @journal_bp.route('/journal/photo/<int:photo_id>')
 @login_required
 def view_photo(photo_id):
-    """Serve a photo file."""
+    # Serve a photo file.
     # First verify that the photo belongs to the current user
     photo = Photo.query.join(JournalEntry).filter(
         Photo.id == photo_id,
@@ -2032,7 +1410,7 @@ def view_photo(photo_id):
 
 
 def export_entries_as_text(entries, filter_info=None):
-    """Helper function to export entries as text."""
+    # Helper function to export entries as text.
     # Build text content
     lines = []
     lines.append("JOURNAL ENTRIES EXPORT")
@@ -2098,7 +1476,7 @@ def export_entries_as_text(entries, filter_info=None):
 @ai_bp.route('/conversation/<int:entry_id>', methods=['GET'])
 @login_required
 def single_entry_conversation(entry_id):
-    """AI conversation based on a single journal entry."""
+    # AI conversation based on a single journal entry.
     # Get the journal entry
     entry = JournalEntry.query.filter_by(
         id=entry_id,
@@ -2172,7 +1550,7 @@ def single_entry_conversation(entry_id):
 @ai_bp.route('/conversation/original', methods=['GET', 'POST'])
 @login_required
 def original_multiple_entries_conversation():
-    """Original (non-working) version of multiple entries conversation."""
+    # Original (non-working) version of multiple entries conversation.
     # Get the 10 most recent entries only - simplify for troubleshooting
     entries = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2288,7 +1666,7 @@ def original_multiple_entries_conversation():
 @ai_bp.route('/test/conversation', methods=['GET'])
 @login_required
 def test_conversation():
-    """Test page for AI conversation functionality."""
+    # Test page for AI conversation functionality.
     # Get some recent entries for the select dropdown
     recent_entries = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2302,7 +1680,7 @@ def test_conversation():
 @ai_bp.route('/simple', methods=['GET'])
 @login_required
 def simple_ai_conversation():
-    """Simple AI conversation with the most recent entry."""
+    # Simple AI conversation with the most recent entry.
     # Get the most recent entry
     entry = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2378,7 +1756,7 @@ def simple_ai_conversation():
 @ai_bp.route('/test/multiple', methods=['GET'])
 @login_required
 def test_multiple_conversation():
-    """Test page for multiple entries AI conversation."""
+    # Test page for multiple entries AI conversation.
     # Get the 5 most recent entries
     entries = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2433,7 +1811,7 @@ def test_multiple_conversation():
 @ai_bp.route('/direct', methods=['GET'])
 @login_required
 def direct_ai_conversation():
-    """Extra direct version of the multiple entries conversation."""
+    # Extra direct version of the multiple entries conversation.
     # Get entries
     entries = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2457,14 +1835,14 @@ def direct_ai_conversation():
 @ai_bp.route('/bare', methods=['GET'])
 @login_required
 def bare_minimum_test():
-    """Absolute bare minimum test page for AI conversations."""
+    # Absolute bare minimum test page for AI conversations.
     print("Rendering bare minimum test page")
     return render_template('ai/bare_minimum.html')
 
 @ai_bp.route('/working', methods=['GET'])
 @login_required
 def working_multiple_conversation():
-    """Working version of multiple entries conversation."""
+    # Working version of multiple entries conversation.
     # Get the 10 most recent entries
     entries = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2515,7 +1893,7 @@ def working_multiple_conversation():
 @ai_bp.route('/conversation/multiple', methods=['GET'])
 @login_required
 def multiple_entries_conversation():
-    """Working multiple entries conversation (default)."""
+    # Working multiple entries conversation (default).
     # Get the 10 most recent entries
     entries = JournalEntry.query.filter_by(
         user_id=current_user.id
@@ -2566,21 +1944,21 @@ def multiple_entries_conversation():
 @ai_bp.route('/basic', methods=['GET'])
 @login_required
 def basic_multiple_conversation():
-    """Legacy route for basic multiple entries conversation."""
+    # Legacy route for basic multiple entries conversation.
     # Redirect to the main multiple conversation route
     return redirect(url_for('ai.multiple_entries_conversation'))
 
 @ai_bp.route('/test-cors', methods=['GET'])
 @login_required
 def test_cors():
-    """Test page for debugging CORS issues."""
+    # Test page for debugging CORS issues.
     return render_template('ai/test_cors.html')
 
 @ai_bp.route('/api/conversation', methods=['POST', 'OPTIONS'])
 @login_required
 @limiter.limit("10 per minute")  # Rate limiting
 def ai_conversation_api():
-    """API endpoint for AI conversations."""
+    # API endpoint for AI conversations.
     from validators import sanitize_text
     
     # For debugging

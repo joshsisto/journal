@@ -2,14 +2,14 @@ from flask import Flask, request
 from flask_login import LoginManager
 from flask_mail import Mail
 from config import Config
-from models import db, User, JournalEntry, GuidedResponse, ExerciseLog
+from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, bcrypt
+from flask_migrate import Migrate
 from time_utils import register_template_utils
 import logging
 import os
 import jinja2
 import markupsafe
 from security import setup_security, csp, talisman, limiter
-from validators import sanitize_html, sanitize_text
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -64,13 +64,14 @@ def create_app(config_class=Config):
     db.init_app(app)
     login_manager.init_app(app)
     mail.init_app(app)
+    bcrypt.init_app(app)
+    migrate = Migrate(app, db)
     
     # Configure session security
     app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SECURE'] = app.config.get('APP_URL', '').startswith('https://')
-    app.config['WTF_CSRF_ENABLED'] = True
-    app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
+    
     
     # Set security-related configuration
     app.config['SECURITY_PASSWORD_SALT'] = os.environ.get('SECURITY_PASSWORD_SALT', 'change-me-in-production')
@@ -91,14 +92,7 @@ def create_app(config_class=Config):
         app.logger.debug('Request Method: %s', request.method)
         app.logger.debug('Request Remote Address: %s', request.remote_addr)
     
-    # Apply request hook for automatic parameter sanitization
-    @app.before_request
-    def sanitize_request_data():
-        # Sanitize URL parameters
-        for key, value in list(request.args.items()):
-            if key and value and isinstance(value, str):
-                request.args = request.args.copy()
-                request.args[key] = sanitize_text(value)
+    
     
     # Apply security checks before each request
     @app.before_request
@@ -202,9 +196,7 @@ def create_app(config_class=Config):
                 
         return {'parse_emotions': parse_emotions}
     
-    # Create database tables
-    with app.app_context():
-        db.create_all()
+    
     
     return app
 

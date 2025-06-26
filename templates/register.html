@@ -2,58 +2,6 @@
 
 {% block title %}Register - Journal App{% endblock %}
 
-{% block styles %}
-<style>
-    /* Custom validation styles */
-    .form-control:focus {
-        border-color: #80bdff;
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-    }
-    
-    .form-control.is-invalid {
-        border-color: #dc3545;
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23dc3545' viewBox='0 0 12 12'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
-        background-repeat: no-repeat;
-        background-position: right calc(.375em + .1875rem) center;
-        background-size: calc(.75em + .375rem) calc(.75em + .375rem);
-    }
-    
-    .password-strength-meter {
-        height: 10px;
-        width: 100%;
-        background-color: #e0e0e0;
-        border-radius: 5px;
-        margin-top: 5px;
-    }
-    
-    .password-strength-meter div {
-        height: 100%;
-        border-radius: 5px;
-        transition: width 0.3s ease-in-out;
-    }
-    
-    .strength-weak {
-        width: 25%;
-        background-color: #dc3545;
-    }
-    
-    .strength-fair {
-        width: 50%;
-        background-color: #ffc107;
-    }
-    
-    .strength-good {
-        width: 75%;
-        background-color: #28a745;
-    }
-    
-    .strength-strong {
-        width: 100%;
-        background-color: #198754;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-6">
@@ -63,44 +11,44 @@
             </div>
             <div class="card-body">
                 <form method="post" id="register-form">
-                    <!-- CSRF token -->
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                    
+                    {{ form.hidden_tag() }}
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" 
-                               required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_-]+"
-                               title="Username can only contain letters, numbers, underscores, and hyphens">
-                        <div class="invalid-feedback">
-                            Please enter a valid username (3-30 characters, letters, numbers, underscores, hyphens only).
-                        </div>
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control") }}
+                        {% for error in form.username.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="email" class="form-label">Email (Optional)</label>
-                        <input type="email" class="form-control" id="email" name="email">
+                        {{ form.email.label(class="form-label") }}
+                        {{ form.email(class="form-control") }}
+                        {% for error in form.email.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                         <div class="form-text">
                             Email is optional but recommended for password recovery and two-factor authentication.
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" 
-                               required minlength="8">
-                        <div class="password-strength-meter">
-                            <div id="password-strength-bar"></div>
-                        </div>
-                        <small id="password-strength-text" class="form-text text-muted">Password strength: </small>
-                        <div class="invalid-feedback">
-                            Password must be at least 8 characters long and include letters and numbers.
-                        </div>
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control") }}
+                        {% for error in form.password.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="timezone" class="form-label">Your Timezone</label>
-                        <select class="form-select" id="timezone" name="timezone" required>
-                            {% for tz in timezones %}
-                                <option value="{{ tz }}">{{ tz }}</option>
-                            {% endfor %}
-                        </select>
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control") }}
+                        {% for error in form.confirm_password.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.timezone.label(class="form-label") }}
+                        {{ form.timezone(class="form-select") }}
+                        {% for error in form.timezone.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                         <div class="form-text">
                             Select your timezone to ensure journal entries display the correct time.
                         </div>
@@ -114,114 +62,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Try to detect and preselect the user's timezone
-        try {
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const timezoneSelect = document.getElementById('timezone');
-            
-            // Find the option with this timezone value
-            for (let i = 0; i < timezoneSelect.options.length; i++) {
-                if (timezoneSelect.options[i].value === timezone) {
-                    timezoneSelect.selectedIndex = i;
-                    break;
-                }
-            }
-        } catch (e) {
-            console.error('Error auto-detecting timezone:', e);
-        }
-        
-        // Form validation
-        const form = document.getElementById('register-form');
-        const passwordInput = document.getElementById('password');
-        const strengthBar = document.getElementById('password-strength-bar');
-        const strengthText = document.getElementById('password-strength-text');
-        
-        // Password strength meter
-        passwordInput.addEventListener('input', function() {
-            const password = this.value;
-            let strength = 0;
-            
-            // Calculate password strength
-            if (password.length >= 8) strength += 1;
-            if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength += 1;
-            if (password.match(/\d/)) strength += 1;
-            if (password.match(/[^a-zA-Z\d]/)) strength += 1;
-            
-            // Update strength indicator
-            strengthBar.className = '';
-            if (strength === 0) {
-                strengthBar.className = '';
-                strengthBar.style.width = '0';
-                strengthText.textContent = 'Password strength: Enter a password';
-            } else if (strength === 1) {
-                strengthBar.className = 'strength-weak';
-                strengthText.textContent = 'Password strength: Weak';
-            } else if (strength === 2) {
-                strengthBar.className = 'strength-fair';
-                strengthText.textContent = 'Password strength: Fair';
-            } else if (strength === 3) {
-                strengthBar.className = 'strength-good';
-                strengthText.textContent = 'Password strength: Good';
-            } else {
-                strengthBar.className = 'strength-strong';
-                strengthText.textContent = 'Password strength: Strong';
-            }
-        });
-        
-        // Form validation on submit
-        form.addEventListener('submit', function(event) {
-            let isValid = true;
-            
-            // Validate username
-            const username = document.getElementById('username');
-            if (!username.value || !username.checkValidity()) {
-                username.classList.add('is-invalid');
-                isValid = false;
-            } else {
-                username.classList.remove('is-invalid');
-            }
-            
-            // Email is optional, only validate if it has a value
-            const email = document.getElementById('email');
-            if (email.value && !email.checkValidity()) {
-                email.classList.add('is-invalid');
-                isValid = false;
-            } else {
-                email.classList.remove('is-invalid');
-            }
-            
-            // Validate password
-            if (!passwordInput.value || passwordInput.value.length < 8) {
-                passwordInput.classList.add('is-invalid');
-                isValid = false;
-            } else if (!passwordInput.value.match(/[A-Za-z]/) || !passwordInput.value.match(/\d/)) {
-                // Make sure it has at least one letter and one number
-                passwordInput.classList.add('is-invalid');
-                isValid = false;
-            } else {
-                passwordInput.classList.remove('is-invalid');
-            }
-            
-            // Prevent form submission if invalid
-            if (!isValid) {
-                event.preventDefault();
-            }
-        });
-        
-        // Remove validation styles when input changes
-        const inputs = form.querySelectorAll('input, select');
-        inputs.forEach(function(input) {
-            input.addEventListener('input', function() {
-                if (this.checkValidity()) {
-                    this.classList.remove('is-invalid');
-                }
-            });
-        });
-    });
-</script>
 {% endblock %}
