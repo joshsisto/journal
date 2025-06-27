@@ -20,6 +20,7 @@ from helpers import (
     get_time_since_last_entry, format_time_since, has_exercised_today,
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
 )
+from services.journal_service import create_quick_entry, create_guided_entry
 
 # Blueprints
 auth_bp = Blueprint('auth', __name__)
@@ -658,8 +659,6 @@ def dashboard():
 @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
 @login_required
 def quick_journal():
-    from validators import sanitize_journal_content, sanitize_tag_name, validate_color_hex, ValidationError
-    
     if request.method == 'POST':
         # Check CSRF token
         token = session.get('_csrf_token')
@@ -670,144 +669,28 @@ def quick_journal():
             flash('Invalid form submission. Please try again.', 'danger')
             return redirect(url_for('journal.quick_journal'))
         
-        try:
-            # Sanitize content
-            raw_content = request.form.get('content', '')
-            content = sanitize_journal_content(raw_content)
-            
-            # Validate content
-            if not content or len(content.strip()) == 0:
-                flash('Journal entry cannot be empty.', 'danger')
-                return redirect(url_for('journal.quick_journal'))
-            
-            if len(content) > 10000:  # 10KB limit
-                flash('Journal entry is too long. Please shorten your entry.', 'danger')
-                return redirect(url_for('journal.quick_journal'))
-            
-            # Get tag IDs
-            tag_ids = request.form.getlist('tags')
-            new_tags_json = request.form.get('new_tags', '[]')
-            
-            # Create journal entry
-            entry = JournalEntry(
-                user_id=current_user.id,
-                content=content,
-                entry_type='quick'
-            )
-            
-            # Add selected existing tags
-            valid_tag_ids = []
-            if tag_ids:
-                # Validate tag IDs (ensure they are integers and belong to the user)
-                for tag_id in tag_ids:
-                    try:
-                        tag_id_int = int(tag_id)
-                        valid_tag_ids.append(tag_id_int)
-                    except (ValueError, TypeError):
-                        # Skip invalid IDs
-                        pass
-                
-                # Get tags belonging to the current user
-                tags = Tag.query.filter(
-                    Tag.id.in_(valid_tag_ids), 
-                    Tag.user_id == current_user.id
-                ).all()
-                entry.tags = tags
-            else:
-                entry.tags = []
-            
-            # Create and add new tags
-            if new_tags_json:
-                try:
-                    new_tags_data = json.loads(new_tags_json)
-                    for tag_data in new_tags_data:
-                        try:
-                            # Sanitize tag name
-                            tag_name = sanitize_tag_name(tag_data.get('name', ''))
-                            tag_color = validate_color_hex(tag_data.get('color', '#6c757d'))
-                            
-                            # Check if tag with this name already exists for this user
-                            existing_tag = Tag.query.filter_by(
-                                name=tag_name,
-                                user_id=current_user.id
-                            ).first()
-                            
-                            if existing_tag:
-                                # Use existing tag if it exists
-                                if existing_tag not in entry.tags:
-                                    entry.tags.append(existing_tag)
-                            else:
-                                # Create new tag
-                                new_tag = Tag(
-                                    name=tag_name,
-                                    color=tag_color,
-                                    user_id=current_user.id
-                                )
-                                db.session.add(new_tag)
-                                db.session.flush()  # Get ID without committing
-                                entry.tags.append(new_tag)
-                        except ValidationError as e:
-                            # Log error but continue with other tags
-                            current_app.logger.warning(f'Tag validation error: {str(e)}')
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, log it but continue
-                    current_app.logger.warning(f'Invalid JSON for new tags: {new_tags_json[:100]}')
-            
-            db.session.add(entry)
-            db.session.flush()  # Get ID without committing
-            
-            # Handle photo uploads
-            photos = request.files.getlist('photos')
-            if photos:
-                for photo in photos:
-                    if photo and photo.filename and allowed_file(photo.filename):
-                        try:
-                            # Create a secure filename with a UUID prefix
-                            original_filename = secure_filename(photo.filename)  # Sanitize original filename
-                            if len(original_filename) > 255:
-                                original_filename = original_filename[-255:]  # Truncate if too long
-                                
-                            # Create unique filename
-                            filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
-                            
-                            # Save file to upload folder
-                            upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                            photo_path = os.path.join(upload_folder, filename)
-                            
-                            # Check file size before saving
-                            photo.seek(0, os.SEEK_END)
-                            file_size = photo.tell()
-                            photo.seek(0)  # Reset file pointer
-                            
-                            if file_size > current_app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024):
-                                # Skip files that are too large
-                                current_app.logger.warning(f'Photo upload too large: {file_size} bytes')
-                                continue
-                                
-                            # Save the file
-                            photo.save(photo_path)
-                            
-                            # Create photo record in database
-                            new_photo = Photo(
-                                journal_entry_id=entry.id,
-                                filename=filename,
-                                original_filename=original_filename
-                            )
-                            db.session.add(new_photo)
-                        except Exception as e:
-                            # Log error but continue with other photos
-                            current_app.logger.error(f'Photo upload error: {str(e)}')
-            
-            # Commit changes
-            db.session.commit()
-            
-            flash('Journal entry saved successfully.', 'success')
-            return redirect(url_for('journal.index'))
-        except Exception as e:
-            # Log unexpected errors
-            current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
-            flash('An error occurred while saving your journal entry. Please try again.', 'danger')
+        # Get form data
+        content = request.form.get('content', '')
+        tag_ids = request.form.getlist('tags')
+        new_tags_json = request.form.get('new_tags', '[]')
+        photos = request.files.getlist('photos')
+        
+        # Use service function to create entry
+        entry, error = create_quick_entry(
+            user_id=current_user.id,
+            content=content,
+            tag_ids=tag_ids,
+            new_tags_json=new_tags_json,
+            photos=photos,
+            allowed_file_func=allowed_file
+        )
+        
+        if error:
+            flash(error, 'danger')
             return redirect(url_for('journal.quick_journal'))
+        
+        flash('Journal entry saved successfully.', 'success')
+        return redirect(url_for('journal.index'))
     
     # Get user's tags
     tags = Tag.query.filter_by(user_id=current_user.id).all()
@@ -819,123 +702,30 @@ def quick_journal():
 @login_required
 def guided_journal():
     if request.method == 'POST':
-        # Get tag IDs from form
+        # Get form data
         tag_ids = request.form.getlist('tags')
         new_tags_json = request.form.get('new_tags', '[]')
+        photos = request.files.getlist('photos')
         
-        # First, create the journal entry
-        entry = JournalEntry(
+        # Generate main content from responses (optional - could be empty)
+        main_content = "Guided journal entry"  # Simple default content
+        
+        # Use service function to create entry
+        entry, error = create_guided_entry(
             user_id=current_user.id,
-            entry_type='guided'
+            form_data=request.form,
+            tag_ids=tag_ids,
+            new_tags_json=new_tags_json,
+            photos=photos,
+            main_content=main_content,
+            allowed_file_func=allowed_file
         )
         
-        # Add selected existing tags
-        if tag_ids:
-            tags = Tag.query.filter(
-                Tag.id.in_(tag_ids), 
-                Tag.user_id == current_user.id
-            ).all()
-            entry.tags = tags
-        else:
-            entry.tags = []
-            
-        # Create and add new tags
-        if new_tags_json:
-            try:
-                new_tags_data = json.loads(new_tags_json)
-                for tag_data in new_tags_data:
-                    # Check if tag with this name already exists for this user
-                    existing_tag = Tag.query.filter_by(
-                        name=tag_data.get('name'),
-                        user_id=current_user.id
-                    ).first()
-                    
-                    if existing_tag:
-                        # Use existing tag if it exists
-                        if existing_tag not in entry.tags:
-                            entry.tags.append(existing_tag)
-                    else:
-                        # Create new tag
-                        new_tag = Tag(
-                            name=tag_data.get('name'),
-                            color=tag_data.get('color', '#6c757d'),
-                            user_id=current_user.id
-                        )
-                        db.session.add(new_tag)
-                        db.session.flush()  # Get ID without committing
-                        entry.tags.append(new_tag)
-            except json.JSONDecodeError:
-                # If JSON parsing fails, just continue
-                pass
+        if error:
+            flash(error, 'danger')
+            return redirect(url_for('journal.guided_journal'))
         
-        db.session.add(entry)
-        db.session.flush()  # Get the ID without committing
-        
-        # Process form data
-        for key, value in request.form.items():
-            if key.startswith('question_'):
-                question_id = key.replace('question_', '')
-                
-                # Special handling for exercise question
-                if question_id == 'exercise' and value == 'Yes':
-                    today = datetime.utcnow().date()
-                    exercise_log = ExerciseLog.query.filter_by(
-                        user_id=current_user.id,
-                        date=today
-                    ).first()
-                    
-                    if not exercise_log:
-                        exercise_log = ExerciseLog(
-                            user_id=current_user.id,
-                            date=today,
-                            has_exercised=True
-                        )
-                        db.session.add(exercise_log)
-                    else:
-                        exercise_log.has_exercised = True
-                    
-                    # If there's an exercise type question, get its value and update workout_type
-                    workout_type = request.form.get('question_exercise_type')
-                    if workout_type:
-                        exercise_log.workout_type = workout_type
-                
-                # Handle additional emotions (JSON array from multiselect)
-                if question_id == 'additional_emotions' and value:
-                    # Store emotions as a JSON string
-                    value = value
-                
-                # Save the response
-                guided_response = GuidedResponse(
-                    journal_entry_id=entry.id,
-                    question_id=question_id,
-                    response=value
-                )
-                db.session.add(guided_response)
-        
-        # Handle photo uploads
-        photos = request.files.getlist('photos')
-        if photos:
-            for photo in photos:
-                if photo and photo.filename and allowed_file(photo.filename):
-                    # Create a secure filename with a UUID prefix
-                    original_filename = photo.filename
-                    filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
-                    
-                    # Save file to upload folder
-                    upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                    photo_path = os.path.join(upload_folder, filename)
-                    photo.save(photo_path)
-                    
-                    # Create photo record in database
-                    new_photo = Photo(
-                        journal_entry_id=entry.id,
-                        filename=filename,
-                        original_filename=original_filename
-                    )
-                    db.session.add(new_photo)
-        
-        db.session.commit()
-        flash('Guided journal entry saved successfully.')
+        flash('Guided journal entry saved successfully.', 'success')
         return redirect(url_for('journal.index'))
     
     # Prepare context data for conditionals
