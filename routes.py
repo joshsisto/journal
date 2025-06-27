@@ -542,7 +542,6 @@ def guided_journal():
             entry = JournalEntry(user_id=current_user.id, entry_type='guided'); db.session.add(entry); db.session.flush()
             _process_tags_for_entry(entry, request.form.getlist('tags'), request.form.get('new_tags', '[]'), current_user.id)
             _process_guided_journal_responses(entry, request.form, current_user.id, form.content.data)
-            entry.content = form.content.data
             _handle_photo_uploads(request.files.getlist('photos'), entry.id, current_app.config)
             db.session.commit(); flash('Guided journal entry saved successfully.'); return redirect(url_for('journal.index'))
         except SQLAlchemyError as e:

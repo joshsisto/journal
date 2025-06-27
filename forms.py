@@ -51,3 +51,9 @@ class GuidedJournalForm(BaseForm):
     content = TinyMCEField('Content', validators=[Length(max=10000)])
     tags = StringField('Tags') # This will be handled by JS
     new_tags = StringField('New Tags') # This will be handled by JS
+
+class ReminderForm(BaseForm):
+    frequency = StringField('Frequency', validators=[DataRequired()])
+    time_of_day = StringField('Time of Day') # HH:MM format
+    message = StringField('Message', validators=[Length(max=255)])
+    enabled = BooleanField('Enabled')

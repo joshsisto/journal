@@ -142,7 +142,7 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos):
         current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
         return None, 'An error occurred while saving your journal entry. Please try again.'
 
-def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main_content):
+def _process_guided_journal_responses(entry_obj, form_data, user_id, main_content):
     """
     Creates a guided journal entry.
     """
