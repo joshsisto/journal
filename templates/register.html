@@ -11,7 +11,7 @@
             </div>
             <div class="card-body">
                 <form method="post" id="register-form">
-                    {{ form.hidden_tag() }}
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         {{ form.username.label(class="form-label") }}
                         {{ form.username(class="form-control") }}

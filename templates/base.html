@@ -116,7 +116,7 @@
     <script>
         // Add CSRF token to all forms
         document.addEventListener('DOMContentLoaded', function() {
-            const csrfToken = '{{ csrf_token }}';
+            const csrfToken = '{{ csrf_token() }}';
             const forms = document.querySelectorAll('form:not([method="get"])');
             
             forms.forEach(function(form) {

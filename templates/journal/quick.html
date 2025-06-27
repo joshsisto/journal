@@ -9,6 +9,7 @@
         <p class="text-muted">Write freely about whatever is on your mind.</p>
         
         <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
                 <textarea class="form-control" name="content" id="content" rows="10" placeholder="Start writing..." required></textarea>
             </div>

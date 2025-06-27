@@ -9,7 +9,7 @@
         <p class="text-muted">Answer the prompts to complete your journal entry.</p>
         
         <form method="post" id="guidedJournalForm" enctype="multipart/form-data">
-                        {{ form.hidden_tag() }}
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             
             {% for question in questions %}
             <div class="mb-4 card">
@@ -168,10 +168,7 @@
                     
                     {% elif question.type == 'text' %}
                     <div class="mb-3">
-                        {{ form.content(class="form-control tinymce", rows="3") }}
-                        {% for error in form.content.errors %}
-                            <div class="invalid-feedback d-block">{{ error }}</div>
-                        {% endfor %}
+                        <textarea class="form-control tinymce" name="question_{{ question.id }}" rows="3" placeholder="Type your response here..."></textarea>
                     </div>
                     
                     {% endif %}

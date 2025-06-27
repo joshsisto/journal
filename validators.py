@@ -6,30 +6,21 @@ to protect against common web vulnerabilities like XSS, CSRF, SQLi, etc.
 """
 import re
 import bleach
-from html_sanitizer import Sanitizer
 from wtforms.validators import ValidationError
 from marshmallow import Schema, fields, validate, ValidationError as MarshmallowValidationError
 from pydantic import BaseModel, Field, EmailStr, constr, validator
 import functools
 
-# Configure HTML sanitizer with safe settings
-sanitizer = Sanitizer({
-    'tags': {
-        'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'p', 'ul', 'ol', 
-        'li', 'br', 'sub', 'sup', 'hr', 'blockquote', 'span', 'code'
-    },
-    'attributes': {
-        'a': ('href', 'title', 'target', 'rel'),  # Added 'rel' attribute for anchor tags
-        'span': ('style',),
-    },
-    'empty': {'hr', 'br'},
-    'separate': {'a', 'p', 'li'},
-    'whitespace': {' ', '\t', '\n', '\r', '\f'},  # Define explicit whitespace characters
-    'keep_typographic_whitespace': False,
-    'add_nofollow': True,
-    'autolink': False,
-    'sanitize_href': lambda href: href if re.match(r'^(https?|mailto):', href) else '',
-})
+# Configure bleach settings for HTML sanitization
+ALLOWED_TAGS = {
+    'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'p', 'ul', 'ol', 
+    'li', 'br', 'sub', 'sup', 'hr', 'blockquote', 'span', 'code'
+}
+
+ALLOWED_ATTRIBUTES = {
+    'a': ['href', 'title', 'target', 'rel'],
+    'span': ['style'],
+}
 
 # Regular expressions for validation
 USERNAME_REGEX = re.compile(r'^[a-zA-Z0-9_-]{3,30}$')
@@ -100,16 +91,15 @@ def sanitize_html(html_content, max_length=None):
     if max_length and len(html_content) > max_length:
         html_content = html_content[:max_length]
     
-    # First use bleach to clean the HTML
+    # Use bleach to clean the HTML
     cleaned = bleach.clean(
         html_content,
-        tags=sanitizer.tags,
-        attributes=sanitizer.attributes,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
         strip=True
     )
     
-    # Then use html-sanitizer for additional cleaning
-    return sanitizer.sanitize(cleaned)
+    return cleaned
 
 def sanitize_username(username):
     """

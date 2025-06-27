@@ -174,9 +174,7 @@ def create_app(config_class=Config):
         """Add utility functions to the template context."""
         import secrets
         
-        # Generate CSRF token if not already in session
-        if '_csrf_token' not in session:
-            session['_csrf_token'] = secrets.token_urlsafe(32)
+        # CSRF token is already generated in security.py
         
         def csrf_token():
             """Return the CSRF token for forms."""
