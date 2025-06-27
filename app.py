@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, session
 from flask_login import LoginManager
 from flask_mail import Mail
 from config import Config
@@ -172,6 +172,16 @@ def create_app(config_class=Config):
     @app.context_processor
     def utility_processor():
         """Add utility functions to the template context."""
+        import secrets
+        
+        # Generate CSRF token if not already in session
+        if '_csrf_token' not in session:
+            session['_csrf_token'] = secrets.token_urlsafe(32)
+        
+        def csrf_token():
+            """Return the CSRF token for forms."""
+            return session.get('_csrf_token', '')
+            
         def parse_emotions(emotion_str):
             """Parse a JSON emotions string and return a list of emotions."""
             if not emotion_str or not isinstance(emotion_str, str):
@@ -200,7 +210,7 @@ def create_app(config_class=Config):
                 
             return []
                 
-        return {'parse_emotions': parse_emotions}
+        return {'parse_emotions': parse_emotions, 'csrf_token': csrf_token}
     
     # Create database tables
     with app.app_context():
