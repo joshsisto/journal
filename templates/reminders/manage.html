@@ -13,22 +13,27 @@
             </div>
             <div class="card-body">
                 <form method="post" action="{{ url_for('reminder.manage_reminders') }}">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+                    {{ form.hidden_tag() }}
                     <div class="mb-3">
-                        <label for="frequency" class="form-label">Frequency</label>
-                        <select class="form-select" id="frequency" name="frequency" required>
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                        </select>
+                        {{ form.frequency.label(class="form-label") }}
+                        {{ form.frequency(class="form-select") }}
+                        {% for error in form.frequency.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="time_of_day" class="form-label">Time of Day (HH:MM)</label>
-                        <input type="time" class="form-control" id="time_of_day" name="time_of_day" value="09:00">
+                        {{ form.time_of_day.label(class="form-label") }}
+                        {{ form.time_of_day(class="form-control") }}
+                        {% for error in form.time_of_day.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="message" class="form-label">Message (Optional)</label>
-                        <input type="text" class="form-control" id="message" name="message" placeholder="e.g., Time to journal!">
+                        {{ form.message.label(class="form-label") }}
+                        {{ form.message(class="form-control", placeholder="e.g., Time to journal!") }}
+                        {% for error in form.message.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <button type="submit" class="btn btn-primary">Add Reminder</button>
                 </form>

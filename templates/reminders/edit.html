@@ -13,26 +13,34 @@
             </div>
             <div class="card-body">
                 <form method="post" action="{{ url_for('reminder.edit_reminder', reminder_id=reminder.id) }}">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"/>
+                    {{ form.hidden_tag() }}
                     <div class="mb-3">
-                        <label for="frequency" class="form-label">Frequency</label>
-                        <select class="form-select" id="frequency" name="frequency" required>
-                            <option value="daily" {% if reminder.frequency == 'daily' %}selected{% endif %}>Daily</option>
-                            <option value="weekly" {% if reminder.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
-                            <option value="monthly" {% if reminder.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
-                        </select>
+                        {{ form.frequency.label(class="form-label") }}
+                        {{ form.frequency(class="form-select") }}
+                        {% for error in form.frequency.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="time_of_day" class="form-label">Time of Day (HH:MM)</label>
-                        <input type="time" class="form-control" id="time_of_day" name="time_of_day" value="{{ reminder.time_of_day.strftime('%H:%M') if reminder.time_of_day else '' }}">
+                        {{ form.time_of_day.label(class="form-label") }}
+                        {{ form.time_of_day(class="form-control") }}
+                        {% for error in form.time_of_day.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="message" class="form-label">Message (Optional)</label>
-                        <input type="text" class="form-control" id="message" name="message" value="{{ reminder.message if reminder.message else '' }}" placeholder="e.g., Time to journal!">
+                        {{ form.message.label(class="form-label") }}
+                        {{ form.message(class="form-control", placeholder="e.g., Time to journal!") }}
+                        {% for error in form.message.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="enabled" name="enabled" {% if reminder.enabled %}checked{% endif %}>
-                        <label class="form-check-label" for="enabled">Enabled</label>
+                        {{ form.enabled(class="form-check-input") }}
+                        {{ form.enabled.label(class="form-check-label") }}
+                        {% for error in form.enabled.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('reminder.manage_reminders') }}" class="btn btn-secondary">Cancel</a>

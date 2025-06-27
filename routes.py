@@ -1248,10 +1248,11 @@ def delete_tag(tag_id):
 @reminder_bp.route('/', methods=['GET', 'POST'])
 @login_required
 def manage_reminders():
-    if request.method == 'POST':
-        frequency = request.form.get('frequency')
-        time_of_day_str = request.form.get('time_of_day')
-        message = request.form.get('message')
+    form = ReminderForm()
+    if form.validate_on_submit():
+        frequency = form.frequency.data
+        time_of_day_str = form.time_of_day.data
+        message = form.message.data
 
         time_of_day = None
         if time_of_day_str:
@@ -1269,7 +1270,7 @@ def manage_reminders():
         return redirect(url_for('reminder.manage_reminders'))
 
     reminders = get_reminders_for_user(current_user.id)
-    return render_template('reminders/manage.html', reminders=reminders)
+    return render_template('reminders/manage.html', reminders=reminders, form=form)
 
 @reminder_bp.route('/edit/<int:reminder_id>', methods=['GET', 'POST'])
 @login_required
@@ -1279,11 +1280,12 @@ def edit_reminder(reminder_id):
         flash('Reminder not found.', 'danger')
         return redirect(url_for('reminder.manage_reminders'))
 
-    if request.method == 'POST':
-        frequency = request.form.get('frequency')
-        time_of_day_str = request.form.get('time_of_day')
-        message = request.form.get('message')
-        enabled = 'enabled' in request.form
+    form = ReminderForm(obj=reminder) # Populate form with existing reminder data
+    if form.validate_on_submit():
+        frequency = form.frequency.data
+        time_of_day_str = form.time_of_day.data
+        message = form.message.data
+        enabled = form.enabled.data
 
         time_of_day = None
         if time_of_day_str:
@@ -1300,7 +1302,7 @@ def edit_reminder(reminder_id):
             flash('Error updating reminder.', 'danger')
         return redirect(url_for('reminder.manage_reminders'))
 
-    return render_template('reminders/edit.html', reminder=reminder)
+    return render_template('reminders/edit.html', reminder=reminder, form=form)
 
 @reminder_bp.route('/delete/<int:reminder_id>', methods=['POST'])
 @login_required
