@@ -30,7 +30,7 @@
             <div class="card-body">
                 <form method="post" id="login-form">
                     <!-- CSRF token -->
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>

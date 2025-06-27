@@ -509,10 +509,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const entryData = prepareEntryData();
             console.log("Entry data prepared:", entryData);
             
+            // Get CSRF token from session (more reliable than function)
+            const csrfToken = "{{ session['_csrf_token'] }}";
+            
             // Create the request body
             const requestBody = {
                 entries: entryData,
-                question: message
+                question: message,
+                _csrf_token: csrfToken
             };
             
             console.log("Request body:", JSON.stringify(requestBody));
@@ -528,6 +532,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("- Headers:", {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': csrfToken,
                 'Accept': 'application/json'
             });
             console.log("- Body:", JSON.stringify(requestBody).substring(0, 500) + "...");
@@ -537,6 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': csrfToken,
                     'Accept': 'application/json'
                 },
                 credentials: 'include',
