@@ -1,6 +1,6 @@
 from validators import BaseForm, RegisterSchema, LoginSchema
-from wtforms import StringField, PasswordField, BooleanField, TextAreaField
-from wtforms.validators import DataRequired, Email, EqualTo, Length
+from wtforms import StringField, PasswordField, BooleanField, TextAreaField, SelectField
+from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional
 
 class TinyMCEField(TextAreaField):
     pass
@@ -8,10 +8,10 @@ class TinyMCEField(TextAreaField):
 class RegistrationForm(BaseForm):
     pydantic_model = RegisterSchema
     username = StringField('Username', validators=[DataRequired(), Length(min=3, max=30)])
-    email = StringField('Email', validators=[Email()])
+    email = StringField('Email', validators=[Optional(), Email()])
     password = PasswordField('Password', validators=[DataRequired(), Length(min=8, max=100)])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    timezone = StringField('Timezone', validators=[DataRequired()])
+    timezone = SelectField('Timezone', validators=[DataRequired()], choices=[])
 
 class LoginForm(BaseForm):
     pydantic_model = LoginSchema

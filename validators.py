@@ -94,6 +94,7 @@ COLOR_HEX_REGEX = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 # Maximum lengths for text inputs
 MAX_USERNAME_LENGTH = 30
+MAX_PASSWORD_LENGTH = 100
 
 MAX_EMAIL_LENGTH = 120
 MAX_JOURNAL_CONTENT_LENGTH = 10000  # 10KB

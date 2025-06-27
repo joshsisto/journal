@@ -6,11 +6,13 @@ from security import limiter  # Import limiter for rate limiting
 from werkzeug.utils import secure_filename
 from flask_mail import Mail
 from sqlalchemy import func, or_, and_, desc
+from sqlalchemy.exc import SQLAlchemyError
 import pytz
 import json
 import re
 import os
 import uuid
+import traceback
 
 
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo
@@ -27,7 +29,6 @@ from helpers import (
     get_time_since_last_entry, format_time_since, has_exercised_today,
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
 )
-from services.journal_service import create_quick_entry, create_guided_entry
 
 # Blueprints
 auth_bp = Blueprint('auth', __name__)
@@ -49,6 +50,12 @@ def register():
         return redirect(url_for('journal.index'))
 
     form = RegistrationForm()
+    
+    # Populate timezone choices
+    import pytz
+    common_timezones = sorted(pytz.common_timezones)
+    form.timezone.choices = [('', 'Select your timezone...')] + [(tz, tz) for tz in common_timezones]
+    
     if form.validate_on_submit():
         user, message = register_user(form.username.data, form.email.data, form.password.data, form.timezone.data)
         if user:
@@ -499,8 +506,6 @@ def dashboard():
     )
 
 
-from services.journal_service import create_quick_entry
-
 from forms import QuickJournalForm
 
 @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
@@ -508,46 +513,52 @@ from forms import QuickJournalForm
 def quick_journal():
     form = QuickJournalForm()
     if form.validate_on_submit():
-        token = session.get('_csrf_token'); form_token = request.form.get('_csrf_token')
-        if not token or token != form_token:
-            current_app.logger.warning(f'CSRF attack detected on quick journal from {request.remote_addr}'); flash('Invalid form submission. Please try again.', 'danger'); return redirect(url_for('journal.quick_journal'))
         try:
             content = form.content.data
-            if not content or len(content.strip()) == 0: flash('Journal entry cannot be empty.', 'danger'); return redirect(url_for('journal.quick_journal'))
-            if len(content) > 10000: flash('Journal entry is too long. Please shorten your entry.', 'danger'); return redirect(url_for('journal.quick_journal'))
-            entry = JournalEntry(user_id=current_user.id, content=content, entry_type='quick'); db.session.add(entry); db.session.flush()
-            _process_tags_for_entry(entry, request.form.getlist('tags'), request.form.get('new_tags', '[]'), current_user.id)
-            _handle_photo_uploads(request.files.getlist('photos'), entry.id, current_app.config)
-            db.session.commit(); flash('Journal entry saved successfully.', 'success'); return redirect(url_for('journal.index'))
-        except SQLAlchemyError as e:
-            db.session.rollback(); current_app.logger.error(f"Database error in quick_journal: {str(e)} {traceback.format_exc()}"); flash('A database error occurred. Please try again or contact support if the issue persists.', 'danger'); return redirect(url_for('journal.quick_journal'))
+            tag_ids = request.form.getlist('tags')
+            new_tags_json = request.form.get('new_tags', '[]')
+            photos = request.files.getlist('photos')
+            
+            entry = create_quick_entry(current_user.id, content, tag_ids, new_tags_json, photos)
+            if entry:
+                flash('Journal entry saved successfully.', 'success')
+                return redirect(url_for('journal.index'))
+            else:
+                flash('An error occurred while saving your journal entry. Please try again.', 'danger')
+                return redirect(url_for('journal.quick_journal'))
         except Exception as e:
-            db.session.rollback(); current_app.logger.error(f'Error saving quick journal entry: {str(e)}'); current_app.logger.error(traceback.format_exc()); flash('An error occurred while saving your journal entry. Please try again.', 'danger'); return redirect(url_for('journal.quick_journal'))
+            current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
+            current_app.logger.error(traceback.format_exc())
+            flash('An error occurred while saving your journal entry. Please try again.', 'danger')
+            return redirect(url_for('journal.quick_journal'))
     return render_template('journal/quick.html', tags=Tag.query.filter_by(user_id=current_user.id).all(), form=form)
 
 
-from services.journal_service import create_guided_entry
-
-from forms import QuickJournalForm, GuidedJournalForm
+from forms import GuidedJournalForm
 
 @journal_bp.route('/journal/guided', methods=['GET', 'POST'])
 @login_required
 def guided_journal():
     form = GuidedJournalForm()
     if form.validate_on_submit():
-        token = session.get('_csrf_token'); form_token = request.form.get('_csrf_token')
-        if not token or token != form_token:
-            current_app.logger.warning(f'CSRF attack detected on guided journal from {request.remote_addr}'); flash('Invalid form submission. Please try again.', 'danger'); return redirect(url_for('journal.guided_journal'))
         try:
-            entry = JournalEntry(user_id=current_user.id, entry_type='guided'); db.session.add(entry); db.session.flush()
-            _process_tags_for_entry(entry, request.form.getlist('tags'), request.form.get('new_tags', '[]'), current_user.id)
-            _process_guided_journal_responses(entry, request.form, current_user.id, form.content.data)
-            _handle_photo_uploads(request.files.getlist('photos'), entry.id, current_app.config)
-            db.session.commit(); flash('Guided journal entry saved successfully.'); return redirect(url_for('journal.index'))
-        except SQLAlchemyError as e:
-            db.session.rollback(); current_app.logger.error(f"Database error in guided_journal: {str(e)} {traceback.format_exc()}"); flash('A database error occurred. Please try again or contact support if the issue persists.', 'danger'); return redirect(url_for('journal.guided_journal'))
+            tag_ids = request.form.getlist('tags')
+            new_tags_json = request.form.get('new_tags', '[]')
+            photos = request.files.getlist('photos')
+            main_content = form.content.data
+            
+            entry = create_guided_entry(current_user.id, request.form, tag_ids, new_tags_json, photos, main_content)
+            if entry:
+                flash('Guided journal entry saved successfully.', 'success')
+                return redirect(url_for('journal.index'))
+            else:
+                flash('An error occurred while saving your guided journal entry. Please try again.', 'danger')
+                return redirect(url_for('journal.guided_journal'))
         except Exception as e:
-            db.session.rollback(); current_app.logger.error(f'Error saving guided journal entry: {str(e)}'); current_app.logger.error(traceback.format_exc()); flash('An error occurred while saving your guided journal entry. Please try again.', 'danger'); return redirect(url_for('journal.guided_journal'))
+            current_app.logger.error(f'Error saving guided journal entry: {str(e)}')
+            current_app.logger.error(traceback.format_exc())
+            flash('An error occurred while saving your guided journal entry. Please try again.', 'danger')
+            return redirect(url_for('journal.guided_journal'))
     context = prepare_guided_journal_context(); questions = QuestionManager.get_applicable_questions(context)
     for q_item in questions:
         if '{time_since}' in q_item.get('text', ''): q_item['text'] = q_item['text'].format(time_since=context.get('time_since', 'your last entry')) 

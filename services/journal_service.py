@@ -81,7 +81,7 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos):
                             db.session.add(new_tag)
                             db.session.flush()  # Get ID without committing
                             entry.tags.append(new_tag)
-                    except ValidationError as e:
+                    except Exception as e:
                         # Log error but continue with other tags
                         current_app.logger.warning(f'Tag validation error: {str(e)}')
             except json.JSONDecodeError:
@@ -142,19 +142,7 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos):
         current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
         return None, 'An error occurred while saving your journal entry. Please try again.'
 
-def _process_guided_journal_responses(entry_obj, form_data, user_id, main_content):
-    """
-    Creates a guided journal entry.
-    """
-    try:
-        # First, create the journal entry
-        entry = JournalEntry(
-            user_id=user_id,
-            content=main_content,
-            entry_type='guided'
-        )
-
-        def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main_content):
+def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main_content):
     """
     Creates a guided journal entry.
     """
@@ -201,9 +189,6 @@ def _process_guided_journal_responses(entry_obj, form_data, user_id, main_conten
                         db.session.add(new_tag)
                         db.session.flush()  # Get ID without committing
                         entry.tags.append(new_tag)
-            except ValidationError as e:
-                # Log error but continue with other tags
-                current_app.logger.warning(f'Tag validation error: {str(e)}')
             except json.JSONDecodeError:
                 # If JSON parsing fails, log it but continue
                 current_app.logger.warning(f'Invalid JSON for new tags: {new_tags_json[:100]}')
@@ -279,4 +264,3 @@ def _process_guided_journal_responses(entry_obj, form_data, user_id, main_conten
         db.session.rollback()
         current_app.logger.error(f'Error creating guided entry: {e}')
         return None, 'An error occurred while saving your guided journal entry.'
-

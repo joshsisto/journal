@@ -45,12 +45,12 @@
                     </div>
                     <div class="mb-3">
                         {{ form.timezone.label(class="form-label") }}
-                        {{ form.timezone(class="form-select") }}
+                        {{ form.timezone(class="form-select", id="timezone-select") }}
                         {% for error in form.timezone.errors %}
                             <div class="invalid-feedback d-block">{{ error }}</div>
                         {% endfor %}
                         <div class="form-text">
-                            Select your timezone to ensure journal entries display the correct time.
+                            Your timezone has been automatically detected. You can change it if needed.
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Register</button>
@@ -62,4 +62,30 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-detect timezone using JavaScript
+    const timezoneSelect = document.getElementById('timezone-select');
+    
+    if (timezoneSelect) {
+        try {
+            // Get the user's detected timezone
+            const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            
+            // Try to select the detected timezone in the dropdown
+            const options = timezoneSelect.options;
+            for (let i = 0; i < options.length; i++) {
+                if (options[i].value === detectedTimezone) {
+                    timezoneSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        } catch (error) {
+            console.log('Could not auto-detect timezone:', error);
+            // If auto-detection fails, leave the default selection
+        }
+    }
+});
+</script>
 {% endblock %}

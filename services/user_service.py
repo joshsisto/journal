@@ -1,5 +1,6 @@
 from models import db, User
 from validators import sanitize_username, sanitize_email, validate_password
+from wtforms.validators import ValidationError
 from email_utils import send_email_change_confirmation, send_password_reset_email
 from flask import current_app
 import pytz
