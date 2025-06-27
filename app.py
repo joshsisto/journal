@@ -10,6 +10,9 @@ import os
 import jinja2
 import markupsafe
 from security import setup_security, csp, talisman, limiter
+from apscheduler.schedulers.background import BackgroundScheduler
+from services.reminder_service import get_due_reminders, mark_reminder_sent
+from email_utils import send_email
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -123,6 +126,26 @@ def create_app(config_class=Config):
     app.register_blueprint(export_bp, url_prefix='/export')
     app.register_blueprint(ai_bp, url_prefix='/ai')
     app.register_blueprint(reminder_bp, url_prefix='/reminders')
+
+    # Function to send daily reminders
+    def send_daily_reminders():
+        with app.app_context():
+            reminders = get_due_reminders()
+            for reminder in reminders:
+                # In a real application, you would fetch the user's email and send the reminder
+                # For now, we'll just log it.
+                app.logger.info(f"Sending reminder to user {reminder.user_id}: {reminder.message}")
+                # send_email(subject, recipients, text_body, html_body)
+                mark_reminder_sent(reminder.id)
+
+    # Initialize and start scheduler
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=send_daily_reminders, trigger="interval", hours=1)
+    scheduler.start()
+
+    # Shut down the scheduler when the app exits
+    import atexit
+    atexit.register(lambda: scheduler.shutdown())
     
     # Rate limits are applied directly on the route functions
     # No need to apply them here
