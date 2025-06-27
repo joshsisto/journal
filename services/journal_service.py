@@ -154,6 +154,18 @@ def _process_guided_journal_responses(entry_obj, form_data, user_id, main_conten
             entry_type='guided'
         )
 
+        def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main_content):
+    """
+    Creates a guided journal entry.
+    """
+    try:
+        # First, create the journal entry
+        entry = JournalEntry(
+            user_id=user_id,
+            content=main_content,
+            entry_type='guided'
+        )
+
         # Add selected existing tags
         if tag_ids:
             tags = Tag.query.filter(
@@ -189,9 +201,12 @@ def _process_guided_journal_responses(entry_obj, form_data, user_id, main_conten
                         db.session.add(new_tag)
                         db.session.flush()  # Get ID without committing
                         entry.tags.append(new_tag)
+            except ValidationError as e:
+                # Log error but continue with other tags
+                current_app.logger.warning(f'Tag validation error: {str(e)}')
             except json.JSONDecodeError:
-                # If JSON parsing fails, just continue
-                pass
+                # If JSON parsing fails, log it but continue
+                current_app.logger.warning(f'Invalid JSON for new tags: {new_tags_json[:100]}')
 
         db.session.add(entry)
         db.session.flush()  # Get the ID without committing
