@@ -1,6 +1,7 @@
-from flask import Flask, request, session
+from flask import Flask, request, session, redirect, url_for, flash, current_app
 from flask_login import LoginManager
 from flask_mail import Mail
+from flask_wtf.csrf import CSRFProtect
 from config import Config
 from models import db, User, JournalEntry, GuidedResponse, ExerciseLog
 from time_utils import register_template_utils
@@ -15,6 +16,7 @@ from validators import sanitize_html, sanitize_text
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 mail = Mail()
+csrf = CSRFProtect()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -64,6 +66,14 @@ def create_app(config_class=Config):
     db.init_app(app)
     login_manager.init_app(app)
     mail.init_app(app)
+    csrf.init_app(app)
+    
+    # Custom CSRF error handler for better debugging
+    @app.errorhandler(400)
+    def handle_csrf_error(e):
+        current_app.logger.warning(f"CSRF validation failed: {e}")
+        flash('Form submission failed. Please try again.', 'danger')
+        return redirect(request.referrer or '/')
     
     # Configure session security
     app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
@@ -71,6 +81,12 @@ def create_app(config_class=Config):
     app.config['SESSION_COOKIE_SECURE'] = app.config.get('APP_URL', '').startswith('https://')
     app.config['WTF_CSRF_ENABLED'] = True
     app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
+    app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF for proxied SSL
+    app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
+    # Skip referrer check for proxy environments
+    app.config['WTF_CSRF_CHECK_HEADERS'] = False
+    # Configure trusted hosts for CSRF protection
+    app.config['APPLICATION_ROOT'] = '/'
     
     # Set security-related configuration
     app.config['SECURITY_PASSWORD_SALT'] = os.environ.get('SECURITY_PASSWORD_SALT', 'change-me-in-production')
