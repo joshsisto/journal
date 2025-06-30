@@ -89,12 +89,20 @@
     </nav>
     
     <div class="container mt-4">
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         <div class="row">
             <div class="col-md-12">
-                {% for message in messages %}
-                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                {% for category, message in messages %}
+                {% set alert_class = 'alert-info' %}
+                {% if category == 'danger' %}
+                    {% set alert_class = 'alert-danger' %}
+                {% elif category == 'success' %}
+                    {% set alert_class = 'alert-success' %}
+                {% elif category == 'warning' %}
+                    {% set alert_class = 'alert-warning' %}
+                {% endif %}
+                <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>

@@ -29,29 +29,25 @@
             </div>
             <div class="card-body">
                 <form method="post" id="login-form">
-                    <!-- CSRF token -->
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    {{ form.hidden_tag() }}
                     
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" 
-                               required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_-]+"
-                               title="Username can only contain letters, numbers, underscores, and hyphens">
-                        <div class="invalid-feedback">
-                            Please enter a valid username (3-30 characters, letters, numbers, underscores, hyphens only).
-                        </div>
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control") }}
+                        {% for error in form.username.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" 
-                               required minlength="8">
-                        <div class="invalid-feedback">
-                            Password must be at least 8 characters long.
-                        </div>
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control") }}
+                        {% for error in form.password.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                     <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="remember" name="remember">
-                        <label class="form-check-label" for="remember">Remember me</label>
+                        {{ form.remember(class="form-check-input") }}
+                        {{ form.remember.label(class="form-check-label") }}
                     </div>
                     <div class="mb-3">
                         <a href="{{ url_for('auth.request_reset') }}">Forgot your password?</a>
