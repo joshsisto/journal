@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$file_path\" =~ \\.(py|html|js|css)$ ]] && [[ \"$file_path\" != *test* ]] && [[ \"$file_path\" != *backup* ]]; then echo \"🧪 Running quick tests after code change to $file_path\" && cd /home/josh/Sync2/projects/journal && python3 run_tests.py quick; fi"
+          },
+          {
+            "type": "command", 
+            "command": "if [[ \"$file_path\" =~ \\.(py|html)$ ]] && [[ \"$file_path\" != *test* ]] && [[ \"$file_path\" != *backup* ]]; then echo \"🔄 Restarting journal service after code change to $file_path\" && python3 /home/josh/Sync2/projects/journal/service_control.py reload; fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$file_path\" =~ (config\\.py|app\\.py|requirements\\.txt|\\.service)$ ]]; then echo \"⚠️  WARNING: Modifying critical file $file_path - proceed with caution\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

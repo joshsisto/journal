@@ -1,0 +1,114 @@
+Unit Test Plan for get_feeling_emoji() in helpers.py
+
+This plan outlines the unit tests required to validate the get_feeling_emoji() function, which converts a numerical feeling score into a corresponding emoji.
+
+**Function Signature:**
+def get_feeling_emoji(feeling_value):
+
+**1. Happy Path / Valid Inputs**
+
+These tests ensure that the function returns the correct emoji for each valid integer input from 1 to 10.
+
+- **Test Case 1.1:**
+  - **Input:** `feeling_value = 1`
+  - **Expected Output:** '😢'
+
+- **Test Case 1.2:**
+  - **Input:** `feeling_value = 2`
+  - **Expected Output:** '😟'
+
+- **Test Case 1.3:**
+  - **Input:** `feeling_value = 3`
+  - **Expected Output:** '🙁'
+
+- **Test Case 1.4:**
+  - **Input:** `feeling_value = 4`
+  - **Expected Output:** '😐'
+
+- **Test Case 1.5:**
+  - **Input:** `feeling_value = 5`
+  - **Expected Output:** '🙂'
+
+- **Test Case 1.6:**
+  - **Input:** `feeling_value = 6`
+  - **Expected Output:** '😊'
+
+- **Test Case 1.7:**
+  - **Input:** `feeling_value = 7`
+  - **Expected Output:** '😄'
+
+- **Test Case 1.8:**
+  - **Input:** `feeling_value = 8`
+  - **Expected Output:** '😁'
+
+- **Test Case 1.9:**
+  - **Input:** `feeling_value = 9`
+  - **Expected Output:** '🤩'
+
+- **Test Case 1.10:**
+  - **Input:** `feeling_value = 10`
+  - **Expected Output:** '😍'
+
+**2. Zero Value**
+
+This test case checks how the function handles a zero input.
+
+- **Test Case 2.1:**
+  - **Input:** `feeling_value = 0`
+  - **Expected Behavior:** The function should handle this gracefully. Based on the current implementation, it will fall through all `if/elif` conditions and return `None`. The test should assert that the output is `None`.
+
+**3. Negative Values**
+
+This test case ensures that negative numbers, which are invalid inputs, are handled correctly.
+
+- **Test Case 3.1:**
+  - **Input:** `feeling_value = -1`
+  - **Expected Behavior:** Similar to the zero case, this should result in `None`. The test should assert this.
+
+- **Test Case 3.2:**
+  - **Input:** `feeling_value = -10`
+  - **Expected Behavior:** Should also return `None`.
+
+**4. Extremely Large Values**
+
+This test checks the function's behavior with a value far outside the expected range.
+
+- **Test Case 4.1:**
+  - **Input:** `feeling_value = 1000000`
+  - **Expected Behavior:** Should return `None`.
+
+**5. Boundary Conditions**
+
+These tests focus on the values at the edges of the valid input range.
+
+- **Test Case 5.1:**
+  - **Input:** `feeling_value = 11` (just above the max valid input)
+  - **Expected Behavior:** Should return `None`.
+
+- **Test Case 5.2:**
+  - **Input:** `feeling_value = 0.9` (float value just below the minimum valid input)
+  - **Expected Behavior:** The `int()` conversion will truncate this to `0`. The function should return `None`.
+
+- **Test Case 5.3:**
+  - **Input:** `feeling_value = 10.1` (float value just above the maximum valid input)
+  - **Expected Behavior:** The `int()` conversion will truncate this to `10`. The function should return '😍'.
+
+**6. Invalid Input Types**
+
+These tests ensure the function can handle inputs that are not integers.
+
+- **Test Case 6.1:**
+  - **Input:** `feeling_value = "5"` (string containing a valid number)
+  - **Expected Behavior:** The `int()` conversion should handle this. The function should return '🙂'.
+
+- **Test Case 6.2:**
+  - **Input:** `feeling_value = "hello"` (non-numeric string)
+  - **Expected Behavior:** The `int()` conversion will raise a `ValueError`. The test should assert that a `ValueError` is raised.
+
+- **Test Case 6.3:**
+  - **Input:** `feeling_value = None`
+  - **Expected Behavior:** The `int()` conversion will raise a `TypeError`. The test should assert that a `TypeError` is raised.
+
+- **Test Case 6.4:**
+  - **Input:** `feeling_value = [5]` (list containing a valid number)
+  - **Expected Behavior:** The `int()` conversion will raise a `TypeError`. The test should assert that a `TypeError` is raised.

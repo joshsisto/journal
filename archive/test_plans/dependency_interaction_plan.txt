@@ -1,0 +1,96 @@
+
+# Test Plan for `register` Function in `routes.py`
+
+This plan outlines test cases for the `register` function, focusing on its interactions with external dependencies like the database and email service.
+
+## Method Under Test: `register()`
+
+### Test Case 1: Successful Registration with Email
+
+*   **Purpose:** Verify the normal, successful registration flow when a user provides an email address.
+*   **Dependencies to Mock:**
+    *   `User.query.filter_by`: To simulate checking for existing users.
+    *   `db.session.add`: To capture the new user object.
+    *   `db.session.commit`: To simulate a successful database save.
+    *   `send_email`: To verify that the verification email is sent.
+*   **Mock Behavior:**
+    *   `User.query.filter_by`: Should return `None` for both username and email checks, indicating no existing user.
+    *   `db.session.add`: Can be a simple mock that does nothing.
+    *   `db.session.commit`: Should execute without raising an exception.
+    *   `send_email`: Should be a mock that allows asserting it was called with the correct arguments (recipient, subject, body).
+*   **Expected Outcome:**
+    *   The function should return a redirect to the login page.
+    *   A "Registration successful" flash message should be displayed.
+    *   `send_email` should be called once.
+
+### Test Case 2: Successful Registration without Email
+
+*   **Purpose:** Verify that a user can register successfully without providing an email address.
+*   **Dependencies to Mock:**
+    *   `User.query.filter_by`: To simulate checking for an existing username.
+    *   `db.session.add`: To capture the new user object.
+    *   `db.session.commit`: To simulate a successful database save.
+    *   `send_email`: To verify that no email is sent.
+*   **Mock Behavior:**
+    *   `User.query.filter_by`: Should return `None` for the username check.
+    *   `db.session.add`: No specific behavior needed.
+    *   `db.session.commit`: Should execute without raising an exception.
+    *   `send_email`: Should not be called.
+*   **Expected Outcome:**
+    *   The function should return a redirect to the login page.
+    *   A "Registration successful" flash message should be displayed.
+    *   `send_email` should not be called.
+
+### Test Case 3: Database Commit Fails
+
+*   **Purpose:** Verify the system's behavior when the database commit operation fails.
+*   **Dependencies to Mock:**
+    *   `User.query.filter_by`: To allow the registration process to proceed.
+    *   `db.session.commit`: To simulate a database error.
+*   **Mock Behavior:**
+    *   `User.query.filter_by`: Should return `None`.
+    *   `db.session.commit`: Should raise a `SQLAlchemyError` (or a more specific database exception).
+*   **Expected Outcome:**
+    *   The method should catch the exception.
+    *   A "Registration error" flash message should be displayed.
+    *   The function should render the registration template again, not redirect.
+
+### Test Case 4: Email Sending Fails
+
+*   **Purpose:** Verify that the registration is still considered successful even if the verification email fails to send.
+*   **Dependencies to Mock:**
+    *   `User.query.filter_by`: To allow the registration process to proceed.
+    *   `db.session.commit`: To simulate a successful database save.
+    *   `send_email`: To simulate an email sending failure.
+*   **Mock Behavior:**
+    *   `User.query.filter_by`: Should return `None`.
+    *   `db.session.commit`: Should execute without raising an exception.
+    *   `send_email`: Should raise an `Exception` (e.g., `SMTPServerDisconnected`).
+*   **Expected Outcome:**
+    *   The function should still redirect to the login page.
+    *   A flash message should indicate that registration was successful but the email could not be sent.
+
+### Test Case 5: Username Already Exists
+
+*   **Purpose:** Verify that the system prevents registration with a username that is already in use.
+*   **Dependencies to Mock:**
+    *   `User.query.filter_by`: To simulate finding an existing user.
+*   **Mock Behavior:**
+    *   When called for the username check, `User.query.filter_by(...).first()` should return a mock `User` object.
+*   **Expected Outcome:**
+    *   A "Username already exists" flash message should be displayed.
+    *   The function should render the registration template again.
+    *   `db.session.add` and `db.session.commit` should not be called.
+
+### Test Case 6: Email Already Exists
+
+*   **Purpose:** Verify that the system prevents registration with an email that is already in use.
+*   **Dependencies to Mock:**
+    *   `User.query.filter_by`: To simulate finding an existing user by email.
+*   **Mock Behavior:**
+    *   When called for the username check, it should return `None`.
+    *   When called for the email check, `User.query.filter_by(...).first()` should return a mock `User` object.
+*   **Expected Outcome:**
+    *   An "Email already registered" flash message should be displayed.
+    *   The function should render the registration template again.
+    *   `db.session.add` and `db.session.commit` should not be called.

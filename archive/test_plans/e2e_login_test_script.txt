@@ -1,0 +1,41 @@
+Objective: Verify a user can log in and is taken to their dashboard.
+
+Pre-conditions: A valid user account exists.
+
+Test Steps (Happy Path):
+1. Open the browser and navigate to the login page.
+2. Enter a valid username in the username field.
+3. Enter the corresponding valid password in the password field.
+4. Click the "Submit" button.
+
+Expected Result: The page redirects to /dashboard and the user's name is visible.
+
+---
+
+Critical Edge Cases:
+
+**Test Case: Invalid Password**
+Objective: Verify that a user cannot log in with an invalid password.
+Test Steps:
+1. Open the browser and navigate to the login page.
+2. Enter a valid username in the username field.
+3. Enter an invalid password in the password field.
+4. Click the "Submit" button.
+Expected Result: An error message is displayed indicating invalid credentials, and the user remains on the login page.
+
+**Test Case: Non-existent Username**
+Objective: Verify that a user cannot log in with a username that does not exist.
+Test Steps:
+1. Open the browser and navigate to the login page.
+2. Enter a non-existent username in the username field.
+3. Enter any password in the password field.
+4. Click the "Submit" button.
+Expected Result: An error message is displayed indicating invalid credentials, and the user remains on the login page.
+
+**Test Case: Blank Fields**
+Objective: Verify that the form displays validation errors when fields are left blank.
+Test Steps:
+1. Open the browser and navigate to the login page.
+2. Leave the username and password fields blank.
+3. Click the "Submit" button.
+Expected Result: Validation messages appear under both the username and password fields, and the form is not submitted.
