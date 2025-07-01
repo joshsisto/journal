@@ -37,7 +37,6 @@ def register():
         sanitize_username, sanitize_email, validate_password,
         ValidationError
     )
-    from security import csrf_protect
     from email_utils import send_email
     from forms import RegistrationForm
     
@@ -287,14 +286,6 @@ def verify_login():
         return redirect(url_for('auth.login'))
     
     if request.method == 'POST':
-        # Check CSRF token
-        token = session.get('_csrf_token')
-        form_token = request.form.get('_csrf_token')
-        
-        if not token or token != form_token:
-            current_app.logger.warning(f'CSRF attack detected on verification from {request.remote_addr}')
-            flash('Invalid form submission. Please try again.', 'danger')
-            return redirect(url_for('auth.verify_login'))
         
         # Get verification code
         code = request.form.get('code', '')
@@ -351,14 +342,6 @@ def resend_code():
 @login_required
 def toggle_two_factor():
     """Toggle two-factor authentication."""
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on 2FA toggle from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
     
     # Get enabled state
     enabled = 'enabled' in request.form
@@ -657,14 +640,6 @@ def dashboard():
 @login_required
 def quick_journal():
     if request.method == 'POST':
-        # Check CSRF token
-        token = session.get('_csrf_token')
-        form_token = request.form.get('_csrf_token')
-        
-        if not token or token != form_token:
-            current_app.logger.warning(f'CSRF attack detected on quick journal from {request.remote_addr}')
-            flash('Invalid form submission. Please try again.', 'danger')
-            return redirect(url_for('journal.quick_journal'))
         
         # Get form data
         content = request.form.get('content', '')
@@ -699,14 +674,6 @@ def quick_journal():
 @login_required
 def guided_journal():
     if request.method == 'POST':
-        # Check CSRF token
-        token = session.get('_csrf_token')
-        form_token = request.form.get('_csrf_token')
-        
-        if not token or token != form_token:
-            current_app.logger.warning(f'CSRF attack detected on guided journal from {request.remote_addr}')
-            flash('Invalid form submission. Please try again.', 'danger')
-            return redirect(url_for('journal.guided_journal'))
         
         # Get form data
         tag_ids = request.form.getlist('tags')
@@ -800,14 +767,6 @@ def view_entry(entry_id):
 @journal_bp.route('/journal/delete/<int:entry_id>', methods=['POST'])
 @login_required
 def delete_entry(entry_id):
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on delete entry from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('journal.index'))
     
     entry = JournalEntry.query.filter_by(
         id=entry_id,
@@ -824,14 +783,6 @@ def delete_entry(entry_id):
 @journal_bp.route('/journal/update_tags/<int:entry_id>', methods=['POST'])
 @login_required
 def update_entry_tags(entry_id):
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on update entry tags from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('journal.view_entry', entry_id=entry_id))
     
     entry = JournalEntry.query.filter_by(
         id=entry_id,
@@ -1240,14 +1191,6 @@ def change_password():
     from validators import validate_password, ValidationError
     import time
     
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on password change from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
     
     # Add slight delay to prevent timing attacks
     time.sleep(0.1)
@@ -1298,14 +1241,6 @@ def change_password():
 @login_required
 def change_email():
     """Initiate email change process."""
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on email change from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
     
     password = request.form.get('password')
     new_email = request.form.get('new_email')
@@ -1341,14 +1276,6 @@ def change_email():
 @login_required
 def add_email():
     """Add email to an account that doesn't have one."""
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on add email from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
     
     # Only allow adding email if user doesn't have one
     if current_user.email:
@@ -1440,14 +1367,6 @@ Thank you,
 @limiter.limit("3/hour")  # Prevent abuse
 def resend_verification():
     """Resend email verification link."""
-    # Check CSRF token
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    
-    if not token or token != form_token:
-        current_app.logger.warning(f'CSRF attack detected on resend verification from {request.remote_addr}')
-        flash('Invalid form submission. Please try again.', 'danger')
-        return redirect(url_for('auth.settings'))
     
     # Check if user has an email
     if not current_user.email:
@@ -2279,27 +2198,7 @@ def test_cors():
 def ai_conversation_api():
     """API endpoint for AI conversations."""
     try:
-        # Get CSRF token from headers or form data
-        csrf_token = request.headers.get('X-CSRF-Token') or request.json.get('_csrf_token') if request.json else None
-        session_token = session.get('_csrf_token')
-        
-        # CSRF validation with proper debugging
-        if csrf_token and session_token:
-            # Clean tokens (remove any HTML entities or function references)
-            clean_csrf = csrf_token.strip()
-            clean_session = session_token.strip()
-            
-            # Check if tokens are function references (common issue)
-            if clean_csrf.startswith('<function') or 'function' in clean_csrf:
-                current_app.logger.warning(f'CSRF token is function reference: {clean_csrf[:50]}')
-                # For now, allow the request but log the issue
-            elif clean_csrf != clean_session:
-                current_app.logger.warning(f'CSRF mismatch - Header: {clean_csrf[:20]}, Session: {clean_session[:20]}')
-                return jsonify({'error': 'Invalid CSRF token', 'success': False}), 403
-        else:
-            current_app.logger.warning(f'Missing CSRF tokens - Header: {csrf_token}, Session: {session_token}')
-            # For now, allow requests without CSRF tokens to avoid blocking functionality
-            # TODO: Enforce strict CSRF validation once token generation is fixed
+        # Flask-WTF will handle CSRF validation automatically
         
         data = request.get_json()
         if not data:

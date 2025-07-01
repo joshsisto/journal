@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}AI Conversation - Journal App{% endblock %}
+
+{% block styles %}
+<style>
+    /* Chat container styles */
+    .chat-container {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .message {
+        margin-bottom: 1rem;
+        max-width: 80%;
+    }
+    
+    .user-message {
+        margin-left: auto;
+        background-color: #d1ecf1;
+        border-radius: 1rem 1rem 0 1rem;
+        padding: 0.75rem;
+    }
+    
+    .ai-message {
+        background-color: #f1f1f1;
+        border-radius: 1rem 1rem 1rem 0;
+        padding: 0.75rem;
+    }
+    
+    /* Entry card styles */
+    .entry-card {
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        background-color: #fff;
+    }
+    
+    /* Thinking indicator */
+    .thinking-indicator {
+        display: none;
+        margin-bottom: 1rem;
+    }
+    
+    .dot-flashing {
+        display: inline-block;
+        position: relative;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #6c757d;
+        animation: dot-flashing 1s infinite linear alternate;
+        animation-delay: 0s;
+    }
+    
+    .dot-flashing::before, .dot-flashing::after {
+        content: '';
+        display: inline-block;
+        position: absolute;
+        top: 0;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #6c757d;
+        animation: dot-flashing 1s infinite alternate;
+    }
+    
+    .dot-flashing::before {
+        left: -15px;
+        animation-delay: 0.5s;
+    }
+    
+    .dot-flashing::after {
+        left: 15px;
+        animation-delay: 1s;
+    }
+    
+    @keyframes dot-flashing {
+        0% { background-color: #6c757d; }
+        50%, 100% { background-color: #c9cccf; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>AI Conversation{% if is_single_entry %} - Single Entry{% endif %}</h2>
+                <a href="{{ url_for('journal.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% if is_single_entry %}
+        <!-- Left panel: Entry details -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Journal Entry</h5>
+                </div>
+                <div class="card-body">
+                    <div class="entry-card">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                {% if entry.entry_type == 'guided' %}
+                                    <i class="bi bi-journal-text text-success"></i>
+                                {% else %}
+                                    <i class="bi bi-pencil-fill text-primary"></i>
+                                {% endif %}
+                                <span class="text-muted">{{ entry.date }}</span>
+                            </div>
+                        </div>
+                        
+                        {% if entry.content %}
+                        <div class="mb-2">
+                            <strong>Content:</strong>
+                            <p class="mt-1">{{ entry.content|truncate(150) }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if 'feeling_value' in entry and entry.feeling_value is not none %}
+                        <div class="mb-2">
+                            <strong>Feeling:</strong> 
+                            {% set value = entry.feeling_value|int %}
+                            <span class="badge {% if value >= 7 %}bg-success{% elif value >= 4 %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ value }}/10
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if 'emotions' in entry and entry.emotions %}
+                        <div class="mb-2">
+                            <strong>Emotions:</strong>
+                            <div class="mt-1">
+                                {% for emotion in entry.emotions %}
+                                <span class="badge {% if emotion in positive_emotions %}bg-success{% elif emotion in negative_emotions %}bg-danger{% else %}bg-secondary{% endif %}">
+                                    {{ emotion }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Right panel: Chat interface -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Chat with AI</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Chat container -->
+                    <div class="chat-container mb-3" id="chatContainer">
+                        <div class="ai-message message">
+                            <p class="mb-0">Hello! I'm your AI assistant. I can help you reflect on your journal entries and provide insights. What would you like to discuss about your {% if is_single_entry %}entry{% else %}entries{% endif %}?</p>
+                        </div>
+                        
+                        <div class="thinking-indicator" id="thinkingIndicator">
+                            <div class="ai-message message">
+                                <div class="d-flex align-items-center">
+                                    <span>Thinking</span>
+                                    <div class="ms-2">
+                                        <div class="dot-flashing"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Message input -->
+                    <div class="mt-3">
+                        <form id="messageForm">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="messageInput" 
+                                       placeholder="Type your message here...">
+                                <button class="btn btn-primary" type="submit" id="sendButton">
+                                    <i class="bi bi-send"></i> Send
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Suggested questions -->
+                    <div class="mt-3">
+                        <p class="small text-muted mb-2">Suggested questions:</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary suggested-btn">
+                                What emotions am I expressing?
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary suggested-btn">
+                                What patterns do you notice?
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary suggested-btn">
+                                How can I improve my wellbeing?
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary suggested-btn">
+                                What insights can you share?
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Initialize when DOM is fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('AI Conversation page initialized');
+    
+    // UI Elements
+    const chatContainer = document.getElementById('chatContainer');
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const thinkingIndicator = document.getElementById('thinkingIndicator');
+    const suggestedButtons = document.querySelectorAll('.suggested-btn');
+    
+    // Add message to chat
+    function addMessage(text, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = isUser ? 'user-message message' : 'ai-message message';
+        
+        // Handle newlines
+        messageDiv.innerHTML = `<p class="mb-0">${text.replace(/\n/g, '<br>')}</p>`;
+        
+        // Insert before the thinking indicator
+        chatContainer.insertBefore(messageDiv, thinkingIndicator);
+        
+        // Scroll to bottom
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Show/hide thinking indicator
+    function setThinking(isThinking) {
+        thinkingIndicator.style.display = isThinking ? 'block' : 'none';
+        sendButton.disabled = isThinking;
+        messageInput.disabled = isThinking;
+        
+        if (isThinking) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    }
+    
+    // Send message to AI
+    async function sendToAI(message) {
+        console.log('Sending message:', message);
+        
+        // Add user message to chat
+        addMessage(message, true);
+        
+        // Show thinking indicator
+        setThinking(true);
+        
+        // Prepare entry data
+        {% if is_single_entry %}
+        const entryData = {
+            id: {{ entry.id }},
+            date: "{{ entry.date }}",
+            entry_type: "{{ entry.entry_type }}",
+            content: {{ entry.content|default('')|tojson }}{% if 'feeling_value' in entry and entry.feeling_value is not none %},
+            feeling_value: {{ entry.feeling_value|int }}{% endif %}{% if 'emotions' in entry and entry.emotions %},
+            emotions: {{ entry.emotions|tojson }}{% endif %}{% if 'guided_responses' in entry %},
+            guided_responses: {{ entry.guided_responses|tojson }}{% endif %}
+        };
+        {% endif %}
+        
+        // Create request data
+        const requestData = {
+            {% if is_single_entry %}
+            entries: [entryData],
+            {% else %}
+            entries: [],
+            {% endif %}
+            question: message
+        };
+        
+        try {
+            const apiUrl = "{{ url_for('ai.ai_conversation_api') }}";
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token() }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'include',
+                body: JSON.stringify(requestData)
+            });
+            
+            console.log('Response received, status:', response.status);
+            
+            // Hide thinking indicator
+            setThinking(false);
+            
+            if (response.ok) {
+                try {
+                    const responseData = await response.json();
+                    console.log('Response parsed successfully');
+                    
+                    if (responseData.error) {
+                        console.error('API error:', responseData.error);
+                        addMessage(`Error: ${responseData.error}`, false);
+                    } else {
+                        console.log('Response contains valid data');
+                        addMessage(responseData.response, false);
+                    }
+                } catch (e) {
+                    console.error('Error parsing response:', e);
+                    addMessage('Error: Could not parse the response from the server.', false);
+                }
+            } else {
+                console.error('HTTP error:', response.status, response.statusText);
+                addMessage(`Error: The server returned status ${response.status}. Please try again later.`, false);
+            }
+        } catch (error) {
+            console.error('Network error:', error);
+            addMessage('Error: Could not connect to the server. Please check your internet connection.', false);
+            setThinking(false);
+        }
+    }
+    
+    // Event: Message form submission
+    if (messageForm) {
+        messageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            // Clear input
+            messageInput.value = '';
+            
+            // Send to AI
+            sendToAI(message);
+        });
+    }
+    
+    // Event: Suggested question buttons
+    suggestedButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const question = this.textContent.trim();
+            sendToAI(question);
+        });
+    });
+    
+    console.log('Event handlers attached');
+});
+</script>
+{% endblock %}

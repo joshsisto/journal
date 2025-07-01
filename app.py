@@ -194,7 +194,8 @@ def create_app(config_class=Config):
         
         def csrf_token():
             """Return the CSRF token for forms."""
-            return session.get('_csrf_token', '')
+            from flask_wtf.csrf import generate_csrf
+            return generate_csrf()
             
         def parse_emotions(emotion_str):
             """Parse a JSON emotions string and return a list of emotions."""

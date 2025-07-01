@@ -43,7 +43,7 @@
                 
                 <form method="post" id="verify-form">
                     <!-- CSRF token -->
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     
                     <div class="mb-3">
                         <label for="code" class="form-label">Verification Code</label>
@@ -162,7 +162,7 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': '{{ csrf_token }}'
+                'X-CSRF-Token': '{{ csrf_token() }}'
             }
         })
         .then(response => response.json())
