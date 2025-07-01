@@ -9,6 +9,7 @@ import logging
 import os
 import jinja2
 import markupsafe
+from datetime import timedelta
 from security import setup_security, csp, talisman, limiter
 from validators import sanitize_html, sanitize_text
 
@@ -92,9 +93,25 @@ def create_app(config_class=Config):
     app.config['APPLICATION_ROOT'] = '/'
     
     # Set security-related configuration
-    app.config['SECURITY_PASSWORD_SALT'] = os.environ.get('SECURITY_PASSWORD_SALT', 'change-me-in-production')
+    if not app.config.get('TESTING'):
+        # In production, validate that secure secrets are used
+        if app.config.get('SECRET_KEY') == 'dev-key-change-in-production':
+            raise ValueError("SECRET_KEY must be changed from default value in production!")
+        
+        salt = os.environ.get('SECURITY_PASSWORD_SALT', 'change-me-in-production')
+        if salt == 'change-me-in-production':
+            raise ValueError("SECURITY_PASSWORD_SALT must be changed from default value in production!")
+        app.config['SECURITY_PASSWORD_SALT'] = salt
+    else:
+        # In testing, use config value
+        app.config['SECURITY_PASSWORD_SALT'] = app.config.get('SECURITY_PASSWORD_SALT', 'test-salt-for-testing-only')
     app.config['FORCE_HTTPS'] = app.config.get('APP_URL', '').startswith('https://')
     app.config['SESSION_COOKIE_SECURE'] = app.config.get('FORCE_HTTPS', False)
+    
+    # Session security configuration
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # 2 hour session timeout
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     
     # Configure upload limits
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size

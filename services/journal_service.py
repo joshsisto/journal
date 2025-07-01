@@ -104,9 +104,13 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
                         # Create unique filename
                         filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
 
-                        # Save file to upload folder
+                        # Save file to upload folder with directory traversal protection
                         upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                        photo_path = os.path.join(upload_folder, filename)
+                        # Ensure filename doesn't contain path separators
+                        safe_filename = os.path.basename(filename)
+                        if not safe_filename or safe_filename in ('.', '..') or '/' in safe_filename or '\\' in safe_filename:
+                            raise ValueError("Invalid filename")
+                        photo_path = os.path.join(upload_folder, safe_filename)
 
                         # Check file size before saving
                         photo.seek(0, os.SEEK_END)
@@ -245,9 +249,13 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
                     original_filename = photo.filename
                     filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
 
-                    # Save file to upload folder
+                    # Save file to upload folder with directory traversal protection
                     upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                    photo_path = os.path.join(upload_folder, filename)
+                    # Ensure filename doesn't contain path separators
+                    safe_filename = os.path.basename(filename)
+                    if not safe_filename or safe_filename in ('.', '..') or '/' in safe_filename or '\\' in safe_filename:
+                        raise ValueError("Invalid filename")
+                    photo_path = os.path.join(upload_folder, safe_filename)
                     photo.save(photo_path)
 
                     # Create photo record in database

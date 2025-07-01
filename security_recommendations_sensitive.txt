@@ -1,0 +1,16 @@
+Sensitive Data Exposure Findings:
+
+1.  **Hardcoded Fallback Secrets:**
+    *   **Location:** `config.py` (line 9) and `app.py` (line 95)
+    *   **Issue:** `SECRET_KEY` and `SECURITY_PASSWORD_SALT` are retrieved from environment variables but have hardcoded fallback values (`'dev-key-please-change-in-production'` and `'change-me-in-production'`).
+    *   **Recommendation:** Remove these hardcoded fallback values. In production, these secrets should *always* be provided via environment variables or a dedicated secrets management service. If the environment variable is not set, the application should fail to start, prompting the user to configure it securely.
+
+2.  **Hardcoded Common Passwords List:**
+    *   **Location:** `routes.py` (line 94 and 1221)
+    *   **Issue:** A list of common passwords (`'password'`, `'123456'`, etc.) is hardcoded within the `routes.py` file.
+    *   **Recommendation:** While not a direct secret, this list is security-sensitive. Consider moving this list to a separate configuration file (e.g., `config.py`) or a database if it needs to be dynamically updated or managed. For a small, static list, this is a lower priority.
+
+3.  **Default Password in Development Script:**
+    *   **Location:** `recreate_db.py` (line 174)
+    *   **Issue:** The `recreate_db.py` script sets a default password of "password" if no input is provided.
+    *   **Recommendation:** This is acceptable for a development/setup script. However, ensure that this script is never used in a production environment without strict user input for passwords, or that production database setup relies on secure, non-default password generation. Users should be explicitly warned about the insecure default if they run this script.

@@ -6,6 +6,7 @@ to protect against common web vulnerabilities like XSS, CSRF, SQLi, etc.
 """
 import re
 import bleach
+import json
 from wtforms.validators import ValidationError
 from marshmallow import Schema, fields, validate, ValidationError as MarshmallowValidationError
 from pydantic import BaseModel, Field, EmailStr, constr, validator
@@ -156,7 +157,7 @@ def sanitize_email(email):
 
 def validate_password(password):
     """
-    Validate password strength.
+    Validate password strength with enhanced security requirements.
     
     Args:
         password (str): Password to validate
@@ -176,18 +177,53 @@ def validate_password(password):
     if len(password) > MAX_PASSWORD_LENGTH:
         raise ValidationError(f'Password cannot exceed {MAX_PASSWORD_LENGTH} characters')
     
-    # Manual check for letter and number instead of regex
-    has_letter = False
+    # Enhanced password complexity requirements
+    has_lower = False
+    has_upper = False
     has_number = False
+    has_special = False
+    
+    special_chars = set('!@#$%^&*()_+-=[]{}|;:,.<>?~`')
     
     for char in password:
-        if char.isalpha():
-            has_letter = True
+        if char.islower():
+            has_lower = True
+        elif char.isupper():
+            has_upper = True
         elif char.isdigit():
             has_number = True
+        elif char in special_chars:
+            has_special = True
     
-    if not has_letter or not has_number:
-        raise ValidationError('Password must contain at least one letter and one number')
+    # Check complexity requirements
+    if not has_lower:
+        raise ValidationError('Password must contain at least one lowercase letter')
+    if not has_upper:
+        raise ValidationError('Password must contain at least one uppercase letter')
+    if not has_number:
+        raise ValidationError('Password must contain at least one number')
+    if not has_special:
+        raise ValidationError('Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?~`)')
+    
+    # Check against common passwords list from config
+    from flask import current_app
+    try:
+        common_passwords = current_app.config.get('COMMON_PASSWORDS', set())
+    except RuntimeError:
+        # Fallback for when called outside application context
+        from config import Config
+        common_passwords = Config.COMMON_PASSWORDS
+    
+    if password.lower() in common_passwords:
+        raise ValidationError('Password is too common. Please choose a stronger password.')
+    
+    # Check for simple patterns
+    if password.lower() in password.lower():  # redundant check, but keeps structure
+        # Check for keyboard patterns
+        keyboard_patterns = ['qwerty', 'asdf', '1234', 'abcd']
+        for pattern in keyboard_patterns:
+            if pattern in password.lower():
+                raise ValidationError('Password contains common keyboard patterns. Please choose a more complex password.')
     
     return True
 
@@ -266,6 +302,142 @@ def sanitize_question_response(response):
         return ""
     
     return sanitize_text(response, MAX_QUESTION_RESPONSE_LENGTH)
+
+def validate_guided_response_json(json_str):
+    """
+    Validate and sanitize JSON data from guided response fields.
+    
+    Args:
+        json_str (str): JSON string to validate
+        
+    Returns:
+        dict: Validated and sanitized JSON data
+        
+    Raises:
+        ValidationError: If JSON is invalid or contains malicious content
+    """
+    if not json_str:
+        return {}
+    
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError:
+        raise ValidationError('Invalid JSON format in guided response')
+    
+    if not isinstance(data, dict):
+        raise ValidationError('Guided response must be a JSON object')
+    
+    # Validate and sanitize specific fields
+    validated_data = {}
+    
+    # Validate emotions field
+    if 'emotions' in data:
+        emotions = data['emotions']
+        if isinstance(emotions, list):
+            valid_emotions = []
+            for emotion in emotions:
+                if isinstance(emotion, str) and len(emotion) <= MAX_EMOTION_TEXT_LENGTH:
+                    # Sanitize emotion text
+                    clean_emotion = sanitize_text(emotion)
+                    if clean_emotion:
+                        valid_emotions.append(clean_emotion)
+                elif isinstance(emotion, dict) and 'name' in emotion:
+                    # Handle emotion objects
+                    emotion_name = sanitize_text(str(emotion['name']))
+                    if emotion_name and len(emotion_name) <= MAX_EMOTION_TEXT_LENGTH:
+                        valid_emotions.append(emotion_name)
+            validated_data['emotions'] = valid_emotions[:20]  # Limit to 20 emotions
+    
+    # Validate feeling_scale field
+    if 'feeling_scale' in data:
+        feeling_scale = data['feeling_scale']
+        if isinstance(feeling_scale, (int, float)):
+            if 1 <= feeling_scale <= 10:
+                validated_data['feeling_scale'] = int(feeling_scale)
+            else:
+                raise ValidationError('Feeling scale must be between 1 and 10')
+        elif isinstance(feeling_scale, str) and feeling_scale.isdigit():
+            scale_val = int(feeling_scale)
+            if 1 <= scale_val <= 10:
+                validated_data['feeling_scale'] = scale_val
+            else:
+                raise ValidationError('Feeling scale must be between 1 and 10')
+    
+    # Validate response text fields
+    for field in ['question_feeling_reason', 'question_about_day', 'question_anything_else']:
+        if field in data:
+            response_text = data[field]
+            if isinstance(response_text, str):
+                validated_data[field] = sanitize_question_response(response_text)
+    
+    # Validate custom fields but limit their size and number
+    custom_field_count = 0
+    for key, value in data.items():
+        if key not in ['emotions', 'feeling_scale', 'question_feeling_reason', 'question_about_day', 'question_anything_else']:
+            if custom_field_count >= 10:  # Limit custom fields
+                break
+            
+            if isinstance(value, str) and len(value) <= MAX_QUESTION_RESPONSE_LENGTH:
+                validated_data[key] = sanitize_text(value)
+                custom_field_count += 1
+            elif isinstance(value, (int, float)) and -1000000 <= value <= 1000000:
+                validated_data[key] = value
+                custom_field_count += 1
+    
+    return validated_data
+
+def validate_json_structure(json_str, expected_schema=None):
+    """
+    Validate JSON structure and content safety.
+    
+    Args:
+        json_str (str): JSON string to validate
+        expected_schema (dict, optional): Expected schema structure
+        
+    Returns:
+        dict: Validated JSON data
+        
+    Raises:
+        ValidationError: If JSON is invalid or unsafe
+    """
+    if not json_str:
+        return {}
+    
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        raise ValidationError(f'Invalid JSON format: {str(e)}')
+    
+    # Check for deeply nested structures (potential DoS)
+    def check_depth(obj, max_depth=10, current_depth=0):
+        if current_depth > max_depth:
+            raise ValidationError('JSON structure too deeply nested')
+        
+        if isinstance(obj, dict):
+            for value in obj.values():
+                check_depth(value, max_depth, current_depth + 1)
+        elif isinstance(obj, list):
+            for item in obj:
+                check_depth(item, max_depth, current_depth + 1)
+    
+    check_depth(data)
+    
+    # Check for excessively large arrays or objects
+    def check_size(obj, max_items=100):
+        if isinstance(obj, dict):
+            if len(obj) > max_items:
+                raise ValidationError('JSON object too large')
+            for value in obj.values():
+                check_size(value, max_items)
+        elif isinstance(obj, list):
+            if len(obj) > max_items:
+                raise ValidationError('JSON array too large')
+            for item in obj:
+                check_size(item, max_items)
+    
+    check_size(data)
+    
+    return data
 
 # Pydantic models for request validation
 

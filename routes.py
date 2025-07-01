@@ -21,6 +21,7 @@ from helpers import (
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
 )
 from services.journal_service import create_quick_entry, create_guided_entry
+from validators import sanitize_input
 
 # Blueprints
 auth_bp = Blueprint('auth', __name__)
@@ -638,6 +639,7 @@ def dashboard():
 
 @journal_bp.route('/journal/quick', methods=['GET', 'POST'])
 @login_required
+@sanitize_input
 def quick_journal():
     if request.method == 'POST':
         
@@ -672,6 +674,7 @@ def quick_journal():
 
 @journal_bp.route('/journal/guided', methods=['GET', 'POST'])
 @login_required
+@sanitize_input
 def guided_journal():
     if request.method == 'POST':
         
@@ -1551,12 +1554,23 @@ def manage_tags():
 
 @tag_bp.route('/tags/add', methods=['POST'])
 @login_required
+@sanitize_input
 def add_tag():
+    from validators import sanitize_tag_name, validate_color_hex, ValidationError
+    
     name = request.form.get('name', '').strip()
     color = request.form.get('color', '#6c757d')
     
     if not name:
         flash('Tag name is required.', 'danger')
+        return redirect(url_for('tag.manage_tags'))
+    
+    try:
+        # Validate and sanitize inputs
+        name = sanitize_tag_name(name)
+        color = validate_color_hex(color)
+    except ValidationError as e:
+        flash(str(e), 'danger')
         return redirect(url_for('tag.manage_tags'))
     
     # Check if tag already exists
@@ -1576,7 +1590,10 @@ def add_tag():
 
 @tag_bp.route('/tags/edit/<int:tag_id>', methods=['POST'])
 @login_required
+@sanitize_input
 def edit_tag(tag_id):
+    from validators import sanitize_tag_name, validate_color_hex, ValidationError
+    
     tag = Tag.query.filter_by(id=tag_id, user_id=current_user.id).first_or_404()
     
     name = request.form.get('name', '').strip()
@@ -1584,6 +1601,14 @@ def edit_tag(tag_id):
     
     if not name:
         flash('Tag name is required.', 'danger')
+        return redirect(url_for('tag.manage_tags'))
+    
+    try:
+        # Validate and sanitize inputs
+        name = sanitize_tag_name(name)
+        color = validate_color_hex(color)
+    except ValidationError as e:
+        flash(str(e), 'danger')
         return redirect(url_for('tag.manage_tags'))
     
     # Check if a different tag with the same name exists
@@ -1756,9 +1781,13 @@ def view_photo(photo_id):
         JournalEntry.user_id == current_user.id
     ).first_or_404()
     
-    # Build the file path
+    # Build the file path with directory traversal protection
     upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-    photo_path = os.path.join(upload_folder, photo.filename)
+    # Validate filename and prevent directory traversal
+    safe_filename = os.path.basename(photo.filename)
+    if not safe_filename or safe_filename in ('.', '..') or '/' in safe_filename or '\\' in safe_filename:
+        abort(404)
+    photo_path = os.path.join(upload_folder, safe_filename)
     
     # Send the file
     return send_file(photo_path)
