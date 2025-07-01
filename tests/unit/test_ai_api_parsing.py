@@ -8,7 +8,6 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from conftest import create_app
 from models import User
 
 
@@ -16,11 +15,8 @@ class TestAIConversationAPIDataParsing:
     """Test cases for ai_conversation_api data parsing edge cases."""
     
     @pytest.fixture
-    def app(self):
-        """Create test app."""
-        app = create_app()
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
+    def test_app(self, app):
+        """Use the global app fixture."""
         return app
     
     @pytest.fixture
@@ -31,12 +27,11 @@ class TestAIConversationAPIDataParsing:
     @pytest.fixture
     def mock_user(self, app):
         """Create mock authenticated user."""
-        with app.app_context():
-            user = MagicMock(spec=User)
-            user.id = 1
-            user.username = 'testuser'
-            user.is_authenticated = True
-            return user
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.username = 'testuser'
+        user.is_authenticated = True
+        return user
     
     @pytest.fixture
     def authenticated_client(self, client, mock_user):

@@ -1,0 +1,133 @@
+Code Duplication Analysis Report
+
+This report identifies duplicated code blocks across the codebase and provides recommendations for refactoring.
+
+---
+### Finding 1: User Authentication Logic
+
+**Duplicated Code:**
+The logic for authenticating a user by checking their username and password appears in two places.
+
+**Locations:**
+1.  `routes.py`, lines 230-237 (in `login` function)
+2.  `services/user_service.py`, lines 100-104 (in `authenticate_user` function)
+
+**Recommendation:**
+The `authenticate_user` function in `services/user_service.py` is the correct location for this logic. The `login` route in `routes.py` should call this service function instead of reimplementing the authentication check. This will centralize the authentication logic and make it easier to maintain.
+
+---
+### Finding 2: Password Change Logic
+
+**Duplicated Code:**
+The logic for changing a user's password, including validation and hashing, is duplicated.
+
+**Locations:**
+1.  `routes.py`, lines 1102-1133 (in `change_password` function)
+2.  `services/user_service.py`, lines 114-1135 (in `change_user_password` function)
+
+**Recommendation:**
+Consolidate the password change logic into the `change_user_password` function in `services/user_service.py`. The `change_password` route in `routes.py` should call this service function. This will ensure consistent password validation and handling.
+
+---
+### Finding 3: Timezone Update Logic
+
+**Duplicated Code:**
+The logic for updating a user's timezone is implemented in two different files.
+
+**Locations:**
+1.  `routes.py`, lines 1083-1096 (in `update_timezone` function)
+2.  `services/user_service.py`, lines 106-118 (in `update_user_timezone` function)
+
+**Recommendation:**
+The `update_user_timezone` function in `services/user_service.py` should be the single source of truth. The `update_timezone` route in `routes.py` should be updated to call this service function.
+
+---
+### Finding 4: Add Email to Account Logic
+
+**Duplicated Code:**
+The functionality for adding an email to a user account without one is duplicated.
+
+**Locations:**
+1.  `routes.py`, lines 1168-1225 (in `add_email` function)
+2.  `services/user_service.py`, lines 137-170 (in `add_user_email` function)
+
+**Recommendation:**
+Refactor the `add_email` route in `routes.py` to use the `add_user_email` service function from `services/user_service.py`. This will centralize the logic for adding and verifying new email addresses.
+
+---
+### Finding 5: Resend Verification Email Logic
+
+**Duplicated Code:**
+The logic for resending an email verification link is present in two separate files.
+
+**Locations:**
+1.  `routes.py`, lines 1229-1285 (in `resend_verification` function)
+2.  `services/user_service.py`, lines 172-200 (in `resend_verification_email` function)
+
+**Recommendation:**
+The `resend_verification` route in `routes.py` should call the `resend_verification_email` function in `services/user_service.py` to avoid code duplication.
+
+---
+### Finding 6: Password Reset Request Logic
+
+**Duplicated Code:**
+The logic for handling a password reset request is duplicated.
+
+**Locations:**
+1.  `routes.py`, lines 1320-1335 (in `request_reset` function)
+2.  `services/user_service.py`, lines 202-208 (in `request_password_reset` function)
+
+**Recommendation:**
+The `request_reset` route in `routes.py` should be refactored to call the `request_password_reset` function in `services/user_service.py`.
+
+---
+### Finding 7: Password Reset Logic
+
+**Duplicated Code:**
+The logic for resetting a user's password with a token is duplicated.
+
+**Locations:**
+1.  `routes.py`, lines 1339-1364 (in `reset_password` function)
+2.  `services/user_service.py`, lines 210-225 (in `reset_password` function)
+
+**Recommendation:**
+The `reset_password` route in `routes.py` should call the `reset_password` function in `services/user_service.py`.
+
+---
+### Finding 8: Command Execution Helper Function
+
+**Duplicated Code:**
+The `run_command` helper function for executing shell commands is defined in two separate scripts.
+
+**Locations:**
+1.  `dev.py`, lines 15-27
+2.  `run_tests.py`, lines 13-25
+
+**Recommendation:**
+Create a shared utility module (e.g., `utils.py` or `script_utils.py`) and define the `run_command` function there. Both `dev.py` and `run_tests.py` can then import and use this shared function.
+
+---
+### Finding 9: AI Conversation Page Rendering Logic
+
+**Duplicated Code:**
+The logic for preparing and rendering the AI conversation page is duplicated for single and multiple entries.
+
+**Locations:**
+1.  `routes.py`, lines 1693-1755 (in `single_entry_conversation` function)
+2.  `routes.py`, lines 1759-1820 (in `simple_ai_conversation` function)
+
+**Recommendation:**
+Create a helper function that takes a list of entries and prepares the necessary data for the `ai/conversation.html` template. Both `single_entry_conversation` and `simple_ai_conversation` can then call this helper function to reduce code duplication.
+
+---
+### Finding 10: Photo Upload Logic
+
+**Duplicated Code:**
+The logic for handling photo uploads is duplicated in the `create_quick_entry` and `create_guided_entry` functions.
+
+**Locations:**
+1.  `services/journal_service.py`, lines 82-121 (in `create_quick_entry`)
+2.  `services/journal_service.py`, lines 211-235 (in `create_guided_entry`)
+
+**Recommendation:**
+Extract the photo upload logic into a separate helper function within `services/journal_service.py`. This function can take the list of photos and the entry object as arguments and andle the file saving and database record creation. Both `create_quick_entry` and `create_guided_entry` can then call this helper function.

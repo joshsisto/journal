@@ -8,7 +8,6 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from conftest import create_app
 from models import User
 
 
@@ -16,11 +15,8 @@ class TestRegisterDependencyInteractions:
     """Test cases for register function interactions with external dependencies."""
     
     @pytest.fixture
-    def app(self):
-        """Create test app."""
-        app = create_app()
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
+    def test_app(self, app):
+        """Use the global app fixture."""
         return app
     
     @pytest.fixture

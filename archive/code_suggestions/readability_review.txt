@@ -1,0 +1,95 @@
+Readability Review Report
+
+This report details instances of vague variable names, function names, and magic numbers found in the codebase.
+
+**Files Analyzed:**
+- Python: `config.py`, `app.py`, `models.py`, `routes.py`, `forms.py`, `helpers.py`, `email_utils.py`, `ai_utils.py`, `security.py`, `backup_system.py`, `export_utils.py`, `time_utils.py`, `two_factor.py`, `validators.py`
+- JavaScript: `static/js/camera.js`, `static/js/guided-journal.js`, `static/js/journal.js`, `static/js/tags.js`
+
+---
+
+### Python Files
+
+#### `config.py`
+
+- **Magic Number:** `PERMANENT_SESSION_LIFETIME = 2592000`
+  - **Suggestion:** Replace with a more descriptive constant, such as `from datetime import timedelta; PERMANENT_SESSION_LIFETIME = timedelta(days=30)`. This makes the value's meaning immediately clear.
+
+- **Magic Number:** `MAX_CONTENT_LENGTH = 16 * 1024 * 1024`
+  - **Suggestion:** Define constants to explain the calculation, for example:
+    ```python
+    MEGABYTE = 1024 * 1024
+    MAX_CONTENT_LENGTH = 16 * MEGABYTE
+    ```
+
+#### `helpers.py`
+
+- **Vague Variable Name:** In `get_local_time(dt, tz_name)` and `get_time_ago(dt)`, the variable `dt` is used.
+  - **Suggestion:** Rename `dt` to `datetime_obj` for better clarity.
+
+- **Vague Variable Name:** In `chat_with_ai(prompt, history)`, the variable `history` is used.
+  - **Suggestion:** Rename `history` to `chat_history` to be more specific.
+
+- **Vague Variable Name:** In `validate_parsed_json(data)`, the variable `data` is used.
+  - **Suggestion:** Rename `data` to `parsed_data`.
+
+- **Vague Variable Name:** In `get_rate_limit_from_exception(e)`, the variable `e` is used.
+  - **Suggestion:** Rename `e` to `exception` for better readability.
+
+- **Magic Number:** In `generate_random_string(length=10)`, the default length `10` is a magic number.
+  - **Suggestion:** Create a constant `DEFAULT_RANDOM_STRING_LENGTH = 10`.
+
+- **Magic Number:** In `parse_gemini_with_retries(text, max_retries=3)`, the default `max_retries` is a magic number.
+  - **Suggestion:** Create a constant `DEFAULT_MAX_RETRIES = 3`.
+
+#### `ai_utils.py`
+
+- **Vague Variable Name:** In `validate_parsed_json(data)`, the variable `data` is used.
+  - **Suggestion:** Rename `data` to `parsed_data`.
+
+- **Magic Number:** In `parse_gemini_with_retries(text, max_retries=3)`, the default `max_retries` is a magic number.
+  - **Suggestion:** Create a constant `DEFAULT_MAX_RETRIES = 3`.
+
+#### `security.py`
+
+- **Magic Numbers:** In `check_brute_force(user_id)`, the numbers `5` and `60` are used.
+  - **Suggestion:** Create named constants to explain their purpose:
+    ```python
+    MAX_LOGIN_ATTEMPTS = 5
+    LOGIN_ATTEMPTS_TIMEFRAME_MINUTES = 60
+    ```
+
+#### `backup_system.py`
+
+- **Magic Number:** In `prune_old_backups(days_to_keep=7)`, the default `days_to_keep` is a magic number.
+  - **Suggestion:** Create a constant `DEFAULT_BACKUP_RETENTION_DAYS = 7`.
+
+#### `time_utils.py`
+
+- **Vague Variable Name:** In `get_local_time(dt, tz_name)` and `get_time_ago(dt)`, the variable `dt` is used.
+  - **Suggestion:** Rename `dt` to `datetime_obj`.
+
+#### `two_factor.py`
+
+- **Magic Numbers:** In `generate_backup_codes(num_codes=10, code_length=6)`, the numbers `10` and `6` are magic numbers.
+  - **Suggestion:** Create named constants:
+    ```python
+    DEFAULT_NUM_BACKUP_CODES = 10
+    BACKUP_CODE_LENGTH = 6
+    ```
+
+---
+
+### JavaScript Files
+
+#### `static/js/camera.js`
+
+- **Vague Variable Name:** The `stream` variable in `initCamera` and `stopCamera`.
+  - **Suggestion:** Rename `stream` to `cameraStream` to be more descriptive.
+
+- **Magic Numbers:** The numbers `640` and `480` are used for video constraints.
+  - **Suggestion:** Create named constants:
+    ```javascript
+    const VIDEO_WIDTH = 640;
+    const VIDEO_HEIGHT = 480;
+    ```

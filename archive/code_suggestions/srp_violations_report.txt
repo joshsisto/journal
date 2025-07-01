@@ -1,0 +1,67 @@
+SRP Violations Report
+
+File: routes.py
+
+- Function: register()
+  - Responsibilities: Handles user registration form processing, validates user input, creates new user records, and sends verification emails.
+  - Suggestion: The email sending logic could be extracted into a separate function or service. The user creation logic could be moved to the `user_service`.
+
+- Function: login()
+  - Responsibilities: Manages user login, validates credentials, and handles two-factor authentication (2FA) logic.
+  - Suggestion: The 2FA logic could be encapsulated within a dedicated 2FA service or module to separate it from the primary login flow.
+
+- Function: dashboard()
+  - Responsibilities: Fetches journal entries, applies filters (tags, dates), handles pagination, and prepares data for various UI components like timelines and calendars.
+  - Suggestion: Data fetching and filtering could be moved to the `journal_service`. The data preparation for each UI component could be handled by separate helper functions.
+
+- Function: quick_journal() & guided_journal()
+  - Responsibilities: Process form submissions for new journal entries, handle file uploads (photos), and manage the creation of new tags.
+  - Suggestion: Photo uploading and tag creation could be delegated to separate services to keep the route focused on handling the request and creating the entry.
+
+- Function: search()
+  - Responsibilities: Performs searches across journal entries, applies multiple filter criteria, and prepares the search results for display.
+  - Suggestion: The search and filtering logic could be moved to the `journal_service` to make the route cleaner and more focused on handling the request.
+
+- Function: mood_tracker()
+  - Responsibilities: Fetches and processes data for mood tracking visualizations, including date range filtering and statistical calculations.
+  - Suggestion: Data fetching and processing should be moved to the `journal_service`, and statistical calculations could be handled by a separate helper function.
+
+- Function: change_password()
+  - Responsibilities: Handles the entire password change process, including form validation and the password update itself.
+  - Suggestion: The core logic for changing the password should be in the `user_service`, with the route only handling the request and response.
+
+- Function: change_email() & add_email()
+  - Responsibilities: Initiate email changes, handle password verification, and send confirmation emails.
+  - Suggestion: The email sending and token generation logic should be handled by the `user_service` and `email_utils`, respectively.
+
+- Function: export_search_entries() & export_entries_as_text()
+  - Responsibilities: Export journal entries based on search criteria, including filtering and formatting the data into a text file.
+  - Suggestion: The data fetching and formatting should be handled by the `export_utils` module, with the route only responsible for triggering the export and returning the file.
+
+File: services/journal_service.py
+
+- Function: create_quick_entry() & create_guided_entry()
+  - Responsibilities: Create journal entries while also handling the creation of new tags and processing photo uploads.
+  - Suggestion: Tag creation and photo handling could be extracted into their own services (e.g., `TagService`, `PhotoService`) and called from the journal service.
+
+File: services/user_service.py
+
+- Function: register_user()
+  - Responsibilities: Registers a new user, including input sanitation, validation, user creation, and sending a verification email.
+  - Suggestion: Sending the verification email could be delegated to an email service, separating the user creation logic from notification logic.
+
+- Function: change_user_password(), change_user_email(), add_user_email()
+  - Responsibilities: These functions handle both the validation of user input and the core logic of updating user data.
+  - Suggestion: The validation logic could be separated from the data update logic to improve separation of concerns.
+
+File: ai_utils.py
+
+- Function: get_ai_response()
+  - Responsibilities: Generates AI prompts, iterates through different AI models to find a working one, handles errors, and formats the final AI response.
+  - Suggestion: The model selection and error handling logic could be moved to a separate function, and the prompt generation could be its own utility.
+
+File: app.py
+
+- Function: create_app()
+  - Responsibilities: Acts as a factory for the Flask application while also configuring extensions, registering blueprints, defining custom template filters, and creating database tables.
+  - Suggestion: The registration of blueprints, template filters, and other app-level configurations could be moved to separate functions or modules to keep the factory function focused on creating the app instance.
