@@ -1,0 +1,45 @@
+This report outlines the edge cases to consider when testing the data parsing functionality of the `ai_conversation_api` function in `routes.py`.
+
+The function expects a JSON payload with the following structure:
+{
+    "entries": [
+        {
+            "content": "...",
+            "timestamp": "..."
+        },
+        ...
+    ],
+    "question": "..."
+}
+
+Potential Failure Modes:
+
+**1. Empty or Malformed Input:**
+    - The request body is completely empty.
+    - The request body is not valid JSON.
+    - The `Content-Type` header is not `application/json`.
+
+**2. Missing Fields:**
+    - The `entries` field is missing from the JSON payload.
+    - The `question` field is missing from the JSON payload.
+    - An entry in the `entries` array is missing the `content` field.
+    - An entry in the `entries` array is missing the `timestamp` field.
+
+**3. Extra Fields:**
+    - The JSON payload contains unexpected top-level fields.
+    - Entries in the `entries` array contain unexpected fields.
+
+**4. Incorrect Data Types:**
+    - The `entries` field is not an array.
+    - The `question` field is not a string.
+    - The `content` field in an entry is not a string.
+    - The `timestamp` field in an entry is not a string in the expected format.
+
+**5. Out-of-Range or Invalid Values:**
+    - The `entries` array is empty.
+    - The `question` string is empty.
+    - The `content` string in an entry is empty.
+    - The `timestamp` string is not a valid date/time format.
+
+**6. Encoding:**
+    - The request body is sent with an unexpected encoding (e.g., not UTF-8).

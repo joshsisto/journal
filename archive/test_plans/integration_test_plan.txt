@@ -1,0 +1,95 @@
+Integration Test Plan: User Registration and Initial Login
+
+This plan outlines the integration tests for the complete user registration and initial login workflow.
+
+**Workflow: Successful Registration and Login**
+
+*   **Step 1: Register a new user**
+    *   **Request:** POST /register
+    *   **Body:**
+        ```json
+        {
+          "username": "testuser",
+          "email": "test@example.com",
+          "password": "password123"
+        }
+        ```
+    *   **Assertions:**
+        *   Response status code is 201 Created.
+        *   The user is successfully created in the database.
+
+*   **Step 2: Log in with the new credentials**
+    *   **Request:** POST /login
+    *   **Body:**
+        ```json
+        {
+          "email": "test@example.com",
+          "password": "password123"
+        }
+        ```
+    *   **Assertions:**
+        *   Response status code is 200 OK.
+        *   A session token is returned in the response body or headers.
+
+*   **Step 3: Access a protected route**
+    *   **Request:** GET /settings
+    *   **Headers:**
+        *   `Authorization: Bearer <session_token>`
+    *   **Assertions:**
+        *   Response status code is 200 OK.
+        *   The response body contains the user's profile information (e.g., username and email) which should match the registration data.
+
+**Failure Cases**
+
+*   **Scenario: Register with a duplicate email**
+    *   **Request:** POST /register
+    *   **Body:**
+        ```json
+        {
+          "username": "anotheruser",
+          "email": "test@example.com",
+          "password": "password456"
+        }
+        ```
+    *   **Assertions:**
+        *   Response status code is 400 Bad Request (or a similar error code).
+        *   The response body contains an error message indicating that the email is already in use.
+
+*   **Scenario: Register with a duplicate username**
+    *   **Request:** POST /register
+    *   **Body:**
+        ```json
+        {
+          "username": "testuser",
+          "email": "another@example.com",
+          "password": "password456"
+        }
+        ```
+    *   **Assertions:**
+        *   Response status code is 400 Bad Request (or a similar error code).
+        *   The response body contains an error message indicating that the username is already taken.
+
+*   **Scenario: Log in with invalid credentials**
+    *   **Request:** POST /login
+    *   **Body:**
+        ```json
+        {
+          "email": "test@example.com",
+          "password": "wrongpassword"
+        }
+        ```
+    *   **Assertions:**
+        *   Response status code is 401 Unauthorized.
+        *   The response body contains an error message indicating invalid credentials.
+
+*   **Scenario: Access a protected route without a token**
+    *   **Request:** GET /settings
+    *   **Assertions:**
+        *   Response status code is 401 Unauthorized.
+
+*   **Scenario: Access a protected route with an invalid token**
+    *   **Request:** GET /settings
+    *   **Headers:**
+        *   `Authorization: Bearer <invalid_token>`
+    *   **Assertions:**
+        *   Response status code is 401 Unauthorized.
