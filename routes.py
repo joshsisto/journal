@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_mail import Mail
 from sqlalchemy import func, or_, and_, desc
+from sqlalchemy.exc import SQLAlchemyError
 import pytz
 import json
 import re
@@ -175,10 +176,15 @@ Thank you,
                 
             except ValidationError as e:
                 flash(str(e), 'danger')
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                current_app.logger.error(f'Database error during registration: {str(e)}')
+                flash('Registration failed due to a database error. Please try again.', 'danger')
             except Exception as e:
+                db.session.rollback()
                 import traceback
                 error_details = traceback.format_exc()
-                current_app.logger.error(f'Registration error: {str(e)}\n{error_details}')
+                current_app.logger.error(f'Unexpected registration error: {str(e)}\n{error_details}')
                 
                 # Debug log the exact error
                 print(f'Registration error detail: {str(e)} (Type: {type(e).__name__})')
@@ -1821,22 +1827,35 @@ def export_entries_as_text(entries, filter_info=None):
     lines.append("=====================")
     lines.append("")
     
+    # Bulk load guided responses to prevent N+1 queries
+    entry_ids = [entry.id for entry in entries if entry.entry_type == 'guided']
+    guided_responses_map = {}
+    
+    if entry_ids:
+        # Single query to get all guided responses
+        all_guided_responses = GuidedResponse.query.filter(
+            GuidedResponse.journal_entry_id.in_(entry_ids)
+        ).all()
+        
+        # Group responses by entry_id
+        for resp in all_guided_responses:
+            if resp.journal_entry_id not in guided_responses_map:
+                guided_responses_map[resp.journal_entry_id] = []
+            guided_responses_map[resp.journal_entry_id].append(resp)
+        
+        # Get the original questions for context (once)
+        all_questions = QuestionManager.get_questions()
+        question_map = {q['id']: q for q in all_questions}
+        
+        # Add question text to all responses
+        for responses in guided_responses_map.values():
+            for resp in responses:
+                resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+    
     # Process each entry
     for entry in entries:
-        # Get guided responses if needed
-        guided_responses = None
-        if entry.entry_type == 'guided':
-            guided_responses = GuidedResponse.query.filter_by(
-                journal_entry_id=entry.id
-            ).all()
-            
-            # Get the original questions for context
-            all_questions = QuestionManager.get_questions()
-            question_map = {q['id']: q for q in all_questions}
-            
-            # Add question text to responses
-            for resp in guided_responses:
-                resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+        # Get pre-loaded guided responses
+        guided_responses = guided_responses_map.get(entry.id) if entry.entry_type == 'guided' else None
         
         # Format the entry and add to lines
         entry_text = format_entry_for_text(entry, guided_responses, user_timezone=current_user.timezone)

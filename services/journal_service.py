@@ -8,6 +8,59 @@ from flask import current_app
 from datetime import datetime
 # allowed_file will be passed as parameter
 
+
+def _handle_photo_uploads(entry, photos, allowed_file_func):
+    """Handle photo uploads for journal entries.
+    
+    Args:
+        entry: The journal entry to attach photos to
+        photos: List of uploaded photo files
+        allowed_file_func: Function to validate file extensions
+    """
+    if not photos:
+        return
+    
+    for photo in photos:
+        if photo and photo.filename and allowed_file_func(photo.filename):
+            try:
+                # Create a secure filename with a UUID prefix
+                original_filename = secure_filename(photo.filename)
+                if len(original_filename) > 255:
+                    original_filename = original_filename[-255:]
+
+                # Create unique filename
+                filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
+
+                # Save file to upload folder with directory traversal protection
+                upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
+                safe_filename = os.path.basename(filename)
+                if not safe_filename or safe_filename in ('.', '..') or '/' in safe_filename or '\\' in safe_filename:
+                    raise ValueError("Invalid filename")
+                photo_path = os.path.join(upload_folder, safe_filename)
+
+                # Check file size before saving
+                photo.seek(0, os.SEEK_END)
+                file_size = photo.tell()
+                photo.seek(0)
+
+                if file_size > current_app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024):
+                    current_app.logger.warning(f'Photo upload too large: {file_size} bytes')
+                    continue
+
+                # Save the file
+                photo.save(photo_path)
+
+                # Create photo record in database
+                new_photo = Photo(
+                    journal_entry_id=entry.id,
+                    filename=filename,
+                    original_filename=original_filename
+                )
+                db.session.add(new_photo)
+            except Exception as e:
+                current_app.logger.error(f'Photo upload error: {str(e)}')
+
+
 def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed_file_func):
     """
     Creates a quick journal entry.
@@ -55,17 +108,25 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
         if new_tags_json:
             try:
                 new_tags_data = json.loads(new_tags_json)
+                
+                # Bulk load existing tags to prevent N+1 queries
+                tag_names = [sanitize_tag_name(tag_data.get('name', '')) for tag_data in new_tags_data]
+                existing_tags = Tag.query.filter(
+                    Tag.name.in_(tag_names),
+                    Tag.user_id == user_id
+                ).all()
+                
+                # Create a map of existing tags by name
+                existing_tags_map = {tag.name: tag for tag in existing_tags}
+                
                 for tag_data in new_tags_data:
                     try:
                         # Sanitize tag name
                         tag_name = sanitize_tag_name(tag_data.get('name', ''))
                         tag_color = validate_color_hex(tag_data.get('color', '#6c757d'))
 
-                        # Check if tag with this name already exists for this user
-                        existing_tag = Tag.query.filter_by(
-                            name=tag_name,
-                            user_id=user_id
-                        ).first()
+                        # Check if tag exists using pre-loaded map
+                        existing_tag = existing_tags_map.get(tag_name)
 
                         if existing_tag:
                             # Use existing tag if it exists
@@ -92,49 +153,7 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
         db.session.flush()  # Get ID without committing
 
         # Handle photo uploads
-        if photos:
-            for photo in photos:
-                if photo and photo.filename and allowed_file_func(photo.filename):
-                    try:
-                        # Create a secure filename with a UUID prefix
-                        original_filename = secure_filename(photo.filename)  # Sanitize original filename
-                        if len(original_filename) > 255:
-                            original_filename = original_filename[-255:]  # Truncate if too long
-
-                        # Create unique filename
-                        filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
-
-                        # Save file to upload folder with directory traversal protection
-                        upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                        # Ensure filename doesn't contain path separators
-                        safe_filename = os.path.basename(filename)
-                        if not safe_filename or safe_filename in ('.', '..') or '/' in safe_filename or '\\' in safe_filename:
-                            raise ValueError("Invalid filename")
-                        photo_path = os.path.join(upload_folder, safe_filename)
-
-                        # Check file size before saving
-                        photo.seek(0, os.SEEK_END)
-                        file_size = photo.tell()
-                        photo.seek(0)  # Reset file pointer
-
-                        if file_size > current_app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024):
-                            # Skip files that are too large
-                            current_app.logger.warning(f'Photo upload too large: {file_size} bytes')
-                            continue
-
-                        # Save the file
-                        photo.save(photo_path)
-
-                        # Create photo record in database
-                        new_photo = Photo(
-                            journal_entry_id=entry.id,
-                            filename=filename,
-                            original_filename=original_filename
-                        )
-                        db.session.add(new_photo)
-                    except Exception as e:
-                        # Log error but continue with other photos
-                        current_app.logger.error(f'Photo upload error: {str(e)}')
+        _handle_photo_uploads(entry, photos, allowed_file_func)
 
         # Commit changes
         db.session.commit()
@@ -172,12 +191,24 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
         if new_tags_json:
             try:
                 new_tags_data = json.loads(new_tags_json)
+                
+                # Bulk load existing tags to prevent N+1 queries
+                tag_names = [sanitize_tag_name(tag_data.get('name', '')) for tag_data in new_tags_data]
+                existing_tags = Tag.query.filter(
+                    Tag.name.in_(tag_names),
+                    Tag.user_id == user_id
+                ).all()
+                
+                # Create a map of existing tags by name
+                existing_tags_map = {tag.name: tag for tag in existing_tags}
+                
                 for tag_data in new_tags_data:
-                    # Check if tag with this name already exists for this user
-                    existing_tag = Tag.query.filter_by(
-                        name=tag_data.get('name'),
-                        user_id=user_id
-                    ).first()
+                    # Sanitize tag name
+                    tag_name = sanitize_tag_name(tag_data.get('name', ''))
+                    tag_color = validate_color_hex(tag_data.get('color', '#6c757d'))
+                    
+                    # Check if tag exists using pre-loaded map
+                    existing_tag = existing_tags_map.get(tag_name)
 
                     if existing_tag:
                         # Use existing tag if it exists
@@ -186,8 +217,8 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
                     else:
                         # Create new tag
                         new_tag = Tag(
-                            name=tag_data.get('name'),
-                            color=tag_data.get('color', '#6c757d'),
+                            name=tag_name,
+                            color=tag_color,
                             user_id=user_id
                         )
                         db.session.add(new_tag)
@@ -242,29 +273,7 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
                 db.session.add(guided_response)
 
         # Handle photo uploads
-        if photos:
-            for photo in photos:
-                if photo and photo.filename and allowed_file_func(photo.filename):
-                    # Create a secure filename with a UUID prefix
-                    original_filename = photo.filename
-                    filename = f"{uuid.uuid4()}_{secure_filename(photo.filename)}"
-
-                    # Save file to upload folder with directory traversal protection
-                    upload_folder = os.path.join(current_app.root_path, current_app.config['UPLOAD_FOLDER'])
-                    # Ensure filename doesn't contain path separators
-                    safe_filename = os.path.basename(filename)
-                    if not safe_filename or safe_filename in ('.', '..') or '/' in safe_filename or '\\' in safe_filename:
-                        raise ValueError("Invalid filename")
-                    photo_path = os.path.join(upload_folder, safe_filename)
-                    photo.save(photo_path)
-
-                    # Create photo record in database
-                    new_photo = Photo(
-                        journal_entry_id=entry.id,
-                        filename=filename,
-                        original_filename=original_filename
-                    )
-                    db.session.add(new_photo)
+        _handle_photo_uploads(entry, photos, allowed_file_func)
 
         db.session.commit()
         return entry, None

@@ -230,8 +230,8 @@ def create_app(config_class=Config):
                 try:
                     import json
                     return json.loads(emotion_str)
-                except:
-                    # Simple fallback parser
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    # Simple fallback parser for malformed JSON
                     clean_str = emotion_str.replace('[', '').replace(']', '').replace('"', '').replace("'", '')
                     return [e.strip() for e in clean_str.split(',') if e.strip()]
             

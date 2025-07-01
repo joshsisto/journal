@@ -26,24 +26,24 @@ class TimeUtils:
         return pytz.UTC
     
     @staticmethod
-    def utc_to_local(utc_dt):
+    def utc_to_local(datetime_obj):
         """Convert UTC datetime to user's local timezone."""
-        if not utc_dt:
+        if not datetime_obj:
             return None
             
         # Make sure we have a timezone-aware datetime
-        if not utc_dt.tzinfo:
-            utc_dt = pytz.UTC.localize(utc_dt)
+        if not datetime_obj.tzinfo:
+            datetime_obj = pytz.UTC.localize(datetime_obj)
             
         # Convert to user's timezone
-        return utc_dt.astimezone(TimeUtils.get_user_timezone())
+        return datetime_obj.astimezone(TimeUtils.get_user_timezone())
     
     @staticmethod
-    def format_datetime(utc_dt, format_str='%Y-%m-%d %H:%M'):
+    def format_datetime(datetime_obj, format_str='%Y-%m-%d %H:%M'):
         """Format a UTC datetime in user's local timezone with the given format."""
-        if not utc_dt:
+        if not datetime_obj:
             return ""
-        local_dt = TimeUtils.utc_to_local(utc_dt)
+        local_dt = TimeUtils.utc_to_local(datetime_obj)
         return local_dt.strftime(format_str)
     
     @staticmethod
@@ -58,13 +58,13 @@ class TimeUtils:
         return TimeUtils.get_local_now().date()
     
     @staticmethod
-    def is_same_day(utc_dt1, utc_dt2):
+    def is_same_day(datetime_obj1, datetime_obj2):
         """Check if two UTC datetimes are on the same day in user's timezone."""
-        if not utc_dt1 or not utc_dt2:
+        if not datetime_obj1 or not datetime_obj2:
             return False
             
-        local_dt1 = TimeUtils.utc_to_local(utc_dt1)
-        local_dt2 = TimeUtils.utc_to_local(utc_dt2)
+        local_dt1 = TimeUtils.utc_to_local(datetime_obj1)
+        local_dt2 = TimeUtils.utc_to_local(datetime_obj2)
         
         return (local_dt1.year == local_dt2.year and 
                 local_dt1.month == local_dt2.month and 
