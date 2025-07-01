@@ -21,10 +21,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run DB updates**: `python add_tag_tables.py`, `python add_timezone_column.py`, etc.
 - **Restart production service**: `python3 service_control.py reload`
 
-## IMPORTANT: Code Changes & Service Restart
+## Testing Commands
+- **Run quick tests**: `python3 run_tests.py quick`
+- **Run category tests**: `python3 run_tests.py [auth|email|mfa|journal|ai|csrf]`
+- **Run all tests**: `python3 run_tests.py all`
+- **Run with coverage**: `python3 run_tests.py coverage`
+- **Test specific file**: `python3 -m pytest tests/unit/test_auth.py -v`
+
+## IMPORTANT: Development Workflow
+
+### Code Changes & Testing
+**ALWAYS test before and after making changes:**
+1. **Before changes**: `python3 run_tests.py quick`
+2. **During development**: `python3 run_tests.py [relevant-category]`
+3. **Before committing**: `python3 run_tests.py all`
+
+### Service Restart
 **ALWAYS restart the service after making code changes** - the app runs as a systemd service and code changes require a restart to take effect:
 ```bash
 sudo systemctl restart journal-app.service
+# OR use the service control script:
+python3 service_control.py reload
 ```
 This is critical for:
 - Python code changes (routes.py, app.py, models.py, etc.)

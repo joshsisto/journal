@@ -1,0 +1,103 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Quick Tests",
+            "type": "shell",
+            "command": "python3",
+            "args": ["run_tests.py", "quick"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "python3",
+            "args": ["run_tests.py", "all"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Auth Tests",
+            "type": "shell",
+            "command": "python3",
+            "args": ["run_tests.py", "auth"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Journal Tests",
+            "type": "shell",
+            "command": "python3",
+            "args": ["run_tests.py", "journal"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Generate Coverage Report",
+            "type": "shell",
+            "command": "python3",
+            "args": ["run_tests.py", "coverage"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Quick Dev Check",
+            "type": "shell",
+            "command": "python3",
+            "args": ["dev.py", "check"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Restart Production Service",
+            "type": "shell",
+            "command": "python3",
+            "args": ["service_control.py", "reload"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
