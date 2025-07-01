@@ -29,6 +29,7 @@ class TestConfig(Config):
     TESTING = True
     WTF_CSRF_ENABLED = False  # Disable CSRF for easier testing
     SECRET_KEY = 'test-secret-key-for-testing-only'
+    SECURITY_PASSWORD_SALT = 'test-salt-for-testing-only'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     MAIL_SUPPRESS_SEND = True
     GEMINI_API_KEY = 'test-api-key-for-testing'
@@ -38,6 +39,7 @@ class TestConfig(Config):
     LOGIN_DISABLED = False
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     RATELIMIT_ENABLED = False  # Disable rate limiting for testing
+    TALISMAN_ENABLED = False  # Disable Talisman for testing
     
 
 @pytest.fixture(scope='session')

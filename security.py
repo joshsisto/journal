@@ -141,20 +141,26 @@ def setup_security(app):
     # We'll set them in app.py after blueprints are registered
     limiter.init_app(app)
     
-    # We won't use Talisman for now as it can cause issues with the app
-    # talisman.init_app(
-    #     app,
-    #     content_security_policy=csp,
-    #     content_security_policy_nonce_in=['script-src'],
-    #     force_https=app.config.get('FORCE_HTTPS', False),
-    #     session_cookie_secure=app.config.get('SESSION_COOKIE_SECURE', False),
-    #     session_cookie_http_only=True,
-    #     feature_policy={
-    #         'geolocation': '\'none\'',
-    #         'camera': '\'self\'',  # Allow camera access from same origin
-    #         'microphone': '\'none\'',
-    #     }
-    # )
+    # Initialize Talisman for enhanced security headers (if enabled)
+    if app.config.get('TALISMAN_ENABLED', True):
+        talisman.init_app(
+            app,
+            content_security_policy=csp,
+            content_security_policy_nonce_in=['script-src'],
+            force_https=app.config.get('FORCE_HTTPS', False),
+            session_cookie_secure=app.config.get('SESSION_COOKIE_SECURE', False),
+            session_cookie_http_only=True,
+            strict_transport_security=True,
+            strict_transport_security_max_age=31536000,  # 1 year
+            strict_transport_security_include_subdomains=True,
+            feature_policy={
+                'geolocation': '\'none\'',
+                'camera': '\'self\'',  # Allow camera access from same origin
+                'microphone': '\'none\'',
+                'payment': '\'none\'',
+                'usb': '\'none\'',
+            }
+        )
     
     # Setup basic security headers
     @app.after_request
@@ -167,24 +173,47 @@ def setup_security(app):
     
     # Flask-WTF will handle CSRF token generation automatically
     
-    # Log security events
+    # Enhanced security monitoring
     @app.before_request
-    def log_suspicious_activity():
-        # Check for SQL injection attempts
-        sql_injection_pattern = re.compile(r'(\bSELECT\b|\bUNION\b|\bINSERT\b|\bDROP\b|\bDELETE\b|\bUPDATE\b|\b1=1\b|--[^\n]*$)', re.IGNORECASE)
+    def monitor_suspicious_activity():
+        # Enhanced SQL injection patterns
+        sql_injection_pattern = re.compile(
+            r'(\bSELECT\b|\bUNION\b|\bINSERT\b|\bDROP\b|\bDELETE\b|\bUPDATE\b|\bALTER\b|\bCREATE\b|\bEXEC\b|\b1=1\b|--[^\n]*$|\bOR\s+\d+=\d+\b|\bAND\s+\d+=\d+\b|\'.*\'|\".*\"|;|\\\x27|\\\x22|\\\x5C)', 
+            re.IGNORECASE
+        )
         
-        # Check URL and form data for suspicious patterns
+        # XSS patterns
+        xss_pattern = re.compile(
+            r'(<script|javascript:|on\w+\s*=|<iframe|<object|<embed|\balert\s*\(|\bconfirm\s*\(|\bprompt\s*\()',
+            re.IGNORECASE
+        )
+        
+        suspicious_request = False
+        
+        # Check URL parameters
         for key, value in list(request.args.items()):
-            if isinstance(value, str) and sql_injection_pattern.search(value):
-                app.logger.warning(f'Possible SQL injection attempt in URL params from {request.remote_addr}: {key}={value}')
-                # Don't abort here but log the attempt
+            if isinstance(value, str):
+                if sql_injection_pattern.search(value):
+                    app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                    suspicious_request = True
+                elif xss_pattern.search(value):
+                    app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                    suspicious_request = True
         
+        # Check form data
         if request.method == 'POST' and request.form:
             for key, value in request.form.items():
                 if key.lower() in ('password', 'new_password', 'confirm_password', 'current_password'):
-                    # Skip password fields for privacy
-                    continue
+                    continue  # Skip password fields
                 
-                if isinstance(value, str) and sql_injection_pattern.search(value):
-                    app.logger.warning(f'Possible SQL injection attempt in form data from {request.remote_addr}: {key}={value[:50]}...')
-                    # Don't abort here but log the attempt
+                if isinstance(value, str):
+                    if sql_injection_pattern.search(value):
+                        app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                        suspicious_request = True
+                    elif xss_pattern.search(value) and key not in ('content', 'response'):  # Allow some HTML in content fields
+                        app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                        suspicious_request = True
+        
+        # Block suspicious requests
+        if suspicious_request:
+            abort(400, description="Malicious input detected")

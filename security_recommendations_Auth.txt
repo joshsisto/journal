@@ -1,0 +1,11 @@
+### Authentication & Authorization Review Findings:
+
+1.  **Incomplete Security Header Implementation**: The `Flask-Talisman` library is commented out in `security.py`, leading to a less robust Content Security Policy (CSP) and other security headers. While `set_secure_headers` adds some basic headers, the full benefits of Talisman (like robust CSP, HSTS with `preload`, etc.) are not utilized. This could expose the application to client-side attacks like XSS and clickjacking if not mitigated elsewhere. It is recommended to investigate and resolve the issues preventing Talisman's full implementation.
+
+2.  **Reactive SQL Injection Detection**: The `log_suspicious_activity` function in `security.py` logs potential SQL injection attempts but does not actively block or challenge them. While logging is good for detection, it is a reactive measure. A more proactive approach would be to block or challenge such requests, especially if they are clearly malicious. This might be acceptable if a Web Application Firewall (WAF) is in front of the application, but without that context, it's a potential weakness.
+
+3.  **Undefined Session Timeout**: While Flask-Login uses secure signed cookies, the session timeout is not explicitly defined or enforced in the provided code snippets. Long session timeouts can increase the risk of session hijacking. It is recommended to implement a reasonable session timeout and consider idle timeouts.
+
+4.  **Basic Password Policy**: The password policy, as observed in `routes.py` (e.g., `/register`, `/settings/password`, `/reset-password/<token>`), checks for a minimum length (8 characters) and a small hardcoded list of common passwords. A more robust password policy would include complexity requirements (e.g., requiring a mix of uppercase, lowercase, numbers, and special characters) and a larger dictionary of common/breached passwords.
+
+5.  **Optional Email Verification at Registration**: Users can register without providing an email address, and their accounts are fully functional without email verification. If email is intended to be a primary communication or recovery channel, it might be beneficial to enforce email verification for all accounts at registration.

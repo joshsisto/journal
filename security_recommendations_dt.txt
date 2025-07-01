@@ -1,0 +1,5 @@
+Potential Directory Traversal Vulnerability:
+
+In `routes.py` (lines 1760-1761) and `services/journal_service.py` (lines 108-109, 249-250), the `photo.filename` and `filename` variables are used directly in `os.path.join` to construct file paths for uploaded photos. If these filenames are user-controlled without proper sanitization, an attacker could use directory traversal sequences (e.g., `../../`) to write files to arbitrary locations on the server.
+
+Recommendation: Implement strict validation and sanitization of filenames before using them to construct file paths. Consider using `werkzeug.utils.secure_filename` to sanitize filenames, or generate unique filenames internally and store the original filename separately if needed.
