@@ -37,6 +37,7 @@ class TestConfig(Config):
     ALLOWED_PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
     LOGIN_DISABLED = False
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    RATELIMIT_ENABLED = False  # Disable rate limiting for testing
     
 
 @pytest.fixture(scope='session')
@@ -80,23 +81,10 @@ def db_session(app):
     """Create database session for testing."""
     from models import db
     
-    # Start transaction
-    connection = db.engine.connect()
-    transaction = connection.begin()
+    yield db.session
     
-    # Use this connection for the session
-    session_options = dict(bind=connection, binds={})
-    session = db.create_scoped_session(options=session_options)
-    
-    # Replace the default session
-    db.session = session
-    
-    yield session
-    
-    # Rollback transaction and cleanup
-    session.close()
-    transaction.rollback()
-    connection.close()
+    # Clean up after test
+    db.session.rollback()
 
 
 @pytest.fixture
