@@ -79,7 +79,10 @@ def create_app(config_class=Config):
     app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SECURE'] = app.config.get('APP_URL', '').startswith('https://')
-    app.config['WTF_CSRF_ENABLED'] = True
+    
+    # Configure CSRF protection (allow override for testing)
+    if not app.config.get('WTF_CSRF_ENABLED') == False:  # Only override if not explicitly disabled
+        app.config['WTF_CSRF_ENABLED'] = True
     app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
     app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF for proxied SSL
     app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']

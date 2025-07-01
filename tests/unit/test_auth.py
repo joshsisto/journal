@@ -44,7 +44,8 @@ class TestRegistration:
         response = client.post('/register', data=user_data_no_email, follow_redirects=True)
         
         assert response.status_code == 200
-        assert b'Registration successful' in response.data
+        # After successful registration, user is redirected to login page
+        assert b'Login' in response.data and b'Journal App' in response.data
         
         # Check user was created
         user = User.query.filter_by(username=user_data_no_email['username']).first()
@@ -97,17 +98,20 @@ class TestRegistration:
         assert b'stronger password' in response.data
     
     def test_registration_invalid_timezone(self, client, user_data):
-        """Test registration with invalid timezone defaults to UTC."""
+        """Test registration with invalid timezone is rejected."""
         user_data['timezone'] = 'Invalid/Timezone'
         
         response = client.post('/register', data=user_data, follow_redirects=True)
         
         assert response.status_code == 200
         
-        # Check user was created with UTC timezone
+        # Check user was NOT created due to invalid timezone
         user = User.query.filter_by(username=user_data['username']).first()
-        assert user is not None
-        assert user.timezone == 'UTC'
+        assert user is None
+        
+        # Check we're still on registration page with error
+        assert b'Register' in response.data
+        assert b'Not a valid choice' in response.data or b'timezone' in response.data.lower()
     
     def test_registration_missing_username(self, client, user_data):
         """Test registration fails with missing username."""

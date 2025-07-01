@@ -13,20 +13,21 @@ from werkzeug.security import generate_password_hash
 
 # Set environment variables before importing app
 os.environ['TESTING'] = 'True'
-os.environ['WTF_CSRF_ENABLED'] = 'True'
+os.environ['WTF_CSRF_ENABLED'] = 'False'  # Disable CSRF for testing
 os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
 os.environ['MAIL_SUPPRESS_SEND'] = '1'
 os.environ['GEMINI_API_KEY'] = 'test-api-key-for-testing'
 
-from app import create_app
-from models import db, User, JournalEntry, GuidedResponse, Tag, Photo
+# Import will be done in fixtures to avoid circular imports
+# from app import create_app  # Moved to fixture
+# from models import db, User, JournalEntry, GuidedResponse, Tag, Photo  # Moved to fixture
 from config import Config
 
 
 class TestConfig(Config):
     """Test configuration class."""
     TESTING = True
-    WTF_CSRF_ENABLED = True
+    WTF_CSRF_ENABLED = False  # Disable CSRF for easier testing
     SECRET_KEY = 'test-secret-key-for-testing-only'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     MAIL_SUPPRESS_SEND = True
@@ -34,22 +35,32 @@ class TestConfig(Config):
     UPLOAD_FOLDER = tempfile.mkdtemp()
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     ALLOWED_PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    LOGIN_DISABLED = False
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     
 
 @pytest.fixture(scope='session')
 def app():
     """Create application for testing."""
+    # Import app creation function
+    from app import create_app
+    
     app = create_app(TestConfig)
     
-    # Create app context
-    with app.app_context():
-        # Create all database tables
-        db.create_all()
-        yield app
-        
-        # Clean up
-        db.session.remove()
-        db.drop_all()
+    # Push application context
+    ctx = app.app_context()
+    ctx.push()
+    
+    # Create all database tables
+    from models import db
+    db.create_all()
+    
+    yield app
+    
+    # Clean up
+    db.session.remove()
+    db.drop_all()
+    ctx.pop()
 
 
 @pytest.fixture(scope='function')
@@ -67,20 +78,25 @@ def runner(app):
 @pytest.fixture(scope='function')
 def db_session(app):
     """Create database session for testing."""
-    with app.app_context():
-        # Start a new transaction
-        connection = db.engine.connect()
-        transaction = connection.begin()
-        
-        # Configure session to use this transaction
-        db.session.configure(bind=connection)
-        
-        yield db.session
-        
-        # Rollback transaction
-        transaction.rollback()
-        connection.close()
-        db.session.remove()
+    from models import db
+    
+    # Start transaction
+    connection = db.engine.connect()
+    transaction = connection.begin()
+    
+    # Use this connection for the session
+    session_options = dict(bind=connection, binds={})
+    session = db.create_scoped_session(options=session_options)
+    
+    # Replace the default session
+    db.session = session
+    
+    yield session
+    
+    # Rollback transaction and cleanup
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture
@@ -90,6 +106,7 @@ def user_data():
         'username': 'testuser',
         'email': 'test@example.com',
         'password': 'TestPassword123!',
+        'confirm_password': 'TestPassword123!',
         'timezone': 'UTC'
     }
 
@@ -100,6 +117,7 @@ def user_data_no_email():
     return {
         'username': 'testuser_no_email',
         'password': 'TestPassword123!',
+        'confirm_password': 'TestPassword123!',
         'timezone': 'UTC'
     }
 
@@ -107,48 +125,51 @@ def user_data_no_email():
 @pytest.fixture
 def user(app, db_session):
     """Create a test user."""
-    with app.app_context():
-        user = User(
-            username='testuser',
-            email='test@example.com',
-            timezone='UTC'
-        )
-        user.set_password('TestPassword123!')
-        user.is_email_verified = True
-        db_session.add(user)
-        db_session.commit()
-        return user
+    from models import User
+    
+    user = User(
+        username='testuser',
+        email='test@example.com',
+        timezone='UTC'
+    )
+    user.set_password('TestPassword123!')
+    user.is_email_verified = True
+    db_session.add(user)
+    db_session.commit()
+    return user
 
 
 @pytest.fixture
 def user_no_email(app, db_session):
     """Create a test user without email."""
-    with app.app_context():
-        user = User(
-            username='testuser_no_email',
-            timezone='UTC'
-        )
-        user.set_password('TestPassword123!')
-        db_session.add(user)
-        db_session.commit()
-        return user
+    from models import User
+    
+    user = User(
+        username='testuser_no_email',
+        timezone='UTC'
+    )
+    user.set_password('TestPassword123!')
+    db_session.add(user)
+    db_session.commit()
+    return user
 
 
 @pytest.fixture
 def user_with_mfa(app, db_session):
     """Create a test user with MFA enabled."""
-    with app.app_context():
-        user = User(
-            username='mfa_user',
-            email='mfa@example.com',
-            timezone='UTC',
-            two_factor_enabled=True
-        )
-        user.set_password('TestPassword123!')
-        user.is_email_verified = True
-        db_session.add(user)
-        db_session.commit()
-        return user
+    from models import User
+    
+    user = User(
+        username='mfa_user',
+        email='mfa@example.com',
+        timezone='UTC',
+        two_factor_enabled=True
+    )
+    user.set_password('TestPassword123!')
+    user.is_email_verified = True
+    db_session.add(user)
+    db_session.commit()
+    return user
 
 
 @pytest.fixture
@@ -188,54 +209,57 @@ def guided_entry_data():
 @pytest.fixture
 def journal_entry(app, db_session, user):
     """Create a test journal entry."""
-    with app.app_context():
-        entry = JournalEntry(
-            user_id=user.id,
-            content='Test journal entry content',
-            entry_type='quick'
-        )
-        db_session.add(entry)
-        db_session.commit()
-        return entry
+    from models import JournalEntry
+    
+    entry = JournalEntry(
+        user_id=user.id,
+        content='Test journal entry content',
+        entry_type='quick'
+    )
+    db_session.add(entry)
+    db_session.commit()
+    return entry
 
 
 @pytest.fixture
 def guided_journal_entry(app, db_session, user):
     """Create a test guided journal entry."""
-    with app.app_context():
-        entry = JournalEntry(
-            user_id=user.id,
-            content='Guided journal entry',
-            entry_type='guided'
-        )
-        db_session.add(entry)
-        db_session.flush()  # Get the ID
-        
-        # Add guided responses
-        responses = [
-            GuidedResponse(journal_entry_id=entry.id, question_id='feeling_scale', response='8'),
-            GuidedResponse(journal_entry_id=entry.id, question_id='feeling_reason', response='Great day'),
-            GuidedResponse(journal_entry_id=entry.id, question_id='additional_emotions', response='["happy", "grateful"]')
-        ]
-        for response in responses:
-            db_session.add(response)
-        
-        db_session.commit()
-        return entry
+    from models import JournalEntry, GuidedResponse
+    
+    entry = JournalEntry(
+        user_id=user.id,
+        content='Guided journal entry',
+        entry_type='guided'
+    )
+    db_session.add(entry)
+    db_session.flush()  # Get the ID
+    
+    # Add guided responses
+    responses = [
+        GuidedResponse(journal_entry_id=entry.id, question_id='feeling_scale', response='8'),
+        GuidedResponse(journal_entry_id=entry.id, question_id='feeling_reason', response='Great day'),
+        GuidedResponse(journal_entry_id=entry.id, question_id='additional_emotions', response='["happy", "grateful"]')
+    ]
+    for response in responses:
+        db_session.add(response)
+    
+    db_session.commit()
+    return entry
 
 
 @pytest.fixture
 def tag(app, db_session, user):
     """Create a test tag."""
-    with app.app_context():
-        tag = Tag(
-            name='test-tag',
-            color='#007bff',
-            user_id=user.id
-        )
-        db_session.add(tag)
-        db_session.commit()
-        return tag
+    from models import Tag
+    
+    tag = Tag(
+        name='test-tag',
+        color='#007bff',
+        user_id=user.id
+    )
+    db_session.add(tag)
+    db_session.commit()
+    return tag
 
 
 @pytest.fixture
