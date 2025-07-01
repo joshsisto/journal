@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Get the API URL correctly from Flask (with consistent format)
     const apiUrl = "{{ url_for('ai.ai_conversation_api') }}";
     const fullApiUrl = window.location.origin + apiUrl;
-    const csrfToken = "{{ csrf_token }}";
+    const csrfToken = "{{ csrf_token() }}";
     
     function log(message, isError = false) {
         const timestamp = new Date().toLocaleTimeString();

@@ -11,7 +11,7 @@
             </div>
             <div class="card-body">
                 <form method="post" action="{{ url_for('auth.update_timezone') }}">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="timezone" class="form-label">Your Timezone</label>
                         <select class="form-select" id="timezone" name="timezone" required>
@@ -36,7 +36,7 @@
             </div>
             <div class="card-body">
                 <form method="post" action="{{ url_for('auth.change_password') }}">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="current_password" class="form-label">Current Password</label>
                         <input type="password" class="form-control" id="current_password" name="current_password" required>
@@ -73,7 +73,7 @@
                         </div>
                         {% if not current_user.is_email_verified %}
                         <form method="post" action="{{ url_for('auth.resend_verification') }}">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-outline-primary">Resend Verification Email</button>
                         </form>
                         {% endif %}
@@ -83,7 +83,7 @@
                     
                     <h5>Change Email Address</h5>
                     <form method="post" action="{{ url_for('auth.change_email') }}">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="password" class="form-label">Current Password</label>
                             <input type="password" class="form-control" id="password" name="password" required>
@@ -112,7 +112,7 @@
                     </ul>
                     
                     <form method="post" action="{{ url_for('auth.add_email') }}">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="password" class="form-label">Current Password</label>
                             <input type="password" class="form-control" id="password" name="password" required>
@@ -142,7 +142,7 @@
                     </div>
                     <div class="form-check form-switch">
                         <form method="post" action="{{ url_for('auth.toggle_two_factor') }}" id="two-factor-form">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <input class="form-check-input" type="checkbox" id="two-factor-toggle" name="enabled" 
                                    {% if current_user.two_factor_enabled %}checked{% endif %}
                                    onchange="document.getElementById('two-factor-form').submit();">
@@ -205,7 +205,7 @@
                         {% else %}
                             <span class="badge bg-warning">Unverified</span>
                             <form method="post" action="{{ url_for('auth.resend_verification') }}" class="d-inline">
-                                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-outline-primary">Resend Verification</button>
                             </form>
                         {% endif %}

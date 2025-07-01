@@ -58,30 +58,7 @@ limiter = Limiter(
 
 # Security decorators and helpers
 
-def csrf_protect():
-    """
-    Decorator to protect against CSRF attacks.
-    
-    This works with the CSRF token in the base template,
-    validating the token on POST requests.
-    
-    Returns:
-        decorator: Function decorator
-    """
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
-            if request.method == 'POST':
-                token = session.get('_csrf_token')
-                form_token = request.form.get('_csrf_token')
-                
-                if not token or token != form_token:
-                    current_app.logger.warning(f'CSRF attack detected from {request.remote_addr}')
-                    abort(403)  # Forbidden
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
+# CSRF protection is now handled by Flask-WTF automatically
 
 def sanitize_params():
     """
@@ -188,17 +165,7 @@ def setup_security(app):
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
     
-    # Generate CSRF token and add it to session
-    @app.before_request
-    def csrf_protect():
-        if '_csrf_token' not in session:
-            import secrets
-            session['_csrf_token'] = secrets.token_hex(16)
-    
-    # Add CSRF token to render_template context
-    @app.context_processor
-    def inject_csrf_token():
-        return {'csrf_token': session.get('_csrf_token', '')}
+    # Flask-WTF will handle CSRF token generation automatically
     
     # Log security events
     @app.before_request
