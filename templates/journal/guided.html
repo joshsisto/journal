@@ -22,12 +22,12 @@
                         <input type="range" class="form-range" min="{{ question.min }}" max="{{ question.max }}" 
                                id="{{ question.id }}_range" name="question_{{ question.id }}" value="{{ default_value }}">
                         <div class="d-flex justify-content-between align-items-center">
-                            <span>{{ question.min }} {{ question.min|feeling_emoji }}</span>
-                            <div>
-                                <span id="{{ question.id }}_value">{{ default_value }}</span>
-                                <span id="{{ question.id }}_emoji" class="fs-4">{{ default_value|feeling_emoji }}</span>
+                            <span class="fs-2">{{ question.min|feeling_emoji }}</span>
+                            <div class="text-center flex-grow-1">
+                                <div><span id="{{ question.id }}_value">{{ default_value }}</span></div>
+                                <div><span id="{{ question.id }}_emoji" class="fs-2">{{ default_value|feeling_emoji }}</span></div>
                             </div>
-                            <span>{{ question.max }} {{ question.max|feeling_emoji }}</span>
+                            <span class="fs-2">{{ question.max|feeling_emoji }}</span>
                         </div>
                     </div>
                     <script>
@@ -55,7 +55,7 @@
                     
                     {% elif question.type == 'emotions' %}
                     <div class="mb-3">
-                        <input type="hidden" id="emotions_selected" name="question_{{ question.id }}" value="">
+                        <input type="hidden" id="question_{{ question.id }}_selected" name="question_{{ question.id }}" value="">
                         
                         <div class="row">
                             {% for category, emotions in emotions_by_category.items() %}
@@ -65,14 +65,20 @@
                                         <h6 class="mb-0">{{ category }} Emotions</h6>
                                     </div>
                                     <div class="card-body">
-                                        <select class="form-select emotion-select" id="emotion_{{ category|lower }}" 
-                                                multiple size="8" data-category="{{ category }}">
+                                        <div class="emotion-checkboxes" data-category="{{ category }}">
                                             {% for emotion in emotions %}
-                                            <option value="{{ emotion }}">{{ emotion }}</option>
+                                            <div class="form-check">
+                                                <input class="form-check-input emotion-checkbox" type="checkbox" 
+                                                       value="{{ emotion }}" id="emotion_{{ category|lower }}_{{ loop.index }}" 
+                                                       data-category="{{ category }}">
+                                                <label class="form-check-label" for="emotion_{{ category|lower }}_{{ loop.index }}">
+                                                    {{ emotion }}
+                                                </label>
+                                            </div>
                                             {% endfor %}
-                                        </select>
+                                        </div>
                                         <div class="form-text mt-2">
-                                            Hold Ctrl (or Cmd) to select multiple emotions
+                                            Click to select multiple emotions
                                         </div>
                                     </div>
                                 </div>
@@ -90,8 +96,8 @@
                     
                     <script>
                         document.addEventListener('DOMContentLoaded', function() {
-                            const emotionSelects = document.querySelectorAll('.emotion-select');
-                            const selectedEmotionsInput = document.getElementById('emotions_selected');
+                            const emotionCheckboxes = document.querySelectorAll('.emotion-checkbox');
+                            const selectedEmotionsInput = document.getElementById('question_{{ question.id }}_selected');
                             const selectedEmotionsDisplay = document.getElementById('selected_emotions_display');
                             
                             let selectedEmotions = {
@@ -118,7 +124,7 @@
                                     // Add positive emotions with green badges
                                     selectedEmotions.Positive.forEach(emotion => {
                                         const badge = document.createElement('span');
-                                        badge.className = 'badge bg-success';
+                                        badge.className = 'badge bg-success me-1 mb-1';
                                         badge.textContent = emotion;
                                         selectedEmotionsDisplay.appendChild(badge);
                                     });
@@ -126,7 +132,7 @@
                                     // Add negative emotions with red badges
                                     selectedEmotions.Negative.forEach(emotion => {
                                         const badge = document.createElement('span');
-                                        badge.className = 'badge bg-danger';
+                                        badge.className = 'badge bg-danger me-1 mb-1';
                                         badge.textContent = emotion;
                                         selectedEmotionsDisplay.appendChild(badge);
                                     });
@@ -134,18 +140,29 @@
                                     // Add neutral emotions with gray badges
                                     selectedEmotions.Neutral.forEach(emotion => {
                                         const badge = document.createElement('span');
-                                        badge.className = 'badge bg-secondary';
+                                        badge.className = 'badge bg-secondary me-1 mb-1';
                                         badge.textContent = emotion;
                                         selectedEmotionsDisplay.appendChild(badge);
                                     });
                                 }
                             }
                             
-                            // Listen for changes on each select
-                            emotionSelects.forEach(select => {
-                                select.addEventListener('change', function() {
+                            // Listen for changes on each checkbox
+                            emotionCheckboxes.forEach(checkbox => {
+                                checkbox.addEventListener('change', function() {
                                     const category = this.dataset.category;
-                                    selectedEmotions[category] = Array.from(this.selectedOptions).map(option => option.value);
+                                    const emotion = this.value;
+                                    
+                                    if (this.checked) {
+                                        // Add emotion if not already present
+                                        if (!selectedEmotions[category].includes(emotion)) {
+                                            selectedEmotions[category].push(emotion);
+                                        }
+                                    } else {
+                                        // Remove emotion
+                                        selectedEmotions[category] = selectedEmotions[category].filter(e => e !== emotion);
+                                    }
+                                    
                                     updateSelectedEmotions();
                                 });
                             });
