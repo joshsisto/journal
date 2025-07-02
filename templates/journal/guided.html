@@ -96,15 +96,9 @@
                     
                     <script nonce="{{ csp_nonce() }}">
                         document.addEventListener('DOMContentLoaded', function() {
-                            console.log('DEBUG: Emotion selection script loading for question ID: {{ question.id }}');
-                            
                             const emotionCheckboxes = document.querySelectorAll('.emotion-checkbox');
                             const selectedEmotionsInput = document.getElementById('question_{{ question.id }}_selected');
                             const selectedEmotionsDisplay = document.getElementById('selected_emotions_display');
-                            
-                            console.log('DEBUG: Found checkboxes:', emotionCheckboxes.length);
-                            console.log('DEBUG: Hidden input element:', selectedEmotionsInput);
-                            console.log('DEBUG: Display element:', selectedEmotionsDisplay);
                             
                             let selectedEmotions = {
                                 Positive: [],
@@ -120,12 +114,8 @@
                                     ...selectedEmotions.Neutral
                                 ];
                                 
-                                console.log('DEBUG: Updating hidden input with:', allSelected);
                                 if (selectedEmotionsInput) {
                                     selectedEmotionsInput.value = JSON.stringify(allSelected);
-                                    console.log('DEBUG: Hidden input value set to:', selectedEmotionsInput.value);
-                                } else {
-                                    console.error('DEBUG: selectedEmotionsInput is null!');
                                 }
                                 
                                 // Update display
@@ -166,8 +156,6 @@
                                     const category = this.dataset.category;
                                     const emotion = this.value;
                                     
-                                    console.log('DEBUG: Checkbox changed:', emotion, 'Category:', category, 'Checked:', this.checked);
-                                    
                                     if (this.checked) {
                                         // Add emotion if not already present
                                         if (!selectedEmotions[category].includes(emotion)) {
@@ -177,8 +165,6 @@
                                         // Remove emotion
                                         selectedEmotions[category] = selectedEmotions[category].filter(e => e !== emotion);
                                     }
-                                    
-                                    console.log('DEBUG: Selected emotions after change:', selectedEmotions);
                                     updateSelectedEmotions();
                                 });
                             });
