@@ -22,16 +22,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Restart production service**: `python3 service_control.py reload`
 
 ## Testing Commands
+
+### 🎯 **Comprehensive Testing** (Prevents Guided Journal Issues)
+- **Run all protection tests**: `python3 run_comprehensive_tests.py`
+- **Use comprehensive pre-commit**: `cp hooks/pre-commit-comprehensive .git/hooks/pre-commit`
+
+### 📋 **Standard Testing**
 - **Run quick tests**: `python3 run_tests.py quick`
 - **Run category tests**: `python3 run_tests.py [auth|email|mfa|journal|ai|csrf]`
 - **Run all tests**: `python3 run_tests.py all`
 - **Run with coverage**: `python3 run_tests.py coverage`
 - **Test specific file**: `python3 -m pytest tests/unit/test_auth.py -v`
 
+### 🔒 **Security & UI Testing**
+- **Test security validation**: `python3 -m pytest tests/unit/test_security_validation.py -v`
+- **Test CSP/JavaScript**: `python3 -m pytest tests/unit/test_csp_javascript.py -v`
+- **Test guided journal E2E**: `python3 -m pytest tests/functional/test_guided_journal_e2e.py -v`
+- **Validate CSRF tokens**: `python3 validate_csrf.py`
+
 ## IMPORTANT: Development Workflow
 
 ### Code Changes & Testing
-**ALWAYS test before and after making changes:**
+**🎯 COMPREHENSIVE TESTING WORKFLOW** (Prevents all guided journal issues):
+1. **Before changes**: `python3 run_comprehensive_tests.py`
+2. **During development**: `python3 run_tests.py [relevant-category]`
+3. **Before committing**: Comprehensive pre-commit hook runs automatically
+4. **For UI changes**: `python3 -m pytest tests/functional/ -v`
+
+**📋 Standard workflow:**
 1. **Before changes**: `python3 run_tests.py quick`
 2. **During development**: `python3 run_tests.py [relevant-category]`
 3. **Before committing**: `python3 run_tests.py all`
@@ -59,9 +77,44 @@ This is critical for:
 - Any file modifications that affect the running application
 
 **Git Hook Setup**:
-- Template: `hooks/post-commit` (tracked in repository) 
-- Active: `.git/hooks/post-commit` (automatically installed)
-- Install manually: `cp hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit`
+- **Post-commit**: `hooks/post-commit` (automatic service restart)
+- **Pre-commit comprehensive**: `hooks/pre-commit-comprehensive` (prevents all issues)
+- **Install comprehensive hook**: `cp hooks/pre-commit-comprehensive .git/hooks/pre-commit`
+- **Standard hooks**: Already installed automatically
+
+## 🎯 Preventing Guided Journal Issues
+
+**CRITICAL**: Use comprehensive testing to prevent the types of issues that broke guided journal functionality:
+
+### ⚡ **Quick Prevention**
+```bash
+# Before making any changes to guided journal or similar UI features:
+python3 run_comprehensive_tests.py
+
+# Install comprehensive pre-commit hook (one-time setup):
+cp hooks/pre-commit-comprehensive .git/hooks/pre-commit
+```
+
+### 🔍 **Issue Types Prevented**
+1. **JavaScript/CSP Issues**: Scripts blocked by Content Security Policy
+2. **Security False Positives**: Legitimate JSON data flagged as malicious  
+3. **Form Submission Failures**: Data rejected by security validation
+4. **UI Component Malfunctions**: Checkboxes, sliders, form interactions
+5. **Template Errors**: Missing nonces, incorrect CSRF tokens
+
+### 🛡️ **Automated Protection**
+- **Pre-commit hook**: Validates CSP nonces, CSRF tokens, JavaScript syntax
+- **Security tests**: Ensures legitimate data (emotions, JSON) isn't blocked
+- **E2E tests**: Browser automation tests actual user interactions
+- **Integration tests**: Full form submission with emotion data
+- **Template validation**: Checks form elements and script structure
+
+### 📋 **For New Features**
+When adding new UI features with JavaScript/forms:
+1. **Add CSP nonces**: `<script nonce="{{ csp_nonce() }}">`
+2. **Update security.py**: Add field exceptions if using JSON data
+3. **Write tests**: Add to `tests/functional/` for complex UI interactions
+4. **Run comprehensive tests**: `python3 run_comprehensive_tests.py`
 
 ## Backup System
 - **Create backup**: `./backup.sh backup` or `./backup.sh pre-deploy`

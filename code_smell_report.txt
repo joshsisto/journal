@@ -1,0 +1,69 @@
+Smell Type: Long Function
+Location: /home/josh/Sync2/projects/journal/routes.py, lines 109-279 (dashboard function)
+Description: This function is excessively long and handles multiple responsibilities, including filtering, pagination, and data aggregation for the dashboard. This makes it difficult to read, understand, test, and maintain.
+
+Smell Type: Long Function
+Location: /home/josh/Sync2/projects/journal/routes.py, lines 39-106 (register function)
+Description: This function is quite long and handles user registration, including form validation, database operations, and email verification. It could be refactored to delegate some of these responsibilities to helper functions or a service layer.
+
+Smell Type: Duplicated Code
+Location:
+- /home/josh/Sync2/projects/journal/routes.py, lines 370-384 (view_entry)
+- /home/josh/Sync2/projects/journal/routes.py, lines 600-614 (export_entry)
+- /home/josh/Sync2/projects/journal/routes.py, lines 699-713 (export_search_entries)
+- /home/josh/Sync2/projects/journal/routes.py, lines 770-784 (export_entries_as_text)
+- /home/josh/Sync2/projects/journal/routes.py, lines 849-863 (single_entry_conversation)
+- /home/josh/Sync2/projects/journal/routes.py, lines 909-923 (simple_ai_conversation)
+Description: The logic for retrieving and formatting guided responses, including mapping question IDs to question text, is duplicated across multiple functions. This violates the DRY principle and makes future changes to guided entry processing more error-prone and time-consuming.
+
+Smell Type: Duplicated Code
+Location:
+- /home/josh/Sync2/projects/journal/routes.py, lines 107-150 (register)
+- /home/josh/Sync2/projects/journal/routes.py, lines 520-563 (add_email)
+- /home/josh/Sync2/projects/journal/routes.py, lines 590-633 (resend_verification)
+Description: The email sending logic, including constructing the plain text and HTML bodies for verification emails, is duplicated in several authentication-related functions. This makes it harder to modify email templates or sending mechanisms consistently.
+
+Smell Type: Long Function
+Location: /home/josh/Sync2/projects/journal/app.py, lines 20-199 (create_app function)
+Description: The `create_app` function is responsible for a wide range of application setup tasks, including logging configuration, folder creation, extension initialization, security settings, request hooks, and Jinja2 filter/global additions. This broad scope makes the function long and complex, hindering readability and maintainability. It could benefit from breaking down into smaller, more focused helper functions for each setup area.
+
+Smell Type: Large Class
+Location: /home/josh/Sync2/projects/journal/models.py, lines 17-149 (User class)
+Description: The `User` class is responsible for user authentication, password management, email verification, email change, and two-factor authentication. This violates the Single Responsibility Principle, making the class large and difficult to maintain.
+
+Smell Type: Long Function
+Location: /home/josh/Sync2/projects/journal/models.py, lines 220-289 (QuestionManager.get_questions static method)
+Description: The `get_questions` method in `QuestionManager` is very long and contains a hardcoded list of all guided journal questions with their properties and conditions. This makes it difficult to manage, extend, and test the questions. It could be refactored to load questions from a configuration file or a database, and the conditions could be externalized or made more modular.
+
+Smell Type: Duplicated Code
+Location:
+- /home/josh/Sync2/projects/journal/services/journal_service.py, lines 40-100 (create_quick_entry - tag handling)
+- /home/josh/Sync2/projects/journal/services/journal_service.py, lines 140-200 (create_guided_entry - tag handling)
+Description: The logic for handling existing and new tags, including validation and database operations, is duplicated between `create_quick_entry` and `create_guided_entry`. This should be extracted into a separate helper function.
+
+Smell Type: Duplicated Code
+Location:
+- /home/josh/Sync2/projects/journal/services/journal_service.py, lines 10-37 (_handle_photo_uploads)
+- /home/josh/Sync2/projects/journal/services/journal_service.py, lines 120-121 (create_quick_entry - calls _handle_photo_uploads)
+- /home/josh/Sync2/projects/journal/services/journal_service.py, lines 240-241 (create_guided_entry - calls _handle_photo_uploads)
+Description: The photo upload handling logic is duplicated in `create_quick_entry` and `create_guided_entry`. Although there's a helper `_handle_photo_uploads`, the calls to it are still duplicated within the main entry creation functions. The photo handling logic itself is also quite long and could be further modularized.
+
+Smell Type: Duplicated Code
+Location:
+- /home/josh/Sync2/projects/journal/services/user_service.py, lines 60-100 (add_user_email)
+- /home/josh/Sync2/projects/journal/services/user_service.py, lines 160-200 (add_user_email - duplicate)
+Description: The `add_user_email` function is duplicated entirely within the `user_service.py` file. This is a direct copy-paste error that leads to redundant code and potential inconsistencies if one version is updated and the other is not.
+
+Smell Type: Duplicated Code
+Location:
+- /home/josh/Sync2/projects/journal/email_utils.py, lines 50-79 (send_password_reset_email)
+- /home/josh/Sync2/projects/journal/email_utils.py, lines 82-111 (send_email_change_confirmation)
+Description: The structure for generating plain text and HTML email bodies is highly similar between these two functions. A common helper function could be used to generate these bodies, taking the specific URL and introductory text as parameters.
+
+Smell Type: Long Function
+Location: /home/josh/Sync2/projects/journal/helpers.py, lines 60-90 (get_feeling_emoji function)
+Description: This function uses a long if/elif chain to map integer feeling values to specific emoji characters. While functional, this approach can become cumbersome to manage and extend if more feeling values or different emojis are introduced. A dictionary mapping or a more programmatic approach could improve readability and maintainability.
+
+Smell Type: Long Function
+Location: /home/josh/Sync2/projects/journal/validators.py, lines 160-220 (validate_password function)
+Description: The `validate_password` function is responsible for enforcing multiple password complexity rules (length, lowercase, uppercase, number, special character, common passwords, keyboard patterns). This makes the function long and complex, and difficult to read and maintain. Each validation rule could be a separate, smaller function.

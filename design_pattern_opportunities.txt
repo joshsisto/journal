@@ -1,0 +1,31 @@
+Design Pattern Opportunities Report
+
+1.  **Module/Function:** `routes.py` - `dashboard` and `search` routes
+    *   **Current Problem:** Both the `dashboard` and `search` routes contain extensive conditional logic (`if/elif/else`) for filtering journal entries based on various criteria such as tags, date ranges, year/month, and search queries. This makes the functions long, difficult to read, and challenging to extend when new filtering options are introduced. Each new filter requires modifying the existing conditional structure, increasing the risk of bugs and reducing maintainability.
+    *   **Suggested Design Pattern:** Strategy Pattern
+    *   **Explanation:** The Strategy pattern would allow defining a family of algorithms (filtering strategies) and encapsulating each one into a separate class. The client code (the `dashboard` or `search` route) would then use a concrete strategy object to perform the filtering, rather than implementing the filtering logic directly. This would make the filtering logic more modular, easier to test, and simpler to extend.
+
+        *   **Conceptual Overview of Refactored Structure:**
+            *   Define an abstract `FilterStrategy` interface with a method like `apply_filter(query, value)`.
+            *   Create concrete strategy classes for each filter type (e.g., `TagFilterStrategy`, `DateRangeFilterStrategy`, `SearchQueryFilterStrategy`). Each class would implement the `apply_filter` method, modifying the SQLAlchemy query based on its specific filtering logic.
+            *   In the `dashboard` and `search` routes, instead of a long `if/elif` chain, a `FilterContext` class (or directly within the route) would dynamically select and apply the appropriate `FilterStrategy` based on the request parameters.
+
+2.  **Module/Function:** `models.py` - `QuestionManager.get_applicable_questions`
+    *   **Current Problem:** The `QuestionManager.get_applicable_questions` method iterates through a list of questions, each with a `condition` lambda function. While functional, adding new complex conditions or modifying existing ones requires direct manipulation of the question list and lambda functions. This can become less manageable as the number of questions and complexity of conditions grow.
+    *   **Suggested Design Pattern:** Strategy Pattern
+    *   **Explanation:** The Strategy pattern can be applied here to encapsulate the conditional logic for each question. Instead of a lambda function, each question could reference a `QuestionConditionStrategy` object. This would make the conditions more explicit, reusable, and easier to manage.
+
+        *   **Conceptual Overview of Refactored Structure:**
+            *   Define an abstract `QuestionConditionStrategy` interface with a method like `is_applicable(response_data)`.
+            *   Create concrete strategy classes for each type of condition (e.g., `AlwaysApplicableCondition`, `HoursSinceLastEntryCondition`, `ExerciseResponseCondition`).
+            *   The `QuestionManager` would then associate each question with an instance of a `QuestionConditionStrategy`, and `get_applicable_questions` would call `is_applicable` on the strategy object.
+
+3.  **Module/Function:** `services/journal_service.py` - `create_quick_entry` and `create_guided_entry` (Tag Handling)
+    *   **Current Problem:** Both `create_quick_entry` and `create_guided_entry` contain similar logic for handling tags, including validating existing tags, creating new tags, and associating them with the journal entry. This duplication of logic makes maintenance harder and increases the chance of inconsistencies if the tag handling rules change.
+    *   **Suggested Design Pattern:** Extract Method / Service Layer Refinement
+    *   **Explanation:** While not a classical GoF design pattern, extracting the common tag handling logic into a dedicated, reusable function (or a `TagService` if it grows) would significantly improve modularity and maintainability. This is a common refactoring technique that aligns with the Single Responsibility Principle.
+
+        *   **Conceptual Overview of Refactored Structure:**
+            *   Create a new private helper function (e.g., `_process_tags(user_id, entry, tag_ids, new_tags_json)`) within `journal_service.py` or a new `tag_service.py`.
+            *   This function would encapsulate the logic for validating `tag_ids`, querying existing `Tag` objects, parsing `new_tags_json`, sanitizing new tag names and colors, creating new `Tag` objects, and associating them with the `JournalEntry`.
+            *   Both `create_quick_entry` and `create_guided_entry` would then call this new helper function, reducing their complexity and eliminating code duplication.
