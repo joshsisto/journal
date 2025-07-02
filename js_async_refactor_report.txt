@@ -1,0 +1,170 @@
+# Asynchronous JavaScript Refactoring Report
+
+This report identifies opportunities to refactor callback-based or promise-chain-based asynchronous code to `async/await` for improved readability and error handling.
+
+## File: `static/js/camera.js`
+
+### Section 1: Camera Access (`navigator.mediaDevices.getUserMedia`)
+
+**Location:** Lines 90-149 (within the `cameraBtn.addEventListener('click', ...)` function)
+
+**Explanation for Refactoring:**
+The current implementation uses `.then()` and `.catch()` for handling the promise returned by `getUserMedia`. While functional, nesting `.then()` calls can lead to less readable code, especially when multiple asynchronous operations are chained. `async/await` provides a more synchronous-looking syntax, making the flow of control easier to follow and error handling more straightforward with standard `try...catch` blocks.
+
+**Before Snippet:**
+```javascript
+        navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment', // Prefer back camera if available
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        })
+        .then(function(mediaStream) {
+            console.log("Camera access granted");
+            
+            // Stop any existing stream
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Save the stream and set it to the video element
+            stream = mediaStream;
+            videoElement.srcObject = stream;
+            
+            // Play the video
+            videoElement.play()
+                .then(() => console.log("Video playback started"))
+                .catch(err => console.error("Error playing video:", err));
+            
+            // Show the modal
+            bootstrapModal.show();
+        })
+        .catch(function(err) {
+            console.error("Error accessing camera:", err);
+            
+            let errorMessage = "Camera error: ";
+            if (err.name === 'NotAllowedError') {
+                errorMessage += "Permission denied. Please allow camera access.";
+            } else if (err.name === 'NotFoundError') {
+                errorMessage += "No camera found on your device.";
+            } else if (err.name === 'NotReadableError') {
+                errorMessage += "Camera is in use by another application.";
+            } else {
+                errorMessage += err.message || "Unknown error";
+            }
+            
+            if (errorElement) {
+                errorElement.textContent = errorMessage;
+                errorElement.style.display = "block";
+            }
+            
+            // Still show the modal to display the error
+            if (bootstrapModal) {
+                bootstrapModal.show();
+            }
+        });
+```
+
+**After Snippet (Illustrative):**
+```javascript
+        try {
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            });
+            console.log("Camera access granted");
+
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+
+            stream = mediaStream;
+            videoElement.srcObject = stream;
+
+            await videoElement.play();
+            console.log("Video playback started");
+
+            bootstrapModal.show();
+        } catch (err) {
+            console.error("Error accessing camera:", err);
+
+            let errorMessage = "Camera error: ";
+            if (err.name === 'NotAllowedError') {
+                errorMessage += "Permission denied. Please allow camera access.";
+            } else if (err.name === 'NotFoundError') {
+                errorMessage += "No camera found on your device.";
+            } else if (err.name === 'NotReadableError') {
+                errorMessage += "Camera is in use by another application.";
+            } else {
+                errorMessage += err.message || "Unknown error";
+            }
+
+            if (errorElement) {
+                errorElement.textContent = errorMessage;
+                errorElement.style.display = "block";
+            }
+
+            if (bootstrapModal) {
+                bootstrapModal.show();
+            }
+        }
+```
+
+### Section 2: Form Submission (`fetch`)
+
+**Location:** Lines 220-237 (within the `form.addEventListener('submit', ...)` function)
+
+**Explanation for Refactoring:**
+The `fetch` API returns a Promise, and the current code uses a chain of `.then()` calls followed by a `.catch()` for error handling. This pattern can become cumbersome with more complex asynchronous flows. Using `async/await` simplifies the handling of the `fetch` response and subsequent operations, making the code more linear and easier to debug.
+
+**Before Snippet:**
+```javascript
+                    fetch(this.action, {
+                        method: this.method,
+                        body: formData
+                    })
+                    .then(response => {
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        } else {
+                            return response.text();
+                        }
+                    })
+                    .then(html => {
+                        if (html) {
+                            document.documentElement.innerHTML = html;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error submitting form:", error);
+                        alert("There was an error submitting the form. Please try again.");
+                    });
+```
+
+**After Snippet (Illustrative):**
+```javascript
+                    try {
+                        const response = await fetch(this.action, {
+                            method: this.method,
+                            body: formData
+                        });
+
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        } else {
+                            const html = await response.text();
+                            if (html) {
+                                document.documentElement.innerHTML = html;
+                            }
+                        }
+                    } catch (error) {
+                        console.error("Error submitting form:", error);
+                        alert("There was an error submitting the form. Please try again.");
+                    }
+```

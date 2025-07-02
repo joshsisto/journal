@@ -37,17 +37,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. **Before committing**: `python3 run_tests.py all`
 
 ### Service Restart
-**ALWAYS restart the service after making code changes** - the app runs as a systemd service and code changes require a restart to take effect:
+**🔥 CRITICAL: Service restart is AUTOMATIC via git hook** - the app runs as a systemd service and code changes require a restart to take effect:
+
+**✅ AUTOMATIC RESTART**: A git post-commit hook automatically restarts the service when you commit changes.
+
+**Manual restart options** (if needed):
 ```bash
 sudo systemctl restart journal-app.service
 # OR use the service control script:
 python3 service_control.py reload
 ```
+
+**⚠️ IMPORTANT FOR CLAUDE CODE**: After making code changes, you MUST either:
+1. **Commit your changes** (recommended) - triggers automatic restart
+2. **Manual restart** - run `sudo systemctl restart journal-app.service`
+
 This is critical for:
 - Python code changes (routes.py, app.py, models.py, etc.)
 - Template changes (HTML files)
 - Configuration changes
 - Any file modifications that affect the running application
+
+**Git Hook Location**: `.git/hooks/post-commit` (automatically created)
 
 ## Backup System
 - **Create backup**: `./backup.sh backup` or `./backup.sh pre-deploy`
