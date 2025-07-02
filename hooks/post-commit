@@ -1,0 +1,34 @@
+#!/bin/bash
+# Git post-commit hook to automatically restart journal-app.service
+# This ensures code changes take effect immediately in the running application
+# 
+# Installation: Copy this file to .git/hooks/post-commit and make it executable:
+# cp hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+
+echo "🔄 Post-commit hook: Restarting journal-app.service..."
+
+# Check if we're on the main production server by looking for the systemd service
+if systemctl is-active --quiet journal-app.service 2>/dev/null; then
+    echo "📋 Service found. Restarting journal-app.service..."
+    
+    # Restart the service
+    if sudo systemctl restart journal-app.service; then
+        echo "✅ journal-app.service restarted successfully"
+        
+        # Brief status check
+        sleep 2
+        if systemctl is-active --quiet journal-app.service; then
+            echo "✅ Service is running properly"
+        else
+            echo "❌ Warning: Service may not have started properly"
+            sudo systemctl status journal-app.service --no-pager -l
+        fi
+    else
+        echo "❌ Failed to restart journal-app.service"
+        sudo systemctl status journal-app.service --no-pager -l
+    fi
+else
+    echo "ℹ️  journal-app.service not found - likely development environment, skipping restart"
+fi
+
+echo "🎯 Code changes committed and service restarted (if applicable)"
