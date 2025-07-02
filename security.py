@@ -203,8 +203,17 @@ def setup_security(app):
         # Check form data
         if request.method == 'POST' and request.form:
             for key, value in request.form.items():
+                # Skip fields that should not be validated for security patterns
                 if key.lower() in ('password', 'new_password', 'confirm_password', 'current_password'):
                     continue  # Skip password fields
+                
+                # Skip emotion fields that contain legitimate JSON data
+                if key.startswith('question_') and 'emotion' in key.lower():
+                    continue  # Skip emotion JSON fields
+                
+                # Skip other legitimate JSON fields
+                if key in ('new_tags',):
+                    continue  # Skip JSON tag data
                 
                 if isinstance(value, str):
                     if sql_injection_pattern.search(value):
