@@ -58,7 +58,10 @@ This is critical for:
 - Configuration changes
 - Any file modifications that affect the running application
 
-**Git Hook Location**: `.git/hooks/post-commit` (automatically created)
+**Git Hook Setup**:
+- Template: `hooks/post-commit` (tracked in repository) 
+- Active: `.git/hooks/post-commit` (automatically installed)
+- Install manually: `cp hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit`
 
 ## Backup System
 - **Create backup**: `./backup.sh backup` or `./backup.sh pre-deploy`
