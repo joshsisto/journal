@@ -1,0 +1,299 @@
+#!/bin/bash
+#
+# Comprehensive pre-commit hook to prevent all types of issues
+#
+
+echo "🔍 Running comprehensive pre-commit checks..."
+echo ""
+
+# Track any failures
+FAILURES=0
+
+# 1. CSRF Token Validation
+echo "🔐 Validating CSRF tokens..."
+python3 validate_csrf.py
+if [ $? -ne 0 ]; then
+    echo "❌ CSRF validation failed!"
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ CSRF validation passed!"
+fi
+echo ""
+
+# 2. CSP Nonce Validation
+echo "🛡️  Validating CSP nonces in templates..."
+python3 -c "
+import os
+import re
+from bs4 import BeautifulSoup
+
+def check_csp_nonces():
+    template_dir = 'templates'
+    issues = []
+    
+    for root, dirs, files in os.walk(template_dir):
+        for file in files:
+            if file.endswith('.html'):
+                filepath = os.path.join(root, file)
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Find inline script tags
+                soup = BeautifulSoup(content, 'html.parser')
+                inline_scripts = soup.find_all('script', src=False)
+                
+                for script in inline_scripts:
+                    if script.string and script.string.strip():
+                        if not script.get('nonce'):
+                            issues.append(f'{filepath}: Inline script missing nonce')
+                        elif 'csp_nonce()' not in script.get('nonce', ''):
+                            issues.append(f'{filepath}: Script has hardcoded nonce instead of template function')
+    
+    if issues:
+        print('CSP Nonce Issues Found:')
+        for issue in issues:
+            print(f'  - {issue}')
+        return False
+    return True
+
+if not check_csp_nonces():
+    exit(1)
+print('✅ All inline scripts have proper CSP nonces')
+"
+
+if [ $? -ne 0 ]; then
+    echo "❌ CSP nonce validation failed!"
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ CSP nonce validation passed!"
+fi
+echo ""
+
+# 3. JavaScript Syntax Check
+echo "🔧 Checking JavaScript syntax in templates..."
+python3 -c "
+import os
+import re
+from bs4 import BeautifulSoup
+
+def extract_and_check_js():
+    template_dir = 'templates'
+    issues = []
+    
+    for root, dirs, files in os.walk(template_dir):
+        for file in files:
+            if file.endswith('.html'):
+                filepath = os.path.join(root, file)
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Find inline scripts
+                soup = BeautifulSoup(content, 'html.parser')
+                inline_scripts = soup.find_all('script', src=False)
+                
+                for i, script in enumerate(inline_scripts):
+                    if script.string and script.string.strip():
+                        js_content = script.string
+                        
+                        # Basic syntax checks
+                        if js_content.count('{') != js_content.count('}'):
+                            issues.append(f'{filepath}: Script {i+1} has mismatched braces')
+                        
+                        if js_content.count('(') != js_content.count(')'):
+                            issues.append(f'{filepath}: Script {i+1} has mismatched parentheses')
+                        
+                        if js_content.count('[') != js_content.count(']'):
+                            issues.append(f'{filepath}: Script {i+1} has mismatched brackets')
+                        
+                        # Check for common template variable issues
+                        if '{{ ' in js_content and '}}' not in js_content:
+                            issues.append(f'{filepath}: Script {i+1} has unclosed template variable')
+                        
+                        # Check for unrendered template variables in production
+                        template_vars = re.findall(r'{{.*?}}', js_content)
+                        for var in template_vars:
+                            if 'csrf_token()' not in var and 'csp_nonce()' not in var:
+                                issues.append(f'{filepath}: Script {i+1} may have unrendered template variable: {var}')
+    
+    if issues:
+        print('JavaScript Issues Found:')
+        for issue in issues:
+            print(f'  - {issue}')
+        return False
+    return True
+
+if not extract_and_check_js():
+    exit(1)
+print('✅ JavaScript syntax looks good')
+"
+
+if [ $? -ne 0 ]; then
+    echo "❌ JavaScript validation failed!"
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ JavaScript validation passed!"
+fi
+echo ""
+
+# 4. Security Configuration Check
+echo "🔒 Checking security configuration..."
+python3 -c "
+import importlib.util
+import sys
+
+def check_security_config():
+    # Load security module
+    spec = importlib.util.spec_from_file_location('security', 'security.py')
+    security = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(security)
+    
+    issues = []
+    
+    # Check CSP config
+    csp = security.csp
+    
+    if 'script-src' not in csp:
+        issues.append('CSP missing script-src directive')
+    elif \"'self'\" not in csp['script-src']:
+        issues.append('CSP script-src should include self')
+    
+    # Check that emotion fields are properly excluded from security scanning
+    # This is harder to test directly, but we can check the source
+    with open('security.py', 'r') as f:
+        security_code = f.read()
+    
+    if 'emotion' not in security_code.lower():
+        issues.append('Security module should have emotion field handling')
+    
+    if 'question_' not in security_code:
+        issues.append('Security module should handle question_ fields')
+    
+    if issues:
+        print('Security Configuration Issues:')
+        for issue in issues:
+            print(f'  - {issue}')
+        return False
+    return True
+
+if not check_security_config():
+    exit(1)
+print('✅ Security configuration looks good')
+"
+
+if [ $? -ne 0 ]; then
+    echo "❌ Security configuration check failed!"
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ Security configuration check passed!"
+fi
+echo ""
+
+# 5. Template Form Element Check
+echo "📝 Checking form elements in templates..."
+python3 -c "
+import os
+from bs4 import BeautifulSoup
+
+def check_form_elements():
+    issues = []
+    
+    # Check guided journal specifically
+    guided_path = 'templates/journal/guided.html'
+    if os.path.exists(guided_path):
+        with open(guided_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        soup = BeautifulSoup(content, 'html.parser')
+        
+        # Check for required form elements
+        emotion_checkboxes = soup.find_all('input', class_='emotion-checkbox')
+        if not emotion_checkboxes:
+            issues.append('Guided journal missing emotion checkboxes')
+        
+        emotion_input = soup.find('input', attrs={'name': lambda x: x and 'additional_emotions' in x})
+        if not emotion_input:
+            issues.append('Guided journal missing hidden emotion input')
+        
+        emotion_display = soup.find('div', id='selected_emotions_display')
+        if not emotion_display:
+            issues.append('Guided journal missing emotion display area')
+        
+        happiness_slider = soup.find('input', type='range')
+        if not happiness_slider:
+            issues.append('Guided journal missing happiness slider')
+        
+        # Check CSRF token
+        csrf_input = soup.find('input', attrs={'name': '_csrf_token'})
+        if not csrf_input:
+            issues.append('Guided journal missing CSRF token input')
+    
+    if issues:
+        print('Form Element Issues:')
+        for issue in issues:
+            print(f'  - {issue}')
+        return False
+    return True
+
+if not check_form_elements():
+    exit(1)
+print('✅ Form elements check passed')
+"
+
+if [ $? -ne 0 ]; then
+    echo "❌ Form elements check failed!"
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ Form elements check passed!"
+fi
+echo ""
+
+# 6. Run Quick Tests
+echo "🧪 Running quick tests..."
+python3 run_tests.py quick > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "❌ Quick tests failed! Running with output..."
+    python3 run_tests.py quick
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ Quick tests passed!"
+fi
+echo ""
+
+# 7. Run Security-specific Tests
+echo "🔐 Running security validation tests..."
+python3 -m pytest tests/unit/test_security_validation.py -v > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "❌ Security tests failed! Running with output..."
+    python3 -m pytest tests/unit/test_security_validation.py -v
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ Security tests passed!"
+fi
+echo ""
+
+# 8. Run CSP/JavaScript Tests
+echo "🔧 Running CSP/JavaScript tests..."
+python3 -m pytest tests/unit/test_csp_javascript.py -v > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "❌ CSP/JavaScript tests failed! Running with output..."
+    python3 -m pytest tests/unit/test_csp_javascript.py -v
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ CSP/JavaScript tests passed!"
+fi
+echo ""
+
+# Final result
+if [ $FAILURES -gt 0 ]; then
+    echo "❌ $FAILURES checks failed! Please fix the issues above before committing."
+    echo ""
+    echo "💡 Common fixes:"
+    echo "  - Add nonce='{{ csp_nonce() }}' to inline script tags"
+    echo "  - Use {{ csrf_token() }} for CSRF tokens"
+    echo "  - Check security.py for legitimate data exceptions"
+    echo "  - Run 'python3 run_tests.py all' for detailed test output"
+    exit 1
+else
+    echo "🎉 All $((8)) comprehensive checks passed! Proceeding with commit..."
+    echo ""
+fi
