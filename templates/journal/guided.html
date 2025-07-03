@@ -19,29 +19,35 @@
                 <div class="row">
                     <div class="col-md-6">
                         <label for="templateSelect" class="form-label">Select Template:</label>
-                        <select class="form-select" id="templateSelect" onchange="changeTemplate()">
-                            <option value="">Default Guided Journal</option>
-                            {% if system_templates %}
-                                <optgroup label="System Templates">
-                                    {% for template in system_templates %}
-                                    <option value="{{ template.id }}" 
-                                            {% if template_id == template.id %}selected{% endif %}>
-                                        {{ template.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                            {% endif %}
-                            {% if user_templates %}
-                                <optgroup label="My Templates">
-                                    {% for template in user_templates %}
-                                    <option value="{{ template.id }}" 
-                                            {% if template_id == template.id %}selected{% endif %}>
-                                        {{ template.name }}
-                                    </option>
-                                    {% endfor %}
-                                </optgroup>
-                            {% endif %}
-                        </select>
+                        <div class="input-group">
+                            <select class="form-select" id="templateSelect" onchange="changeTemplate()">
+                                <option value="">Default Guided Journal</option>
+                                {% if system_templates %}
+                                    <optgroup label="System Templates">
+                                        {% for template in system_templates %}
+                                        <option value="{{ template.id }}" 
+                                                {% if template_id == template.id %}selected{% endif %}>
+                                            {{ template.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </optgroup>
+                                {% endif %}
+                                {% if user_templates %}
+                                    <optgroup label="My Templates">
+                                        {% for template in user_templates %}
+                                        <option value="{{ template.id }}" 
+                                                {% if template_id == template.id %}selected{% endif %}>
+                                            {{ template.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </optgroup>
+                                {% endif %}
+                            </select>
+                            <button type="button" class="btn btn-outline-primary" onclick="loadSelectedTemplate()" id="loadTemplateBtn">
+                                <i class="fas fa-arrow-right me-1"></i>Load Template
+                            </button>
+                        </div>
+                        <div class="form-text">Select a template and click "Load Template" to customize your journal questions.</div>
                     </div>
                     <div class="col-md-6 d-flex align-items-end">
                         <a href="{{ url_for('journal.templates') }}" class="btn btn-outline-primary me-2">
@@ -53,15 +59,30 @@
                     </div>
                 </div>
                 
-                {% if selected_template %}
-                <div class="mt-3 p-3 bg-light rounded">
-                    <strong>{{ selected_template.name }}</strong>
-                    {% if selected_template.description %}
-                        <p class="mb-0 text-muted">{{ selected_template.description }}</p>
+                <div class="mt-3 p-3 rounded" id="templatePreview" 
+                     style="{% if selected_template %}background-color: #e8f5e8; border: 1px solid #28a745;{% else %}background-color: #f8f9fa; border: 1px solid #dee2e6;{% endif %}">
+                    {% if selected_template %}
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <strong>Active Template: {{ selected_template.name }}</strong>
+                        </div>
+                        {% if selected_template.description %}
+                            <p class="mb-1 text-muted mt-1">{{ selected_template.description }}</p>
+                        {% endif %}
+                        <small class="text-muted">
+                            <i class="fas fa-question-circle me-1"></i>{{ questions|length }} questions loaded
+                        </small>
+                    {% else %}
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-file-alt text-muted me-2"></i>
+                            <strong>Default Guided Journal</strong>
+                        </div>
+                        <p class="mb-1 text-muted mt-1">Standard guided journal questions for comprehensive daily reflection</p>
+                        <small class="text-muted">
+                            <i class="fas fa-question-circle me-1"></i>{{ questions|length }} questions loaded
+                        </small>
                     {% endif %}
-                    <small class="text-muted">{{ questions|length }} questions</small>
                 </div>
-                {% endif %}
             </div>
         </div>
         
@@ -388,19 +409,77 @@
 {% block scripts %}
 <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script nonce="{{ csp_nonce() }}">
-    // Template selection function
+    // Template selection function (auto-load on change)
     function changeTemplate() {
         const select = document.getElementById('templateSelect');
         const templateId = select.value;
         
+        console.log('Template changed to:', templateId);
+        
+        // Show loading indicator
+        const loadBtn = document.getElementById('loadTemplateBtn');
+        if (loadBtn) {
+            loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
+            loadBtn.disabled = true;
+        }
+        
+        // Add a small delay to show the loading state
+        setTimeout(() => {
+            if (templateId) {
+                // Redirect to the same page with the selected template
+                console.log('Redirecting to template:', templateId);
+                window.location.href = '{{ url_for("journal.guided_journal") }}?template_id=' + templateId;
+            } else {
+                // Redirect to default (no template)
+                console.log('Redirecting to default template');
+                window.location.href = '{{ url_for("journal.guided_journal") }}';
+            }
+        }, 300);
+    }
+    
+    // Manual template loading function
+    function loadSelectedTemplate() {
+        const select = document.getElementById('templateSelect');
+        const templateId = select.value;
+        
+        console.log('Manual load template:', templateId);
+        
+        // Update button state
+        const loadBtn = document.getElementById('loadTemplateBtn');
+        loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
+        loadBtn.disabled = true;
+        
         if (templateId) {
-            // Redirect to the same page with the selected template
             window.location.href = '{{ url_for("journal.guided_journal") }}?template_id=' + templateId;
         } else {
-            // Redirect to default (no template)
             window.location.href = '{{ url_for("journal.guided_journal") }}';
         }
     }
+    
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+        const select = document.getElementById('templateSelect');
+        const loadBtn = document.getElementById('loadTemplateBtn');
+        
+        // Update button text based on selection
+        function updateLoadButton() {
+            const templateId = select.value;
+            if (templateId) {
+                const selectedOption = select.options[select.selectedIndex];
+                loadBtn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>Load: ' + selectedOption.text;
+            } else {
+                loadBtn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>Load Default';
+            }
+        }
+        
+        // Update button on selection change
+        select.addEventListener('change', updateLoadButton);
+        
+        // Initialize button text
+        updateLoadButton();
+        
+        console.log('Template selector initialized. Current template:', select.value);
+    });
 </script>
 <script nonce="{{ csp_nonce() }}">
     tinymce.init({
