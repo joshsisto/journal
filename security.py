@@ -216,6 +216,19 @@ def setup_security(app):
                 if key in ('new_tags',):
                     continue  # Skip JSON tag data
                 
+                # Skip content fields from overly broad SQL injection patterns
+                # Allow quotes and semicolons in journal content
+                if key in ('content', 'response'):
+                    # Use more specific SQL injection patterns for content fields
+                    specific_sql_pattern = re.compile(
+                        r'(\bSELECT\b.*\bFROM\b|\bUNION\b.*\bSELECT\b|\bINSERT\b.*\bINTO\b|\bDROP\b.*\bTABLE\b|\bDELETE\b.*\bFROM\b|\bUPDATE\b.*\bSET\b|\bALTER\b.*\bTABLE\b|\bCREATE\b.*\bTABLE\b|\bEXEC\b|\b1=1\b|--[^\n]*$|\bOR\s+\d+=\d+\b|\bAND\s+\d+=\d+\b)', 
+                        re.IGNORECASE
+                    )
+                    if isinstance(value, str) and specific_sql_pattern.search(value):
+                        app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                        suspicious_request = True
+                    continue
+                
                 if isinstance(value, str):
                     if sql_injection_pattern.search(value):
                         app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
