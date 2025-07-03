@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Template - {{ template.name }} - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Edit Template: {{ template.name }}</h2>
+            <div>
+                <a href="{{ url_for('journal.guided_journal', template_id=template.id) }}" class="btn btn-success me-2">
+                    <i class="fas fa-edit me-1"></i>Use Template
+                </a>
+                <a href="{{ url_for('journal.templates') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Templates
+                </a>
+            </div>
+        </div>
+        
+        <!-- Template Info Card -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Template Information</h5>
+                <form method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Template Name</label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       value="{{ template.name }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Created</label>
+                                <div class="form-control-plaintext">{{ template.created_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ template.description or '' }}</textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Questions Section -->
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">Template Questions</h5>
+                    <button class="btn btn-success btn-sm" onclick="addQuestion()">
+                        <i class="fas fa-plus me-1"></i>Add Question
+                    </button>
+                </div>
+                
+                {% if questions %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th width="5%">Order</th>
+                                <th width="30%">Question</th>
+                                <th width="15%">Type</th>
+                                <th width="15%">Required</th>
+                                <th width="25%">Condition</th>
+                                <th width="10%">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for question in questions %}
+                            <tr>
+                                <td class="text-center">{{ question.question_order }}</td>
+                                <td>
+                                    <strong>{{ question.question_text[:50] }}{% if question.question_text|length > 50 %}...{% endif %}</strong>
+                                    <br>
+                                    <small class="text-muted">ID: {{ question.question_id }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ question.question_type }}</span>
+                                </td>
+                                <td class="text-center">
+                                    {% if question.required %}
+                                        <i class="fas fa-check text-success"></i>
+                                    {% else %}
+                                        <i class="fas fa-times text-muted"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if question.condition_expression %}
+                                        <code class="small">{{ question.condition_expression[:30] }}{% if question.condition_expression|length > 30 %}...{% endif %}</code>
+                                    {% else %}
+                                        <span class="text-muted">Always show</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editQuestion({{ question.id }})">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteQuestion({{ question.id }})">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    This template doesn't have any questions yet. Click "Add Question" to get started.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Coming Soon Notice -->
+        <div class="alert alert-warning mt-4">
+            <h6><i class="fas fa-construction me-2"></i>Template Editor Coming Soon</h6>
+            <p class="mb-0">The visual template editor is under development. For now, you can:</p>
+            <ul class="mb-0 mt-2">
+                <li>Update template name and description</li>
+                <li>View existing questions</li>
+                <li>Use system templates as examples</li>
+            </ul>
+            <p class="mt-2 mb-0"><strong>Advanced editing will be available in the next update!</strong></p>
+        </div>
+        
+        <!-- Delete Template -->
+        <div class="card border-danger mt-4">
+            <div class="card-body">
+                <h6 class="card-title text-danger">Danger Zone</h6>
+                <p class="card-text">Permanently delete this template. This action cannot be undone.</p>
+                <form method="post" action="{{ url_for('journal.delete_template', template_id=template.id) }}" 
+                      onsubmit="return confirm('Are you sure you want to delete this template? This cannot be undone.')">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>Delete Template
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce() }}">
+// Placeholder functions for future template editor
+function addQuestion() {
+    alert('Question editor coming soon! For now, you can use system templates as examples.');
+}
+
+function editQuestion(questionId) {
+    alert('Question editor coming soon! You can view question details in the table above.');
+}
+
+function deleteQuestion(questionId) {
+    alert('Question editor coming soon! Advanced editing features will be available in the next update.');
+}
+</script>
+{% endblock %}

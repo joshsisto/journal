@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Journal Templates - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Journal Templates</h2>
+            <a href="{{ url_for('journal.create_template') }}" class="btn btn-success">
+                <i class="fas fa-plus me-1"></i>Create New Template
+            </a>
+        </div>
+        
+        <p class="text-muted">Templates help you create structured journal entries for different purposes like gratitude, habit tracking, or work reflection.</p>
+        
+        <!-- System Templates -->
+        {% if system_templates %}
+        <div class="mb-5">
+            <h4 class="mb-3">
+                <i class="fas fa-star text-warning me-2"></i>System Templates
+            </h4>
+            <p class="text-muted">Pre-built templates for common journaling needs.</p>
+            
+            <div class="row">
+                {% for template in system_templates %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-clipboard-list text-primary me-2"></i>
+                                {{ template.name }}
+                            </h5>
+                            {% if template.description %}
+                            <p class="card-text text-muted">{{ template.description }}</p>
+                            {% endif %}
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="fas fa-question-circle me-1"></i>
+                                    {{ template.questions.count() }} questions
+                                </small>
+                                <a href="{{ url_for('journal.guided_journal', template_id=template.id) }}" 
+                                   class="btn btn-primary btn-sm">
+                                    <i class="fas fa-edit me-1"></i>Use Template
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- User Templates -->
+        <div class="mb-5">
+            <h4 class="mb-3">
+                <i class="fas fa-user text-success me-2"></i>My Templates
+            </h4>
+            
+            {% if user_templates %}
+            <p class="text-muted">Your custom templates for personalized journaling experiences.</p>
+            
+            <div class="row">
+                {% for template in user_templates %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-file-alt text-success me-2"></i>
+                                {{ template.name }}
+                            </h5>
+                            {% if template.description %}
+                            <p class="card-text text-muted">{{ template.description }}</p>
+                            {% endif %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-question-circle me-1"></i>
+                                    {{ template.questions.count() }} questions
+                                </small>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Created {{ template.created_at.strftime('%m/%d/%Y') }}
+                                </small>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <a href="{{ url_for('journal.guided_journal', template_id=template.id) }}" 
+                                   class="btn btn-primary btn-sm flex-fill">
+                                    <i class="fas fa-edit me-1"></i>Use
+                                </a>
+                                <a href="{{ url_for('journal.edit_template', template_id=template.id) }}" 
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-cog"></i>
+                                </a>
+                                <form method="post" action="{{ url_for('journal.delete_template', template_id=template.id) }}" 
+                                      class="d-inline" onsubmit="return confirm('Are you sure you want to delete this template?')">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                You haven't created any custom templates yet. 
+                <a href="{{ url_for('journal.create_template') }}" class="alert-link">Create your first template</a> 
+                to customize your journaling experience.
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Getting Started Guide -->
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-lightbulb text-warning me-2"></i>Getting Started with Templates
+                </h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-star text-primary me-1"></i>Try System Templates</h6>
+                        <p class="small text-muted">Start with our pre-built templates like "Daily Gratitude" or "Habit Tracker" to see how templates work.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-plus text-success me-1"></i>Create Custom Templates</h6>
+                        <p class="small text-muted">Build your own templates with questions that match your specific journaling goals and preferences.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-edit text-info me-1"></i>Use in Journal</h6>
+                        <p class="small text-muted">Select any template when creating a guided journal entry to customize your reflection experience.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

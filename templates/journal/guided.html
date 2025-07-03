@@ -8,8 +8,68 @@
         <h2>Guided Journal Entry</h2>
         <p class="text-muted">Answer the prompts to complete your journal entry.</p>
         
+        <!-- Template Selection -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-clipboard-list me-2"></i>Choose a Template
+                </h5>
+                <p class="text-muted">Select a template to customize your journal experience, or use the default guided questions.</p>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="templateSelect" class="form-label">Select Template:</label>
+                        <select class="form-select" id="templateSelect" onchange="changeTemplate()">
+                            <option value="">Default Guided Journal</option>
+                            {% if system_templates %}
+                                <optgroup label="System Templates">
+                                    {% for template in system_templates %}
+                                    <option value="{{ template.id }}" 
+                                            {% if template_id == template.id %}selected{% endif %}>
+                                        {{ template.name }}
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endif %}
+                            {% if user_templates %}
+                                <optgroup label="My Templates">
+                                    {% for template in user_templates %}
+                                    <option value="{{ template.id }}" 
+                                            {% if template_id == template.id %}selected{% endif %}>
+                                        {{ template.name }}
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <a href="{{ url_for('journal.templates') }}" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-cog me-1"></i>Manage Templates
+                        </a>
+                        <a href="{{ url_for('journal.create_template') }}" class="btn btn-outline-success">
+                            <i class="fas fa-plus me-1"></i>Create Template
+                        </a>
+                    </div>
+                </div>
+                
+                {% if selected_template %}
+                <div class="mt-3 p-3 bg-light rounded">
+                    <strong>{{ selected_template.name }}</strong>
+                    {% if selected_template.description %}
+                        <p class="mb-0 text-muted">{{ selected_template.description }}</p>
+                    {% endif %}
+                    <small class="text-muted">{{ questions|length }} questions</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
         <form method="post" id="guidedJournalForm" enctype="multipart/form-data">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            {% if template_id %}
+            <input type="hidden" name="template_id" value="{{ template_id }}">
+            {% endif %}
             
             {% for question in questions %}
             <div class="mb-4 card">
@@ -327,6 +387,21 @@
 
 {% block scripts %}
 <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script nonce="{{ csp_nonce() }}">
+    // Template selection function
+    function changeTemplate() {
+        const select = document.getElementById('templateSelect');
+        const templateId = select.value;
+        
+        if (templateId) {
+            // Redirect to the same page with the selected template
+            window.location.href = '{{ url_for("journal.guided_journal") }}?template_id=' + templateId;
+        } else {
+            // Redirect to default (no template)
+            window.location.href = '{{ url_for("journal.guided_journal") }}';
+        }
+    }
+</script>
 <script nonce="{{ csp_nonce() }}">
     tinymce.init({
         selector: 'textarea.tinymce',

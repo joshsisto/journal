@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Create Template - Journal App{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Create New Template</h2>
+            <a href="{{ url_for('journal.templates') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back to Templates
+            </a>
+        </div>
+        
+        <p class="text-muted">Create a custom template with your own questions for guided journaling.</p>
+        
+        <form method="post" class="needs-validation" novalidate>
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Template Information</h5>
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Template Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               placeholder="e.g., Morning Reflection, Weekly Review">
+                        <div class="invalid-feedback">
+                            Please provide a template name.
+                        </div>
+                        <div class="form-text">Choose a descriptive name for your template.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="Describe what this template is for and when to use it..."></textarea>
+                        <div class="form-text">Help yourself and others understand when to use this template.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4 bg-light">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-info-circle text-primary me-2"></i>Next Steps
+                    </h5>
+                    <p class="mb-0">After creating your template, you'll be able to add custom questions, set their types (text, number, yes/no), and configure when they should appear.</p>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('journal.templates') }}" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </a>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i>Create Template
+                </button>
+            </div>
+        </form>
+        
+        <!-- Template Examples -->
+        <div class="mt-5">
+            <h5>Template Ideas</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light mb-3">
+                        <div class="card-body py-3">
+                            <h6 class="card-title">Evening Wind-Down</h6>
+                            <p class="card-text small text-muted">Questions about your day's highlights, challenges, and tomorrow's priorities.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light mb-3">
+                        <div class="card-body py-3">
+                            <h6 class="card-title">Health & Wellness Check</h6>
+                            <p class="card-text small text-muted">Track exercise, water intake, sleep quality, and overall wellness.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light mb-3">
+                        <div class="card-body py-3">
+                            <h6 class="card-title">Creativity Journal</h6>
+                            <p class="card-text small text-muted">Capture creative ideas, inspiration sources, and artistic progress.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 bg-light mb-3">
+                        <div class="card-body py-3">
+                            <h6 class="card-title">Learning & Growth</h6>
+                            <p class="card-text small text-muted">Reflect on new knowledge, skills practiced, and areas for improvement.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce() }}">
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+</script>
+{% endblock %}

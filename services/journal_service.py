@@ -166,16 +166,20 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
         current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
         return None, 'An error occurred while saving your journal entry. Please try again.'
 
-def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main_content, allowed_file_func):
+def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main_content, allowed_file_func, template_id=None):
     """
     Creates a guided journal entry.
+    
+    Args:
+        template_id (int, optional): ID of the template used for this entry.
     """
     try:
         # First, create the journal entry
         entry = JournalEntry(
             user_id=user_id,
             content=main_content,
-            entry_type='guided'
+            entry_type='guided',
+            template_id=template_id
         )
 
         # Add selected existing tags

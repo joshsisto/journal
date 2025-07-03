@@ -13,7 +13,7 @@ import os
 import uuid
 from security import limiter  # Import limiter for rate limiting
 
-from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo
+from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo, JournalTemplate, TemplateQuestion
 from export_utils import format_entry_for_text, format_multi_entry_filename
 from email_utils import send_password_reset_email, send_email_change_confirmation
 from emotions import get_emotions_by_category
@@ -682,6 +682,9 @@ def quick_journal():
 @login_required
 @sanitize_input
 def guided_journal():
+    # Get template_id from URL parameter or form
+    template_id = request.args.get('template_id', type=int) or request.form.get('template_id', type=int)
+    
     if request.method == 'POST':
         
         # Get form data
@@ -700,7 +703,8 @@ def guided_journal():
             new_tags_json=new_tags_json,
             photos=photos,
             main_content=main_content,
-            allowed_file_func=allowed_file
+            allowed_file_func=allowed_file,
+            template_id=template_id
         )
         
         if error:
@@ -713,13 +717,26 @@ def guided_journal():
     # Prepare context data for conditionals
     context = prepare_guided_journal_context()
     
-    # Get applicable questions
-    questions = QuestionManager.get_applicable_questions(context)
+    # Get questions based on template or default behavior
+    if template_id:
+        # Get all questions from the template
+        questions = QuestionManager.get_questions(template_id)
+        # Filter by conditions 
+        questions = [q for q in questions if q['condition'](context)]
+        selected_template = JournalTemplate.query.get(template_id)
+    else:
+        # Use original hardcoded questions for backward compatibility
+        questions = QuestionManager.get_applicable_questions(context)
+        selected_template = None
     
     # Format the time_since placeholder in questions
     for q in questions:
         if '{time_since}' in q.get('text', ''):
             q['text'] = q['text'].format(time_since=context['time_since'])
+    
+    # Get available templates for the template selector
+    system_templates = JournalTemplate.query.filter_by(is_system=True).all()
+    user_templates = JournalTemplate.query.filter_by(user_id=current_user.id).all()
     
     # Get user's tags
     tags = Tag.query.filter_by(user_id=current_user.id).all()
@@ -731,8 +748,121 @@ def guided_journal():
         'journal/guided.html', 
         questions=questions, 
         tags=tags, 
-        emotions_by_category=emotions_by_category
+        emotions_by_category=emotions_by_category,
+        system_templates=system_templates,
+        user_templates=user_templates,
+        selected_template=selected_template,
+        template_id=template_id
     )
+
+
+@journal_bp.route('/templates')
+@login_required
+def templates():
+    """Display available journal templates."""
+    system_templates = JournalTemplate.query.filter_by(is_system=True).all()
+    user_templates = JournalTemplate.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template(
+        'journal/templates.html',
+        system_templates=system_templates,
+        user_templates=user_templates
+    )
+
+
+@journal_bp.route('/templates/create', methods=['GET', 'POST'])
+@login_required
+@sanitize_input
+def create_template():
+    """Create a new custom template."""
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        
+        if not name:
+            flash('Template name is required.', 'danger')
+            return redirect(url_for('journal.create_template'))
+        
+        # Create the template
+        template = JournalTemplate(
+            name=name,
+            description=description,
+            user_id=current_user.id,
+            is_system=False
+        )
+        
+        try:
+            db.session.add(template)
+            db.session.commit()
+            flash(f'Template "{name}" created successfully!', 'success')
+            return redirect(url_for('journal.edit_template', template_id=template.id))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error creating template. Please try again.', 'danger')
+            current_app.logger.error(f'Template creation error: {str(e)}')
+    
+    return render_template('journal/create_template.html')
+
+
+@journal_bp.route('/templates/<int:template_id>/edit', methods=['GET', 'POST'])
+@login_required
+@sanitize_input
+def edit_template(template_id):
+    """Edit a custom template."""
+    template = JournalTemplate.query.get_or_404(template_id)
+    
+    # Check permissions - user can only edit their own templates
+    if template.user_id != current_user.id:
+        flash('You can only edit your own templates.', 'danger')
+        return redirect(url_for('journal.templates'))
+    
+    if request.method == 'POST':
+        # Handle template updates and question management
+        # This would be a complex form handler for the template editor
+        # For now, just update basic template info
+        template.name = request.form.get('name', template.name)
+        template.description = request.form.get('description', template.description)
+        
+        try:
+            db.session.commit()
+            flash('Template updated successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating template.', 'danger')
+            current_app.logger.error(f'Template update error: {str(e)}')
+    
+    return render_template(
+        'journal/edit_template.html',
+        template=template,
+        questions=template.questions.order_by(TemplateQuestion.question_order).all()
+    )
+
+
+@journal_bp.route('/templates/<int:template_id>/delete', methods=['POST'])
+@login_required
+def delete_template(template_id):
+    """Delete a custom template."""
+    template = JournalTemplate.query.get_or_404(template_id)
+    
+    # Check permissions
+    if template.user_id != current_user.id:
+        flash('You can only delete your own templates.', 'danger')
+        return redirect(url_for('journal.templates'))
+    
+    if template.is_system:
+        flash('System templates cannot be deleted.', 'danger')
+        return redirect(url_for('journal.templates'))
+    
+    try:
+        db.session.delete(template)
+        db.session.commit()
+        flash(f'Template "{template.name}" deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting template.', 'danger')
+        current_app.logger.error(f'Template deletion error: {str(e)}')
+    
+    return redirect(url_for('journal.templates'))
 
 
 @journal_bp.route('/journal/view/<int:entry_id>')
