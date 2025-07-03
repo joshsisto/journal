@@ -46,6 +46,7 @@ class User(UserMixin, db.Model):
     journal_entries = db.relationship('JournalEntry', backref='author', lazy='dynamic')
     exercise_logs = db.relationship('ExerciseLog', backref='user', lazy='dynamic')
     tags = db.relationship('Tag', backref='user', lazy='dynamic')
+    templates = db.relationship('JournalTemplate', backref='creator', lazy='dynamic')
     
     def set_password(self, password):
         """Set password hash."""
@@ -148,6 +149,7 @@ class JournalEntry(db.Model):
     content = db.Column(db.Text, nullable=True)  # For quick journal entries
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     entry_type = db.Column(db.String(20), nullable=False)  # 'quick' or 'guided'
+    template_id = db.Column(db.Integer, db.ForeignKey('journal_templates.id'), nullable=True)  # Template used for guided entries
     
     # Relationships
     guided_responses = db.relationship('GuidedResponse', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
@@ -228,16 +230,166 @@ class Photo(db.Model):
         return f'<Photo {self.id} for JournalEntry {self.journal_entry_id}>'
 
 
+class JournalTemplate(db.Model):
+    """Template model for guided journal templates."""
+    __tablename__ = 'journal_templates'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # NULL for system templates
+    is_system = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    questions = db.relationship('TemplateQuestion', backref='template', lazy='dynamic', cascade='all, delete-orphan', order_by='TemplateQuestion.question_order')
+    journal_entries = db.relationship('JournalEntry', backref='template', lazy='dynamic')
+    
+    def __repr__(self):
+        return f'<JournalTemplate {self.name}>'
+    
+    def to_dict(self):
+        """Convert template to dictionary format."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'is_system': self.is_system,
+            'question_count': self.questions.count(),
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }
+
+
+class TemplateQuestion(db.Model):
+    """Template question model for custom questions within templates."""
+    __tablename__ = 'template_questions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('journal_templates.id'), nullable=False)
+    question_id = db.Column(db.String(50), nullable=False)  # Unique within template
+    question_text = db.Column(db.Text, nullable=False)
+    question_type = db.Column(db.String(20), nullable=False)  # 'number', 'text', 'boolean', 'emotions', 'select'
+    question_order = db.Column(db.Integer, nullable=False, default=0)
+    required = db.Column(db.Boolean, default=False)
+    properties = db.Column(db.Text)  # JSON string for type-specific properties
+    condition_expression = db.Column(db.Text)  # Condition for showing this question
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f'<TemplateQuestion {self.question_id} in {self.template_id}>'
+    
+    def get_properties(self):
+        """Get properties as dictionary."""
+        if self.properties:
+            try:
+                import json
+                return json.loads(self.properties)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+    
+    def set_properties(self, properties_dict):
+        """Set properties from dictionary."""
+        if properties_dict:
+            import json
+            self.properties = json.dumps(properties_dict)
+        else:
+            self.properties = None
+    
+    def to_dict(self):
+        """Convert question to dictionary format for rendering."""
+        question_dict = {
+            'id': self.question_id,
+            'text': self.question_text,
+            'type': self.question_type,
+            'required': self.required,
+            'order': self.question_order
+        }
+        
+        # Add type-specific properties
+        properties = self.get_properties()
+        question_dict.update(properties)
+        
+        # Add condition function
+        question_dict['condition'] = self._create_condition_function()
+        
+        return question_dict
+    
+    def _create_condition_function(self):
+        """Create a condition function from the condition expression."""
+        if not self.condition_expression:
+            return lambda response_data: True
+        
+        # Simple expression evaluator for common conditions
+        def condition_func(response_data):
+            try:
+                # Replace variable names with values from response_data
+                expression = self.condition_expression
+                
+                # Common variable replacements
+                replacements = {
+                    'hours_since_last_entry': str(response_data.get('hours_since_last_entry', 0)),
+                    'exercised_today': str(response_data.get('exercised_today', False)).lower(),
+                    'is_before_noon': str(response_data.get('is_before_noon', False)).lower(),
+                    'goals_set_today': str(response_data.get('goals_set_today', False)).lower(),
+                    'exercise_response': f'"{response_data.get("exercise_response", "")}"'
+                }
+                
+                for var, val in replacements.items():
+                    expression = expression.replace(var, val)
+                
+                # Basic safety check - only allow simple comparisons
+                allowed_operators = ['==', '!=', '>=', '<=', '>', '<', 'and', 'or', 'not', 'true', 'false']
+                if any(op in expression.lower() for op in ['import', 'exec', 'eval', '__', 'open', 'file']):
+                    return True  # Fail safe - show question if expression is suspicious
+                
+                # Evaluate the expression safely
+                result = eval(expression)
+                return bool(result)
+            except:
+                # If evaluation fails, show the question (fail safe)
+                return True
+        
+        return condition_func
+
+
 class QuestionManager:
     """Class to manage guided journal questions."""
     
     @staticmethod
-    def get_questions():
-        """Get all guided journal questions.
+    def get_questions(template_id=None):
+        """Get questions from template or fallback to hardcoded questions.
         
+        Args:
+            template_id (int, optional): Template ID to load questions from.
+            
         Returns:
             list: List of question dictionaries.
         """
+        if template_id:
+            return QuestionManager._get_template_questions(template_id)
+        else:
+            return QuestionManager._get_hardcoded_questions()
+    
+    @staticmethod
+    def _get_template_questions(template_id):
+        """Load questions from database template."""
+        template = JournalTemplate.query.get(template_id)
+        if not template:
+            # Fallback to hardcoded questions if template not found
+            return QuestionManager._get_hardcoded_questions()
+        
+        questions = []
+        for tq in template.questions.order_by(TemplateQuestion.question_order):
+            questions.append(tq.to_dict())
+        
+        return questions
+    
+    @staticmethod
+    def _get_hardcoded_questions():
+        """Get the original hardcoded questions for backward compatibility."""
         return [
             {
                 'id': 'feeling_scale',
