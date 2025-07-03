@@ -343,12 +343,15 @@ class LocationService {
      * Search for a location by name
      */
     async searchLocation(locationName) {
+        console.log('Location search called with:', locationName);
+        
         if (!locationName.trim()) {
             this.showLocationError('Please enter a location name');
             return;
         }
 
         this.showLocationStatus('Searching for location...', 'info');
+        console.log('Making API request to /api/location/search');
 
         try {
             const response = await fetch('/api/location/search', {
@@ -362,8 +365,12 @@ class LocationService {
                 })
             });
 
+            console.log('API response status:', response.status);
+            console.log('API response headers:', response.headers);
+
             if (response.ok) {
                 const locationData = await response.json();
+                console.log('Location data received:', locationData);
                 
                 if (locationData.latitude && locationData.longitude) {
                     const location = {
@@ -375,13 +382,17 @@ class LocationService {
                     this.currentLocation = location;
                     this.onLocationReceived(location);
                     this.updateLocationFields(locationData);
+                    this.showLocationStatus('Location found successfully!', 'success');
                 } else {
                     this.showLocationError('Location not found. Please try a different search term.');
                 }
             } else {
-                this.showLocationError('Failed to search for location. Please try again.');
+                const errorData = await response.text();
+                console.error('API error response:', errorData);
+                this.showLocationError(`Failed to search for location: ${response.status} ${response.statusText}`);
             }
         } catch (error) {
+            console.error('Location search error:', error);
             this.showLocationError('Error searching for location. Please check your connection.');
         }
     }
@@ -391,7 +402,9 @@ class LocationService {
 let locationService;
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing LocationService...');
     locationService = new LocationService();
+    console.log('LocationService initialized:', !!locationService);
 
     // Get current location button
     const getCurrentLocationBtn = document.getElementById('get-current-location');
@@ -415,9 +428,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchLocationBtn = document.getElementById('location-search-btn');
     const locationInput = document.getElementById('location-search-input');
     
+    console.log('Location search elements found:', {
+        button: !!searchLocationBtn,
+        input: !!locationInput
+    });
+    
     if (searchLocationBtn && locationInput) {
+        console.log('Setting up location search event handlers');
+        
         // Handle search button click
         searchLocationBtn.addEventListener('click', function(e) {
+            console.log('Location search button clicked');
             e.preventDefault();
             e.stopPropagation();
             locationService.searchLocation(locationInput.value);
@@ -426,9 +447,46 @@ document.addEventListener('DOMContentLoaded', function() {
         // Handle Enter key in search input
         locationInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
+                console.log('Enter key pressed in location search input');
                 e.preventDefault();
                 e.stopPropagation();
                 locationService.searchLocation(locationInput.value);
+            }
+        });
+    } else {
+        console.error('Location search elements not found!');
+    }
+
+    // Toggle advanced location options
+    const toggleAdvancedBtn = document.getElementById('toggle-advanced-location');
+    if (toggleAdvancedBtn) {
+        toggleAdvancedBtn.addEventListener('click', function() {
+            const coordsSection = document.getElementById('coordinates-section');
+            
+            if (coordsSection.style.display === 'none') {
+                coordsSection.style.display = '';
+                toggleAdvancedBtn.innerHTML = '<i class="fas fa-cog me-1"></i>Hide Advanced Options';
+            } else {
+                coordsSection.style.display = 'none';
+                toggleAdvancedBtn.innerHTML = '<i class="fas fa-cog me-1"></i>Show Advanced Options';
+            }
+        });
+    }
+
+    // Debug test button
+    const testBtn = document.getElementById('test-location-search');
+    if (testBtn) {
+        testBtn.style.display = 'block'; // Show debug button
+        testBtn.addEventListener('click', function() {
+            console.log('Test button clicked - testing location search');
+            console.log('CSRF Token available:', !!window.csrfToken);
+            console.log('LocationService available:', !!locationService);
+            
+            // Test with a simple location
+            if (locationService) {
+                locationService.searchLocation('New York');
+            } else {
+                console.error('LocationService not available!');
             }
         });
     }
