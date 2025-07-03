@@ -36,15 +36,15 @@
         
         <!-- Manual Location Search -->
         <div class="mb-3">
-            <form id="search-location-form" class="d-flex">
+            <div class="d-flex">
                 <input type="text" id="location-search-input" class="form-control me-2" 
                        placeholder="Search for a location (e.g., 'New York, NY')" />
-                <button type="submit" class="btn btn-outline-primary" title="Search for location">
+                <button type="button" id="location-search-btn" class="btn btn-outline-primary" title="Search for location">
                     <i class="fas fa-search me-1"></i>
                     <span class="d-none d-sm-inline">Search</span>
                 </button>
-            </form>
-            <div class="form-text">
+            </div>
+            <div class="form-text mt-2">
                 <i class="fas fa-info-circle me-1"></i>
                 Enter a city, address, or landmark to find its location and weather data.
             </div>
