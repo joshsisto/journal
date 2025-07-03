@@ -411,13 +411,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Location search form
-    const searchLocationForm = document.getElementById('search-location-form');
-    if (searchLocationForm) {
-        searchLocationForm.addEventListener('submit', function(e) {
+    // Location search button
+    const searchLocationBtn = document.getElementById('location-search-btn');
+    const locationInput = document.getElementById('location-search-input');
+    
+    if (searchLocationBtn && locationInput) {
+        // Handle search button click
+        searchLocationBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            const locationInput = document.getElementById('location-search-input');
-            if (locationInput) {
+            e.stopPropagation();
+            locationService.searchLocation(locationInput.value);
+        });
+        
+        // Handle Enter key in search input
+        locationInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
                 locationService.searchLocation(locationInput.value);
             }
         });
