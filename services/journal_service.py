@@ -174,6 +174,10 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
         template_id (int, optional): ID of the template used for this entry.
     """
     try:
+        # Get the questions to extract question text for responses
+        from models import QuestionManager
+        questions = QuestionManager.get_questions(template_id)
+        question_text_map = {str(q['id']): q['text'] for q in questions}
         # First, create the journal entry
         entry = JournalEntry(
             user_id=user_id,
@@ -270,10 +274,14 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
                     # Store emotions as a JSON string
                     value = value
 
+                # Get the question text for this question_id
+                question_text = question_text_map.get(question_id, '')
+                
                 # Save the response
                 guided_response = GuidedResponse(
                     journal_entry_id=entry.id,
                     question_id=question_id,
+                    question_text=question_text,
                     response=value
                 )
                 db.session.add(guided_response)

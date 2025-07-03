@@ -111,7 +111,7 @@
                             <span class="fs-2">{{ question.max|feeling_emoji }}</span>
                         </div>
                     </div>
-                    <script nonce="{{ csp_nonce() }}">
+                    <script>
                         document.getElementById('{{ question.id }}_range').addEventListener('input', function() {
                             var value = this.value;
                             document.getElementById('{{ question.id }}_value').textContent = value;
@@ -175,7 +175,7 @@
                         </div>
                     </div>
                     
-                    <script nonce="{{ csp_nonce() }}">
+                    <script>
                         document.addEventListener('DOMContentLoaded', function() {
                             const emotionCheckboxes = document.querySelectorAll('.emotion-checkbox');
                             const selectedEmotionsInput = document.getElementById('question_{{ question.id }}_selected');
@@ -285,7 +285,7 @@
                     </div>
                 </div>
             </div>
-            <script nonce="{{ csp_nonce() }}">
+            <script>
                 // Show/hide exercise type question based on exercise response
                 const exerciseYesRadio = document.getElementById('exercise_yes');
                 const exerciseNoRadio = document.getElementById('exercise_no');
@@ -408,52 +408,37 @@
 
 {% block scripts %}
 <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
-<script nonce="{{ csp_nonce() }}">
-    // Template selection function (auto-load on change)
-    function changeTemplate() {
-        const select = document.getElementById('templateSelect');
-        const templateId = select.value;
-        
-        console.log('Template changed to:', templateId);
-        
-        // Show loading indicator
-        const loadBtn = document.getElementById('loadTemplateBtn');
-        if (loadBtn) {
-            loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
-            loadBtn.disabled = true;
-        }
-        
-        // Add a small delay to show the loading state
-        setTimeout(() => {
-            if (templateId) {
-                // Redirect to the same page with the selected template
-                console.log('Redirecting to template:', templateId);
-                window.location.href = '{{ url_for("journal.guided_journal") }}?template_id=' + templateId;
-            } else {
-                // Redirect to default (no template)
-                console.log('Redirecting to default template');
-                window.location.href = '{{ url_for("journal.guided_journal") }}';
-            }
-        }, 300);
-    }
-    
-    // Manual template loading function
+<script>
+    // Template loading function
     function loadSelectedTemplate() {
         const select = document.getElementById('templateSelect');
         const templateId = select.value;
         
-        console.log('Manual load template:', templateId);
+        console.log('Loading template:', templateId);
         
         // Update button state
         const loadBtn = document.getElementById('loadTemplateBtn');
         loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
         loadBtn.disabled = true;
         
+        // Build the URL
+        const baseUrl = window.location.origin + window.location.pathname;
+        let redirectUrl;
+        
         if (templateId) {
-            window.location.href = '{{ url_for("journal.guided_journal") }}?template_id=' + templateId;
+            redirectUrl = baseUrl + '?template_id=' + templateId;
         } else {
-            window.location.href = '{{ url_for("journal.guided_journal") }}';
+            redirectUrl = baseUrl;
         }
+        
+        console.log('Redirecting to:', redirectUrl);
+        window.location.href = redirectUrl;
+    }
+    
+    // Auto-load template on dropdown change
+    function changeTemplate() {
+        // Just update the button text, don't auto-redirect
+        updateLoadButtonText();
     }
     
     // Initialize page
@@ -462,26 +447,35 @@
         const loadBtn = document.getElementById('loadTemplateBtn');
         
         // Update button text based on selection
-        function updateLoadButton() {
+        function updateLoadButtonText() {
+            const select = document.getElementById('templateSelect');
+            const loadBtn = document.getElementById('loadTemplateBtn');
             const templateId = select.value;
+            
             if (templateId) {
                 const selectedOption = select.options[select.selectedIndex];
                 loadBtn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>Load: ' + selectedOption.text;
             } else {
                 loadBtn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>Load Default';
             }
+            loadBtn.disabled = false;
         }
         
+        // Make updateLoadButtonText available globally
+        window.updateLoadButtonText = updateLoadButtonText;
+        
         // Update button on selection change
-        select.addEventListener('change', updateLoadButton);
+        select.addEventListener('change', function() {
+            updateLoadButtonText();
+        });
         
         // Initialize button text
-        updateLoadButton();
+        updateLoadButtonText();
         
         console.log('Template selector initialized. Current template:', select.value);
     });
 </script>
-<script nonce="{{ csp_nonce() }}">
+<script>
     tinymce.init({
         selector: 'textarea.tinymce',
         plugins: 'advlist autolink lists link image charmap preview anchor',
@@ -489,7 +483,7 @@
         toolbar: 'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help'
     });
 </script>
-<script nonce="{{ csp_nonce() }}">
+<script>
     // Photo preview script
     document.getElementById('photos').addEventListener('change', function(event) {
         const preview = document.getElementById('photo-preview');

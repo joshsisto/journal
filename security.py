@@ -24,6 +24,7 @@ csp = {
         '\'self\'',
         'cdn.jsdelivr.net',
         'code.jquery.com',
+        'cdn.tiny.cloud',
         '\'unsafe-inline\'',
         '\'unsafe-eval\'',
     ],
@@ -146,7 +147,7 @@ def setup_security(app):
         talisman.init_app(
             app,
             content_security_policy=csp,
-            content_security_policy_nonce_in=['script-src'],
+            content_security_policy_nonce_in=[],
             force_https=app.config.get('FORCE_HTTPS', False),
             session_cookie_secure=app.config.get('SESSION_COOKIE_SECURE', False),
             session_cookie_http_only=True,
