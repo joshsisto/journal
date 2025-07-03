@@ -180,6 +180,7 @@ class GuidedResponse(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=False)
     question_id = db.Column(db.String(50), nullable=False)  # Identifier for the question
+    question_text = db.Column(db.Text, nullable=True)  # The actual question text for template questions
     response = db.Column(db.Text, nullable=True)
     
     def __repr__(self):

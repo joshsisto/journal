@@ -971,13 +971,14 @@ def view_entry(entry_id):
             journal_entry_id=entry.id
         ).all()
         
-        # Get the original questions for context
+        # Get the original questions for context (fallback for older entries)
         all_questions = QuestionManager.get_questions()
         question_map = {q['id']: q for q in all_questions}
         
-        # Add question text to responses
+        # Add question text to responses (prioritize stored question_text for template questions)
         for resp in guided_responses:
-            resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
+            if not resp.question_text:  # Only use fallback if question_text is empty/null
+                resp.question_text = question_map.get(resp.question_id, {}).get('text', resp.question_id)
     
     # Get all user tags for adding/removing tags
     all_tags = Tag.query.filter_by(user_id=current_user.id).all()

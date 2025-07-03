@@ -217,6 +217,19 @@ def create_app(config_class=Config):
             from flask_wtf.csrf import generate_csrf
             return generate_csrf()
             
+        def csp_nonce():
+            """Return the CSP nonce for scripts."""
+            from flask import g
+            # Check if Talisman has set a nonce
+            nonce = getattr(g, 'csp_nonce', None)
+            if nonce:
+                return nonce
+            # If no nonce from Talisman, generate one
+            import secrets
+            if not hasattr(g, 'manual_csp_nonce'):
+                g.manual_csp_nonce = secrets.token_urlsafe(16)
+            return g.manual_csp_nonce
+            
         def parse_emotions(emotion_str):
             """Parse a JSON emotions string and return a list of emotions."""
             if not emotion_str or not isinstance(emotion_str, str):
@@ -245,7 +258,7 @@ def create_app(config_class=Config):
                 
             return []
                 
-        return {'parse_emotions': parse_emotions, 'csrf_token': csrf_token}
+        return {'parse_emotions': parse_emotions, 'csrf_token': csrf_token, 'csp_nonce': csp_nonce}
     
     # Create database tables
     with app.app_context():
