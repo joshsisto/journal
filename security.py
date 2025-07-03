@@ -47,8 +47,8 @@ csp = {
     ],
 }
 
-# Create Talisman instance
-talisman = Talisman(content_security_policy=csp, force_https=False)
+# Create Talisman instance (CSP disabled - using template-based CSP instead)
+talisman = Talisman(content_security_policy=False, force_https=False)
 
 # Create Limiter with default limits
 limiter = Limiter(
