@@ -865,6 +865,98 @@ def delete_template(template_id):
     return redirect(url_for('journal.templates'))
 
 
+@journal_bp.route('/templates/<int:template_id>/questions/add', methods=['POST'])
+@login_required
+@sanitize_input
+def add_question_to_template(template_id):
+    """Add a new question to a template."""
+    template = JournalTemplate.query.get_or_404(template_id)
+    
+    # Check permissions
+    if template.user_id != current_user.id:
+        flash('You can only edit your own templates.', 'danger')
+        return redirect(url_for('journal.templates'))
+    
+    try:
+        # Get form data
+        question_text = request.form.get('question_text', '').strip()
+        question_type = request.form.get('question_type', 'text')
+        required = request.form.get('required') == 'on'
+        condition_expression = request.form.get('condition_expression', '').strip()
+        
+        if not question_text:
+            flash('Question text is required.', 'danger')
+            return redirect(url_for('journal.edit_template', template_id=template_id))
+        
+        # Generate question_id from text
+        import re
+        question_id = re.sub(r'[^a-zA-Z0-9_]', '_', question_text.lower())[:50]
+        question_id = f"custom_{question_id}_{len(template.questions.all()) + 1}"
+        
+        # Get next order number
+        max_order = db.session.query(db.func.max(TemplateQuestion.question_order)).filter_by(template_id=template_id).scalar() or 0
+        
+        # Handle type-specific properties
+        properties = {}
+        if question_type == 'number':
+            properties['min'] = int(request.form.get('min_value', 1))
+            properties['max'] = int(request.form.get('max_value', 10))
+        elif question_type == 'select':
+            options = request.form.get('select_options', '').strip()
+            if options:
+                properties['options'] = [opt.strip() for opt in options.split('\n') if opt.strip()]
+        
+        # Create the question
+        question = TemplateQuestion(
+            template_id=template_id,
+            question_id=question_id,
+            question_text=question_text,
+            question_type=question_type,
+            question_order=max_order + 1,
+            required=required,
+            condition_expression=condition_expression if condition_expression else None
+        )
+        
+        if properties:
+            question.set_properties(properties)
+        
+        db.session.add(question)
+        db.session.commit()
+        
+        flash(f'Question "{question_text}" added successfully!', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash('Error adding question. Please try again.', 'danger')
+        current_app.logger.error(f'Question creation error: {str(e)}')
+    
+    return redirect(url_for('journal.edit_template', template_id=template_id))
+
+
+@journal_bp.route('/templates/<int:template_id>/questions/<int:question_id>/delete', methods=['POST'])
+@login_required
+def delete_question_from_template(template_id, question_id):
+    """Delete a question from a template."""
+    template = JournalTemplate.query.get_or_404(template_id)
+    question = TemplateQuestion.query.get_or_404(question_id)
+    
+    # Check permissions
+    if template.user_id != current_user.id or question.template_id != template_id:
+        flash('You can only edit your own templates.', 'danger')
+        return redirect(url_for('journal.templates'))
+    
+    try:
+        db.session.delete(question)
+        db.session.commit()
+        flash('Question deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting question.', 'danger')
+        current_app.logger.error(f'Question deletion error: {str(e)}')
+    
+    return redirect(url_for('journal.edit_template', template_id=template_id))
+
+
 @journal_bp.route('/journal/view/<int:entry_id>')
 @login_required
 def view_entry(entry_id):

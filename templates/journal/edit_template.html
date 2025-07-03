@@ -52,14 +52,87 @@
             </div>
         </div>
         
+        <!-- Add Question Form -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add New Question</h5>
+                <form method="post" action="{{ url_for('journal.add_question_to_template', template_id=template.id) }}" id="addQuestionForm">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="question_text" class="form-label">Question Text *</label>
+                                <textarea class="form-control" id="question_text" name="question_text" rows="2" 
+                                          placeholder="e.g., What are you grateful for today?" required></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="question_type" class="form-label">Question Type *</label>
+                                <select class="form-select" id="question_type" name="question_type" onchange="toggleTypeOptions()">
+                                    <option value="text">Text Answer</option>
+                                    <option value="number">Number (1-10 scale)</option>
+                                    <option value="boolean">Yes/No</option>
+                                    <option value="emotions">Emotions (multi-select)</option>
+                                    <option value="select">Dropdown Selection</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Type-specific options -->
+                    <div id="numberOptions" class="row mb-3" style="display: none;">
+                        <div class="col-md-3">
+                            <label for="min_value" class="form-label">Min Value</label>
+                            <input type="number" class="form-control" id="min_value" name="min_value" value="1">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="max_value" class="form-label">Max Value</label>
+                            <input type="number" class="form-control" id="max_value" name="max_value" value="10">
+                        </div>
+                    </div>
+                    
+                    <div id="selectOptions" class="mb-3" style="display: none;">
+                        <label for="select_options" class="form-label">Options (one per line)</label>
+                        <textarea class="form-control" id="select_options" name="select_options" rows="3" 
+                                  placeholder="Option 1&#10;Option 2&#10;Option 3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="condition_expression" class="form-label">Show Condition (optional)</label>
+                                <input type="text" class="form-control" id="condition_expression" name="condition_expression" 
+                                       placeholder="e.g., exercised_today == false">
+                                <div class="form-text">Leave blank to always show. Use variables like: exercised_today, is_before_noon</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" id="required" name="required">
+                                    <label class="form-check-label" for="required">
+                                        Required Question
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus me-1"></i>Add Question
+                    </button>
+                </form>
+            </div>
+        </div>
+        
         <!-- Questions Section -->
         <div class="card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="card-title mb-0">Template Questions</h5>
-                    <button class="btn btn-success btn-sm" onclick="addQuestion()">
-                        <i class="fas fa-plus me-1"></i>Add Question
-                    </button>
+                    <span class="badge bg-primary">{{ questions|length }} questions</span>
                 </div>
                 
                 {% if questions %}
@@ -102,14 +175,14 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-primary btn-sm" onclick="editQuestion({{ question.id }})">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteQuestion({{ question.id }})">
+                                    <form method="post" action="{{ url_for('journal.delete_question_from_template', template_id=template.id, question_id=question.id) }}" 
+                                          class="d-inline" onsubmit="return confirm('Are you sure you want to delete this question?')">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" 
+                                                title="Delete Question">
                                             <i class="fas fa-trash"></i>
                                         </button>
-                                    </div>
+                                    </form>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -125,16 +198,31 @@
             </div>
         </div>
         
-        <!-- Coming Soon Notice -->
-        <div class="alert alert-warning mt-4">
-            <h6><i class="fas fa-construction me-2"></i>Template Editor Coming Soon</h6>
-            <p class="mb-0">The visual template editor is under development. For now, you can:</p>
-            <ul class="mb-0 mt-2">
-                <li>Update template name and description</li>
-                <li>View existing questions</li>
-                <li>Use system templates as examples</li>
-            </ul>
-            <p class="mt-2 mb-0"><strong>Advanced editing will be available in the next update!</strong></p>
+        <!-- Help Guide -->
+        <div class="card bg-light mt-4">
+            <div class="card-body">
+                <h6><i class="fas fa-lightbulb text-warning me-2"></i>Question Types & Conditions</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Question Types:</strong>
+                        <ul class="small mb-0">
+                            <li><strong>Text:</strong> Open-ended text response</li>
+                            <li><strong>Number:</strong> Rating scale (customizable range)</li>
+                            <li><strong>Yes/No:</strong> Boolean true/false choice</li>
+                            <li><strong>Emotions:</strong> Multi-select emotion categories</li>
+                            <li><strong>Selection:</strong> Dropdown with custom options</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Condition Examples:</strong>
+                        <ul class="small mb-0">
+                            <li><code>exercised_today == false</code> - Show if not exercised</li>
+                            <li><code>is_before_noon == true</code> - Show before noon</li>
+                            <li><code>hours_since_last_entry >= 8</code> - Show if 8+ hours since last entry</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Delete Template -->
@@ -157,17 +245,42 @@
 
 {% block scripts %}
 <script nonce="{{ csp_nonce() }}">
-// Placeholder functions for future template editor
-function addQuestion() {
-    alert('Question editor coming soon! For now, you can use system templates as examples.');
+// Toggle type-specific options based on question type
+function toggleTypeOptions() {
+    const questionType = document.getElementById('question_type').value;
+    const numberOptions = document.getElementById('numberOptions');
+    const selectOptions = document.getElementById('selectOptions');
+    
+    // Hide all options first
+    numberOptions.style.display = 'none';
+    selectOptions.style.display = 'none';
+    
+    // Show relevant options based on type
+    if (questionType === 'number') {
+        numberOptions.style.display = 'block';
+    } else if (questionType === 'select') {
+        selectOptions.style.display = 'block';
+    }
 }
 
-function editQuestion(questionId) {
-    alert('Question editor coming soon! You can view question details in the table above.');
-}
-
-function deleteQuestion(questionId) {
-    alert('Question editor coming soon! Advanced editing features will be available in the next update.');
-}
+// Form validation
+document.getElementById('addQuestionForm').addEventListener('submit', function(e) {
+    const questionText = document.getElementById('question_text').value.trim();
+    if (!questionText) {
+        e.preventDefault();
+        alert('Please enter a question text.');
+        return false;
+    }
+    
+    const questionType = document.getElementById('question_type').value;
+    if (questionType === 'select') {
+        const options = document.getElementById('select_options').value.trim();
+        if (!options) {
+            e.preventDefault();
+            alert('Please enter at least one option for the dropdown selection.');
+            return false;
+        }
+    }
+});
 </script>
 {% endblock %}
