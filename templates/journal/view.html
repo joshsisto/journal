@@ -61,6 +61,56 @@
                 </div>
             </div>
             
+            <!-- Location and Weather Display -->
+            {% if entry.location or entry.weather %}
+            <div class="card-header bg-light">
+                <div class="row">
+                    {% if entry.location %}
+                    <div class="col-md-6">
+                        <strong>
+                            <i class="fas fa-map-marker-alt text-primary me-2"></i>
+                            Location:
+                        </strong>
+                        <div class="mt-1">
+                            <span class="fw-semibold">{{ entry.location.get_display_name() }}</span>
+                            {% if entry.location.address %}
+                                <br><small class="text-muted">{{ entry.location.address }}</small>
+                            {% endif %}
+                            {% if entry.location.latitude and entry.location.longitude %}
+                                <br><small class="text-muted">
+                                    {{ "%.4f"|format(entry.location.latitude) }}, 
+                                    {{ "%.4f"|format(entry.location.longitude) }}
+                                    <a href="https://maps.google.com/maps?q={{ entry.location.latitude }},{{ entry.location.longitude }}" 
+                                       target="_blank" class="ms-1" title="Open in Google Maps">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if entry.weather %}
+                    <div class="col-md-6">
+                        <strong>
+                            <i class="fas fa-cloud-sun text-info me-2"></i>
+                            Weather:
+                        </strong>
+                        <div class="mt-1">
+                            <span class="fw-semibold">{{ entry.weather.get_display_summary() }}</span>
+                            {% if entry.weather.weather_description %}
+                                <br><small class="text-muted">{{ entry.weather.weather_description.title() }}</small>
+                            {% endif %}
+                            <br><small class="text-muted">
+                                Recorded: {{ entry.weather.recorded_at.strftime('%Y-%m-%d %H:%M') }}
+                            </small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
             <div class="card-body">
                 {% if entry.entry_type == 'quick' %}
                 <div class="entry-content">

@@ -1,4 +1,4 @@
-from models import db, JournalEntry, Tag, Photo, GuidedResponse, ExerciseLog
+from models import db, JournalEntry, Tag, Photo, GuidedResponse, ExerciseLog, Location, WeatherData
 from validators import sanitize_journal_content, sanitize_tag_name, validate_color_hex
 from werkzeug.utils import secure_filename
 import json
@@ -8,6 +8,138 @@ from flask import current_app
 from datetime import datetime
 from time_utils import TimeUtils
 # allowed_file will be passed as parameter
+
+
+def _handle_location_and_weather(form_data):
+    """Handle location and weather data from form submission.
+    
+    Args:
+        form_data: Dictionary containing form data
+        
+    Returns:
+        Tuple of (location_id, weather_id) or (None, None) if no data
+    """
+    location_id = None
+    weather_id = None
+    
+    try:
+        # Check if we have location data
+        has_location_data = any([
+            form_data.get('location_name'),
+            form_data.get('location_latitude') and form_data.get('location_longitude'),
+            form_data.get('location_city'),
+            form_data.get('location_address')
+        ])
+        
+        if has_location_data:
+            # Create or find location
+            location = Location()
+            
+            # Set location fields
+            location.name = form_data.get('location_name', '').strip() or None
+            location.address = form_data.get('location_address', '').strip() or None
+            location.city = form_data.get('location_city', '').strip() or None
+            location.state = form_data.get('location_state', '').strip() or None
+            location.country = form_data.get('location_country', '').strip() or None
+            
+            # Handle coordinates
+            try:
+                latitude = form_data.get('location_latitude')
+                longitude = form_data.get('location_longitude')
+                
+                if latitude and longitude:
+                    location.latitude = float(latitude)
+                    location.longitude = float(longitude)
+                    location.location_type = 'gps'
+                else:
+                    location.location_type = 'manual'
+            except (ValueError, TypeError):
+                location.location_type = 'manual'
+            
+            # Check if this exact location already exists
+            existing_location = None
+            if location.latitude and location.longitude:
+                # For GPS locations, check for nearby locations (within ~100m)
+                lat_range = 0.001  # About 100m in latitude degrees
+                lon_range = 0.001  # About 100m in longitude degrees
+                
+                existing_location = Location.query.filter(
+                    Location.latitude.between(
+                        location.latitude - lat_range, 
+                        location.latitude + lat_range
+                    ),
+                    Location.longitude.between(
+                        location.longitude - lon_range, 
+                        location.longitude + lon_range
+                    )
+                ).first()
+            elif location.name:
+                # For manual locations, check by name
+                existing_location = Location.query.filter_by(
+                    name=location.name,
+                    city=location.city,
+                    state=location.state
+                ).first()
+            
+            if existing_location:
+                location_id = existing_location.id
+                # Update the existing location's updated_at timestamp
+                existing_location.updated_at = datetime.utcnow()
+            else:
+                # Save new location
+                db.session.add(location)
+                db.session.flush()  # Get ID without committing
+                location_id = location.id
+        
+        # Check if we have weather data
+        has_weather_data = any([
+            form_data.get('weather_temperature'),
+            form_data.get('weather_condition'),
+            form_data.get('weather_humidity')
+        ])
+        
+        if has_weather_data:
+            # Create weather record
+            weather = WeatherData()
+            weather.location_id = location_id
+            
+            # Set weather fields
+            try:
+                weather.temperature = float(form_data.get('weather_temperature')) if form_data.get('weather_temperature') else None
+            except (ValueError, TypeError):
+                weather.temperature = None
+            
+            weather.temperature_unit = 'celsius'  # Default unit
+            weather.weather_condition = form_data.get('weather_condition', '').strip() or None
+            weather.weather_description = form_data.get('weather_description', '').strip() or None
+            
+            try:
+                weather.humidity = int(form_data.get('weather_humidity')) if form_data.get('weather_humidity') else None
+            except (ValueError, TypeError):
+                weather.humidity = None
+            
+            try:
+                weather.wind_speed = float(form_data.get('weather_wind_speed')) if form_data.get('weather_wind_speed') else None
+            except (ValueError, TypeError):
+                weather.wind_speed = None
+            
+            try:
+                weather.pressure = float(form_data.get('weather_pressure')) if form_data.get('weather_pressure') else None
+            except (ValueError, TypeError):
+                weather.pressure = None
+            
+            weather.weather_source = 'manual'  # Default to manual for form entries
+            
+            # Save weather record
+            db.session.add(weather)
+            db.session.flush()  # Get ID without committing
+            weather_id = weather.id
+    
+    except Exception as e:
+        current_app.logger.error(f"Error handling location/weather data: {e}")
+        # Don't fail the entire entry creation for location/weather errors
+        
+    return location_id, weather_id
 
 
 def _handle_photo_uploads(entry, photos, allowed_file_func):
@@ -62,7 +194,7 @@ def _handle_photo_uploads(entry, photos, allowed_file_func):
                 current_app.logger.error(f'Photo upload error: {str(e)}')
 
 
-def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed_file_func):
+def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed_file_func, form_data=None):
     """
     Creates a quick journal entry.
     """
@@ -77,11 +209,18 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
         if len(sanitized_content) > 10000:  # 10KB limit
             raise ValueError('Journal entry is too long. Please shorten your entry.')
 
+        # Handle location and weather data
+        location_id, weather_id = None, None
+        if form_data:
+            location_id, weather_id = _handle_location_and_weather(form_data)
+
         # Create journal entry
         entry = JournalEntry(
             user_id=user_id,
             content=sanitized_content,
-            entry_type='quick'
+            entry_type='quick',
+            location_id=location_id,
+            weather_id=weather_id
         )
 
         # Add selected existing tags
@@ -178,12 +317,18 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
         from models import QuestionManager
         questions = QuestionManager.get_questions(template_id)
         question_text_map = {str(q['id']): q['text'] for q in questions}
+        
+        # Handle location and weather data
+        location_id, weather_id = _handle_location_and_weather(form_data)
+        
         # First, create the journal entry
         entry = JournalEntry(
             user_id=user_id,
             content=main_content,
             entry_type='guided',
-            template_id=template_id
+            template_id=template_id,
+            location_id=location_id,
+            weather_id=weather_id
         )
 
         # Add selected existing tags

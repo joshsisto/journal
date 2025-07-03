@@ -150,12 +150,16 @@ class JournalEntry(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     entry_type = db.Column(db.String(20), nullable=False)  # 'quick' or 'guided'
     template_id = db.Column(db.Integer, db.ForeignKey('journal_templates.id'), nullable=True)  # Template used for guided entries
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)  # Location where entry was created
+    weather_id = db.Column(db.Integer, db.ForeignKey('weather_data.id'), nullable=True)  # Weather when entry was created
     
     # Relationships
     guided_responses = db.relationship('GuidedResponse', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
     tags = db.relationship('Tag', secondary=entry_tags, lazy='joined', 
                           backref=db.backref('entries', lazy='dynamic'))
     photos = db.relationship('Photo', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
+    location = db.relationship('Location', backref='journal_entries', lazy='joined')
+    weather = db.relationship('WeatherData', backref='journal_entries', lazy='joined')
     
     def __repr__(self):
         return f'<JournalEntry {self.id} by User {self.user_id}>'
@@ -354,6 +358,180 @@ class TemplateQuestion(db.Model):
                 return True
         
         return condition_func
+
+
+class Location(db.Model):
+    """Location model for storing geographic information."""
+    __tablename__ = 'locations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=True)  # User-friendly name for the location
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+    address = db.Column(db.Text, nullable=True)  # Full address
+    city = db.Column(db.String(100), nullable=True)
+    state = db.Column(db.String(100), nullable=True)
+    country = db.Column(db.String(100), nullable=True)
+    postal_code = db.Column(db.String(20), nullable=True)
+    location_type = db.Column(db.String(50), default='manual')  # 'manual', 'gps', 'geocoded'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f'<Location {self.name or self.city or f"({self.latitude}, {self.longitude})"}>'
+    
+    def to_dict(self):
+        """Convert location to dictionary format."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'address': self.address,
+            'city': self.city,
+            'state': self.state,
+            'country': self.country,
+            'postal_code': self.postal_code,
+            'location_type': self.location_type,
+            'display_name': self.get_display_name()
+        }
+    
+    def get_display_name(self):
+        """Get a user-friendly display name for the location."""
+        if self.name:
+            return self.name
+        
+        # Build display name from available components
+        parts = []
+        if self.city:
+            parts.append(self.city)
+        if self.state:
+            parts.append(self.state)
+        if self.country and self.country != self.state:
+            parts.append(self.country)
+        
+        if parts:
+            return ', '.join(parts)
+        
+        # Fallback to coordinates
+        if self.latitude is not None and self.longitude is not None:
+            return f"{self.latitude:.4f}, {self.longitude:.4f}"
+        
+        return "Unknown Location"
+    
+    def get_coordinates(self):
+        """Get coordinates as a tuple."""
+        if self.latitude is not None and self.longitude is not None:
+            return (self.latitude, self.longitude)
+        return None
+
+
+class WeatherData(db.Model):
+    """Weather data model for storing weather information."""
+    __tablename__ = 'weather_data'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
+    
+    # Temperature data
+    temperature = db.Column(db.Float, nullable=True)  # Temperature value
+    temperature_unit = db.Column(db.String(10), default='celsius')  # 'celsius' or 'fahrenheit'
+    
+    # Weather conditions
+    humidity = db.Column(db.Integer, nullable=True)  # Percentage
+    pressure = db.Column(db.Float, nullable=True)  # Atmospheric pressure
+    weather_condition = db.Column(db.String(100), nullable=True)  # Clear, Cloudy, Rain, etc.
+    weather_description = db.Column(db.Text, nullable=True)  # Detailed description
+    
+    # Wind data
+    wind_speed = db.Column(db.Float, nullable=True)
+    wind_direction = db.Column(db.Integer, nullable=True)  # Degrees (0-360)
+    
+    # Additional weather data
+    visibility = db.Column(db.Float, nullable=True)  # Visibility distance
+    uv_index = db.Column(db.Float, nullable=True)
+    precipitation = db.Column(db.Float, nullable=True)  # Amount of precipitation
+    precipitation_type = db.Column(db.String(50), nullable=True)  # rain, snow, etc.
+    
+    # Metadata
+    weather_source = db.Column(db.String(50), default='api')  # 'api', 'manual', 'estimated'
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    location = db.relationship('Location', backref='weather_records', lazy='joined')
+    
+    def __repr__(self):
+        return f'<WeatherData {self.weather_condition} at {self.temperature}°{self.temperature_unit[0].upper()}>'
+    
+    def to_dict(self):
+        """Convert weather data to dictionary format."""
+        return {
+            'id': self.id,
+            'temperature': self.temperature,
+            'temperature_unit': self.temperature_unit,
+            'humidity': self.humidity,
+            'pressure': self.pressure,
+            'weather_condition': self.weather_condition,
+            'weather_description': self.weather_description,
+            'wind_speed': self.wind_speed,
+            'wind_direction': self.wind_direction,
+            'visibility': self.visibility,
+            'uv_index': self.uv_index,
+            'precipitation': self.precipitation,
+            'precipitation_type': self.precipitation_type,
+            'weather_source': self.weather_source,
+            'recorded_at': self.recorded_at,
+            'display_summary': self.get_display_summary()
+        }
+    
+    def get_display_summary(self):
+        """Get a user-friendly weather summary."""
+        parts = []
+        
+        # Temperature
+        if self.temperature is not None:
+            unit_symbol = '°F' if self.temperature_unit == 'fahrenheit' else '°C'
+            parts.append(f"{self.temperature:.0f}{unit_symbol}")
+        
+        # Condition
+        if self.weather_condition:
+            parts.append(self.weather_condition)
+        
+        # Additional details
+        details = []
+        if self.humidity is not None:
+            details.append(f"{self.humidity}% humidity")
+        if self.wind_speed is not None:
+            details.append(f"{self.wind_speed:.0f} mph wind")
+        if self.precipitation is not None and self.precipitation > 0:
+            details.append(f"{self.precipitation:.1f}mm rain")
+        
+        summary = ' • '.join(parts) if parts else 'Weather data available'
+        if details:
+            summary += f" ({', '.join(details)})"
+        
+        return summary
+    
+    def get_temperature_fahrenheit(self):
+        """Get temperature in Fahrenheit."""
+        if self.temperature is None:
+            return None
+        
+        if self.temperature_unit == 'fahrenheit':
+            return self.temperature
+        else:
+            return (self.temperature * 9/5) + 32
+    
+    def get_temperature_celsius(self):
+        """Get temperature in Celsius."""
+        if self.temperature is None:
+            return None
+        
+        if self.temperature_unit == 'celsius':
+            return self.temperature
+        else:
+            return (self.temperature - 32) * 5/9
 
 
 class QuestionManager:

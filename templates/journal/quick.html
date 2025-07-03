@@ -10,6 +10,10 @@
         
         <form method="post" enctype="multipart/form-data">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- Location and Weather Component -->
+            {% include 'components/location_weather.html' %}
+            
             <div class="mb-3">
                 <textarea class="form-control" name="content" id="content" rows="10" placeholder="Start writing..." required></textarea>
             </div>
@@ -133,4 +137,7 @@
     
     // Camera functionality is now handled by camera.js
 </script>
+
+<!-- Location Service JavaScript -->
+<script src="{{ url_for('static', filename='js/location.js') }}"></script>
 {% endblock %}
