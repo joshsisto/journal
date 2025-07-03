@@ -21,6 +21,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run DB updates**: `python add_tag_tables.py`, `python add_timezone_column.py`, etc.
 - **Restart production service**: `python3 service_control.py reload`
 
+## 🏥 App Health Monitoring
+- **Deploy with health check**: `python3 deploy_changes.py` (recommended after code changes)
+- **Manual health check**: `python3 check_app_health.py`
+- **Service restart only**: `sudo systemctl restart journal-app.service`
+
+**IMPORTANT**: Always use `deploy_changes.py` after making code changes to ensure the app is working correctly.
+
 ## Testing Commands
 
 ### 🎯 **Comprehensive Testing** (Prevents Guided Journal Issues)
@@ -72,9 +79,12 @@ sudo systemctl restart journal-app.service
 python3 service_control.py reload
 ```
 
-**⚠️ IMPORTANT FOR CLAUDE CODE**: After making code changes, you MUST either:
-1. **Commit your changes** (recommended) - triggers automatic restart
-2. **Manual restart** - run `sudo systemctl restart journal-app.service`
+**⚠️ IMPORTANT FOR CLAUDE CODE**: After making code changes, you MUST:
+1. **Use deployment script** (recommended) - run `python3 deploy_changes.py`
+2. **Or manual process** - restart service then run health check
+3. **Always verify** - check that the app is working before finishing
+
+This prevents "Internal Server Error" situations and ensures changes work correctly.
 
 This is critical for:
 - Python code changes (routes.py, app.py, models.py, etc.)
