@@ -34,6 +34,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run with coverage**: `python3 run_tests.py coverage`
 - **Test specific file**: `python3 -m pytest tests/unit/test_auth.py -v`
 
+### 🏥 **AI Conversation Health Monitoring**
+- **Full health check**: `./check_ai_health.sh` or `python3 ai_conversation_health_check.py`
+- **Brief health check**: `./check_ai_health.sh brief` or `python3 ai_conversation_health_check.py --brief`
+- **Purpose**: Prevents AI conversation breakdowns by monitoring templates, security, dependencies, and functionality
+- **Automated**: Runs automatically in pre-commit and post-commit hooks
+
 ### 🔒 **Security & UI Testing**
 - **Test security validation**: `python3 -m pytest tests/unit/test_security_validation.py -v`
 - **Test CSP/JavaScript**: `python3 -m pytest tests/unit/test_csp_javascript.py -v`
@@ -77,9 +83,10 @@ This is critical for:
 - Any file modifications that affect the running application
 
 **Git Hook Setup**:
-- **Post-commit**: `hooks/post-commit` (automatic service restart)
-- **Pre-commit comprehensive**: `hooks/pre-commit-comprehensive` (prevents all issues)
+- **Post-commit**: `hooks/post-commit` (automatic service restart + health check)
+- **Pre-commit comprehensive**: `hooks/pre-commit-comprehensive` (prevents all issues + AI health check)
 - **Install comprehensive hook**: `cp hooks/pre-commit-comprehensive .git/hooks/pre-commit`
+- **Post-deploy health check**: `hooks/post-deploy-health-check` (standalone health validation)
 - **Standard hooks**: Already installed automatically
 
 ## 🎯 Preventing Guided Journal Issues

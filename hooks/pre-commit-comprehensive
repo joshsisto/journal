@@ -283,6 +283,18 @@ else
 fi
 echo ""
 
+# 9. AI Conversation Health Check
+echo "🏥 Running AI conversation health check..."
+python3 ai_conversation_health_check.py > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "❌ AI conversation health check failed! Running with output..."
+    python3 ai_conversation_health_check.py
+    FAILURES=$((FAILURES + 1))
+else
+    echo "✅ AI conversation health check passed!"
+fi
+echo ""
+
 # Final result
 if [ $FAILURES -gt 0 ]; then
     echo "❌ $FAILURES checks failed! Please fix the issues above before committing."
@@ -291,9 +303,10 @@ if [ $FAILURES -gt 0 ]; then
     echo "  - Add nonce='{{ csp_nonce() }}' to inline script tags"
     echo "  - Use {{ csrf_token() }} for CSRF tokens"
     echo "  - Check security.py for legitimate data exceptions"
+    echo "  - Run 'python3 ai_conversation_health_check.py' for AI conversation issues"
     echo "  - Run 'python3 run_tests.py all' for detailed test output"
     exit 1
 else
-    echo "🎉 All $((8)) comprehensive checks passed! Proceeding with commit..."
+    echo "🎉 All $((9)) comprehensive checks passed! Proceeding with commit..."
     echo ""
 fi

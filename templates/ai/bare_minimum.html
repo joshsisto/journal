@@ -46,7 +46,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Simplified test script - no dependencies, no complex handlers
 (function() {
     window.alert('Basic test script loaded');

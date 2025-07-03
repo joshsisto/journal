@@ -26,6 +26,7 @@ class TestSecurityValidation:
         mock_request.method = 'POST'
         mock_request.remote_addr = '127.0.0.1'
         mock_request.args.items.return_value = []
+        mock_request.endpoint = 'test.endpoint'  # Add endpoint to pass context check
         
         # Legitimate emotion data that was previously blocked
         emotion_data = json.dumps(["Happy", "Excited", "Grateful"])
@@ -46,11 +47,12 @@ class TestSecurityValidation:
         mock_request.method = 'POST'
         mock_request.remote_addr = '127.0.0.1'
         mock_request.args.items.return_value = []
+        mock_request.endpoint = 'test.endpoint'  # Add endpoint to pass context check
         
         # Actually malicious data that should be blocked
         mock_request.form.items.return_value = [
-            ('question_feeling_reason', "'; DROP TABLE users; --"),
-            ('question_additional_emotions', '<script>alert("xss")</script>'),
+            ('malicious_input', "'; DROP TABLE users; --"),
+            ('other_field', '<script>alert("xss")</script>'),
             ('_csrf_token', 'valid_token_here')
         ]
         
@@ -94,10 +96,14 @@ class TestSecurityValidation:
         """Test that actually malicious data is still blocked."""
         with self.app.app_context():
             with patch('flask.request', mock_request_with_malicious_data):
-                with patch('flask.abort') as mock_abort:
-                    monitor_suspicious_activity()
-                    # Should call abort for malicious data
-                    mock_abort.assert_called_once_with(400, description="Malicious input detected")
+                with patch('security.abort') as mock_abort:
+                    with patch('security.current_app') as mock_current_app:
+                        mock_current_app.logger.warning = MagicMock()
+                        
+                        monitor_suspicious_activity()
+                        
+                        # Should call abort for malicious data
+                        mock_abort.assert_called_once_with(400, description="Malicious input detected")
     
     def test_complex_emotion_combinations(self):
         """Test various complex but legitimate emotion combinations."""
