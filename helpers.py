@@ -53,7 +53,12 @@ def format_time_since(delta):
 
 
 def has_exercised_today():
-    """Check if the user has already logged exercise today."""
+    """Check if the user has already logged exercise today.
+    
+    Returns True only if user answered 'Yes' to exercise question today.
+    Returns False if user hasn't been asked yet OR answered 'No'.
+    This ensures the question keeps being asked until user says 'Yes'.
+    """
     today = TimeUtils.get_local_today()
     day_start_utc, day_end_utc = TimeUtils.get_day_start_end_utc(today)
     

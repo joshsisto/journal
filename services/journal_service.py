@@ -236,7 +236,8 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
             if key.startswith('question_'):
                 question_id = key.replace('question_', '')
 
-                # Special handling for exercise question
+                # Special handling for exercise question - only track "Yes" responses
+                # Keep asking until user says "Yes", then stop for that day
                 if question_id == 'exercise' and value == 'Yes':
                     today = datetime.utcnow().date()
                     exercise_log = ExerciseLog.query.filter_by(
