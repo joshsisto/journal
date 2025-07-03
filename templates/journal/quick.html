@@ -106,7 +106,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     // Photo preview script
     document.getElementById('photos').addEventListener('change', function(event) {
         const preview = document.getElementById('photo-preview');
