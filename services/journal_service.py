@@ -6,6 +6,7 @@ import uuid
 import os
 from flask import current_app
 from datetime import datetime
+from time_utils import TimeUtils
 # allowed_file will be passed as parameter
 
 
@@ -239,7 +240,7 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
                 # Special handling for exercise question - only track "Yes" responses
                 # Keep asking until user says "Yes", then stop for that day
                 if question_id == 'exercise' and value == 'Yes':
-                    today = datetime.utcnow().date()
+                    today = TimeUtils.get_local_today()
                     exercise_log = ExerciseLog.query.filter_by(
                         user_id=user_id,
                         date=today
