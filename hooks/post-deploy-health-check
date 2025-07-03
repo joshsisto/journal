@@ -1,0 +1,33 @@
+#!/bin/bash
+#
+# Post-deploy health check for AI conversation functionality
+# This runs after the service restarts to ensure everything is working
+#
+
+echo "🏥 Post-Deploy AI Conversation Health Check"
+echo "============================================"
+
+# Wait a moment for service to fully start
+sleep 3
+
+# Run the comprehensive health check
+echo "🔍 Running health check..."
+python3 ai_conversation_health_check.py
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ Post-deploy health check PASSED!"
+    echo "🚀 AI conversation functionality is healthy after deployment."
+else
+    echo ""
+    echo "❌ Post-deploy health check FAILED!"
+    echo "⚠️  AI conversation functionality may have issues after deployment."
+    echo ""
+    echo "🔧 Immediate actions:"
+    echo "  1. Check service logs: sudo journalctl -u journal-app.service -f"
+    echo "  2. Restart service: sudo systemctl restart journal-app.service"
+    echo "  3. Run detailed health check: python3 ai_conversation_health_check.py"
+    
+    # Don't fail the deployment, just warn
+    exit 0
+fi

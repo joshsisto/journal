@@ -258,9 +258,8 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-// Simple test to confirm script is loading
-alert("Multiple conversation script loaded");
+<script nonce="{{ csp_nonce() }}">
+// Initialize multiple conversation functionality
 
 // Initialize when DOM is fully loaded
 document.addEventListener('DOMContentLoaded', function() {

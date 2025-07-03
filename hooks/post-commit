@@ -19,6 +19,18 @@ if systemctl is-active --quiet journal-app.service 2>/dev/null; then
         sleep 2
         if systemctl is-active --quiet journal-app.service; then
             echo "✅ Service is running properly"
+            
+            # Run post-deploy health check for AI conversations
+            echo ""
+            echo "🏥 Running post-deploy AI conversation health check..."
+            if command -v python3 >/dev/null 2>&1 && [ -f "ai_conversation_health_check.py" ]; then
+                python3 ai_conversation_health_check.py --brief 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo "✅ AI conversation health check passed"
+                else
+                    echo "⚠️  AI conversation health check found issues (run 'python3 ai_conversation_health_check.py' for details)"
+                fi
+            fi
         else
             echo "❌ Warning: Service may not have started properly"
             sudo systemctl status journal-app.service --no-pager -l

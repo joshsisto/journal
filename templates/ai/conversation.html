@@ -219,7 +219,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Initialize when DOM is fully loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('AI Conversation page initialized');

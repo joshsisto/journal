@@ -226,3 +226,70 @@ def setup_security(app):
         # Block suspicious requests
         if suspicious_request:
             abort(400, description="Malicious input detected")
+
+
+def monitor_suspicious_activity():
+    """
+    Standalone version of the suspicious activity monitor for testing.
+    
+    This function can be imported and called independently for testing purposes.
+    The actual monitoring is set up as a Flask before_request handler in setup_security().
+    """
+    # Check if we're in a valid request context
+    try:
+        # This will raise RuntimeError if we're not in a request context
+        _ = request.endpoint
+    except RuntimeError:
+        # Not in request context (likely during testing), skip monitoring
+        return
+    
+    # Enhanced SQL injection patterns
+    sql_injection_pattern = re.compile(
+        r'(\bSELECT\b|\bUNION\b|\bINSERT\b|\bDROP\b|\bDELETE\b|\bUPDATE\b|\bALTER\b|\bCREATE\b|\bEXEC\b|\b1=1\b|--[^\n]*$|\bOR\s+\d+=\d+\b|\bAND\s+\d+=\d+\b|\'.*\'|\".*\"|;|\\\x27|\\\x22|\\\x5C)', 
+        re.IGNORECASE
+    )
+    
+    # XSS patterns
+    xss_pattern = re.compile(
+        r'(<script|javascript:|on\w+\s*=|<iframe|<object|<embed|\balert\s*\(|\bconfirm\s*\(|\bprompt\s*\()',
+        re.IGNORECASE
+    )
+    
+    suspicious_request = False
+    
+    # Check URL parameters
+    for key, value in list(request.args.items()):
+        if isinstance(value, str):
+            if sql_injection_pattern.search(value):
+                current_app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                suspicious_request = True
+            elif xss_pattern.search(value):
+                current_app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                suspicious_request = True
+    
+    # Check form data
+    if request.method == 'POST' and request.form:
+        for key, value in request.form.items():
+            # Skip fields that should not be validated for security patterns
+            if key.lower() in ('password', 'new_password', 'confirm_password', 'current_password'):
+                continue  # Skip password fields
+            
+            # Skip emotion fields that contain legitimate JSON data
+            if key.startswith('question_') and 'emotion' in key.lower():
+                continue  # Skip emotion JSON fields
+            
+            # Skip other legitimate JSON fields
+            if key in ('new_tags',):
+                continue  # Skip JSON tag data
+            
+            if isinstance(value, str):
+                if sql_injection_pattern.search(value):
+                    current_app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                    suspicious_request = True
+                elif xss_pattern.search(value) and key not in ('content', 'response'):  # Allow some HTML in content fields
+                    current_app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                    suspicious_request = True
+    
+    # Block suspicious requests
+    if suspicious_request:
+        abort(400, description="Malicious input detected")
