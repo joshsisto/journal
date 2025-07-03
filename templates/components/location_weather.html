@@ -1,0 +1,154 @@
+<!-- Location and Weather Component -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="fas fa-map-marker-alt text-primary me-2"></i>
+            Location & Weather
+        </h6>
+    </div>
+    <div class="card-body">
+        <!-- Location Status Messages -->
+        <div id="location-status"></div>
+        
+        <!-- Current Location Display -->
+        <div id="location-display" class="alert alert-light border" style="display: none;">
+            <!-- Location info will be populated by JavaScript -->
+        </div>
+        
+        <!-- Weather Information -->
+        <div id="weather-info" class="alert alert-light border" style="display: none;">
+            <!-- Weather info will be populated by JavaScript -->
+        </div>
+        
+        <!-- Location Controls -->
+        <div class="mb-3">
+            <div class="btn-group" role="group" aria-label="Location controls">
+                <button type="button" id="get-current-location" class="btn btn-outline-primary">
+                    <i class="fas fa-crosshairs me-1"></i>
+                    Use Current Location
+                </button>
+                <button type="button" id="clear-location" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>
+                    Clear
+                </button>
+            </div>
+        </div>
+        
+        <!-- Manual Location Search -->
+        <div class="mb-3">
+            <form id="search-location-form" class="d-flex">
+                <input type="text" id="location-search-input" class="form-control me-2" 
+                       placeholder="Search for a location (e.g., 'New York, NY')" />
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+        </div>
+        
+        <!-- Recent Locations -->
+        {% if recent_locations %}
+        <div class="mb-3">
+            <label for="recent-locations" class="form-label">Recent Locations</label>
+            <select id="recent-locations" class="form-select">
+                <option value="">Choose from recent locations...</option>
+                {% for location in recent_locations %}
+                <option value="{{ location.id }}">{{ location.get_display_name() }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        
+        <!-- Manual Location Entry -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="location_name" class="form-label">Location Name</label>
+                    <input type="text" id="location_name" name="location_name" class="form-control" 
+                           placeholder="e.g., Home, Office, Central Park" />
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="location_address" class="form-label">Address</label>
+                    <input type="text" id="location_address" name="location_address" class="form-control" 
+                           placeholder="Full address (optional)" />
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="location_city" class="form-label">City</label>
+                    <input type="text" id="location_city" name="location_city" class="form-control" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="location_state" class="form-label">State/Region</label>
+                    <input type="text" id="location_state" name="location_state" class="form-control" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="location_country" class="form-label">Country</label>
+                    <input type="text" id="location_country" name="location_country" class="form-control" />
+                </div>
+            </div>
+        </div>
+        
+        <!-- Coordinates (hidden by default, shown when GPS is used) -->
+        <div class="row" style="display: none;" id="coordinates-section">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="location_latitude" class="form-label">Latitude</label>
+                    <input type="number" step="0.000001" id="location_latitude" name="location_latitude" 
+                           class="form-control" readonly />
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="location_longitude" class="form-label">Longitude</label>
+                    <input type="number" step="0.000001" id="location_longitude" name="location_longitude" 
+                           class="form-control" readonly />
+                </div>
+            </div>
+        </div>
+        
+        <!-- Weather Data (hidden fields) -->
+        <input type="hidden" id="weather_temperature" name="weather_temperature" />
+        <input type="hidden" id="weather_condition" name="weather_condition" />
+        <input type="hidden" id="weather_description" name="weather_description" />
+        <input type="hidden" id="weather_humidity" name="weather_humidity" />
+        <input type="hidden" id="weather_wind_speed" name="weather_wind_speed" />
+        <input type="hidden" id="weather_pressure" name="weather_pressure" />
+        
+        <!-- Show/Hide Advanced Options -->
+        <div class="text-center">
+            <button type="button" class="btn btn-link btn-sm" id="toggle-advanced-location" 
+                    onclick="toggleLocationAdvanced()">
+                <i class="fas fa-cog me-1"></i>
+                Show Advanced Options
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Toggle advanced location options
+function toggleLocationAdvanced() {
+    const coordsSection = document.getElementById('coordinates-section');
+    const toggleBtn = document.getElementById('toggle-advanced-location');
+    
+    if (coordsSection.style.display === 'none') {
+        coordsSection.style.display = '';
+        toggleBtn.innerHTML = '<i class="fas fa-cog me-1"></i>Hide Advanced Options';
+    } else {
+        coordsSection.style.display = 'none';
+        toggleBtn.innerHTML = '<i class="fas fa-cog me-1"></i>Show Advanced Options';
+    }
+}
+
+// Store CSRF token for API calls
+window.csrfToken = '{{ csrf_token() }}';
+</script>

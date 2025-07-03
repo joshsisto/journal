@@ -13,7 +13,7 @@ import os
 import uuid
 from security import limiter  # Import limiter for rate limiting
 
-from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo, JournalTemplate, TemplateQuestion
+from models import db, User, JournalEntry, GuidedResponse, ExerciseLog, QuestionManager, Tag, Photo, JournalTemplate, TemplateQuestion, Location, WeatherData
 from export_utils import format_entry_for_text, format_multi_entry_filename
 from email_utils import send_password_reset_email, send_email_change_confirmation
 from emotions import get_emotions_by_category
@@ -22,6 +22,7 @@ from helpers import (
     has_set_goals_today, is_before_noon, prepare_guided_journal_context
 )
 from services.journal_service import create_quick_entry, create_guided_entry
+from services.weather_service import weather_service
 from validators import sanitize_input
 
 # Blueprints
@@ -30,6 +31,7 @@ journal_bp = Blueprint('journal', __name__)
 tag_bp = Blueprint('tag', __name__)
 export_bp = Blueprint('export', __name__)
 ai_bp = Blueprint('ai', __name__)
+api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 # Authentication routes
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -662,7 +664,8 @@ def quick_journal():
             tag_ids=tag_ids,
             new_tags_json=new_tags_json,
             photos=photos,
-            allowed_file_func=allowed_file
+            allowed_file_func=allowed_file,
+            form_data=request.form
         )
         
         if error:
@@ -675,7 +678,10 @@ def quick_journal():
     # Get user's tags
     tags = Tag.query.filter_by(user_id=current_user.id).all()
     
-    return render_template('journal/quick.html', tags=tags)
+    # Get user's recent locations
+    recent_locations = weather_service.get_user_recent_locations(current_user.id, limit=10)
+    
+    return render_template('journal/quick.html', tags=tags, recent_locations=recent_locations)
 
 
 @journal_bp.route('/journal/guided', methods=['GET', 'POST'])
@@ -744,6 +750,9 @@ def guided_journal():
     # Get emotions by category for the template
     emotions_by_category = get_emotions_by_category()
     
+    # Get user's recent locations
+    recent_locations = weather_service.get_user_recent_locations(current_user.id, limit=10)
+    
     return render_template(
         'journal/guided.html', 
         questions=questions, 
@@ -752,8 +761,42 @@ def guided_journal():
         system_templates=system_templates,
         user_templates=user_templates,
         selected_template=selected_template,
-        template_id=template_id
+        template_id=template_id,
+        recent_locations=recent_locations
     )
+
+
+@journal_bp.route('/map')
+@login_required
+def map_view():
+    """Map view showing journal entries with location data."""
+    # Get entries with location data for the current user
+    entries_with_location = JournalEntry.query.filter(
+        JournalEntry.user_id == current_user.id,
+        JournalEntry.location_id.isnot(None)
+    ).join(Location).order_by(JournalEntry.created_at.desc()).limit(100).all()
+    
+    # Prepare data for the map
+    map_data = []
+    for entry in entries_with_location:
+        if entry.location and entry.location.latitude and entry.location.longitude:
+            entry_data = {
+                'id': entry.id,
+                'latitude': entry.location.latitude,
+                'longitude': entry.location.longitude,
+                'title': entry.location.get_display_name(),
+                'date': entry.created_at.strftime('%Y-%m-%d %H:%M'),
+                'type': entry.entry_type,
+                'preview': (entry.content[:100] + '...') if entry.content and len(entry.content) > 100 else entry.content or ''
+            }
+            
+            # Add weather info if available
+            if entry.weather:
+                entry_data['weather'] = entry.weather.get_display_summary()
+            
+            map_data.append(entry_data)
+    
+    return render_template('journal/map.html', entries=map_data)
 
 
 @journal_bp.route('/templates')
@@ -2512,4 +2555,155 @@ def ai_conversation_api():
             'error': f'An error occurred: {str(e)}',
             'success': False
         }), 500
+
+
+# Location and Weather API Routes
+@api_bp.route('/location/search', methods=['POST'])
+@login_required
+@sanitize_input
+def search_location():
+    """Search for a location by name using geocoding."""
+    try:
+        data = request.get_json()
+        location_name = data.get('location_name', '').strip()
+        
+        if not location_name:
+            return jsonify({'error': 'Location name is required'}), 400
+        
+        # Use weather service to geocode the location
+        coordinates = weather_service.geocode_location(location_name)
+        
+        if not coordinates:
+            return jsonify({'error': 'Location not found'}), 404
+        
+        latitude, longitude = coordinates
+        
+        # Try to get additional location information via reverse geocoding
+        location_info = weather_service.reverse_geocode(latitude, longitude) or {}
+        
+        return jsonify({
+            'latitude': latitude,
+            'longitude': longitude,
+            'name': location_info.get('name', location_name),
+            'city': location_info.get('city', ''),
+            'state': location_info.get('state', ''),
+            'country': location_info.get('country', ''),
+            'address': location_info.get('address', ''),
+            'success': True
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error searching location: {e}")
+        return jsonify({'error': 'Search failed'}), 500
+
+
+@api_bp.route('/location/reverse-geocode', methods=['POST'])
+@login_required
+@sanitize_input
+def reverse_geocode():
+    """Reverse geocode coordinates to get location information."""
+    try:
+        data = request.get_json()
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        
+        if latitude is None or longitude is None:
+            return jsonify({'error': 'Latitude and longitude are required'}), 400
+        
+        # Validate coordinate ranges
+        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+            return jsonify({'error': 'Invalid coordinates'}), 400
+        
+        # Use weather service to reverse geocode
+        location_info = weather_service.reverse_geocode(latitude, longitude)
+        
+        if not location_info:
+            return jsonify({'error': 'Location not found'}), 404
+        
+        return jsonify({
+            **location_info,
+            'success': True
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error reverse geocoding: {e}")
+        return jsonify({'error': 'Reverse geocoding failed'}), 500
+
+
+@api_bp.route('/weather/current', methods=['POST'])
+@login_required
+@sanitize_input
+def get_current_weather():
+    """Get current weather for given coordinates."""
+    try:
+        data = request.get_json()
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        
+        if latitude is None or longitude is None:
+            return jsonify({'error': 'Latitude and longitude are required'}), 400
+        
+        # Validate coordinate ranges
+        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+            return jsonify({'error': 'Invalid coordinates'}), 400
+        
+        # Get weather data
+        weather_data = weather_service.get_weather_by_coordinates(latitude, longitude)
+        
+        if not weather_data:
+            return jsonify({'error': 'Weather data not available'}), 404
+        
+        return jsonify({
+            **weather_data,
+            'success': True
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching weather: {e}")
+        return jsonify({'error': 'Weather fetch failed'}), 500
+
+
+@api_bp.route('/location/<int:location_id>', methods=['GET'])
+@login_required
+def get_location(location_id):
+    """Get location details by ID."""
+    try:
+        # Get location from database
+        location = Location.query.get_or_404(location_id)
+        
+        # Check if user has access to this location (through journal entries)
+        entry_with_location = JournalEntry.query.filter_by(
+            user_id=current_user.id,
+            location_id=location_id
+        ).first()
+        
+        if not entry_with_location:
+            return jsonify({'error': 'Location not found'}), 404
+        
+        return jsonify({
+            **location.to_dict(),
+            'success': True
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching location: {e}")
+        return jsonify({'error': 'Failed to fetch location'}), 500
+
+
+@api_bp.route('/location/recent', methods=['GET'])
+@login_required
+def get_recent_locations():
+    """Get user's recent locations."""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        locations = weather_service.get_user_recent_locations(current_user.id, limit)
+        
+        return jsonify({
+            'locations': [location.to_dict() for location in locations],
+            'success': True
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching recent locations: {e}")
+        return jsonify({'error': 'Failed to fetch recent locations'}), 500
 

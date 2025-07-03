@@ -324,6 +324,157 @@ def logout_user(client):
     return client.get('/logout', follow_redirects=True)
 
 
+# Template-related fixtures for testing template functionality
+
+@pytest.fixture
+def custom_template(app, db_session, user):
+    """Create a custom journal template for testing."""
+    from models import JournalTemplate
+    
+    template = JournalTemplate(
+        name='Test Custom Template',
+        description='A template for testing purposes',
+        user_id=user.id,
+        is_system=False
+    )
+    db_session.add(template)
+    db_session.commit()
+    return template
+
+
+@pytest.fixture
+def system_template(app, db_session):
+    """Create a system template for testing."""
+    from models import JournalTemplate
+    
+    template = JournalTemplate(
+        name='Test System Template',
+        description='A system template for testing',
+        user_id=None,
+        is_system=True
+    )
+    db_session.add(template)
+    db_session.commit()
+    return template
+
+
+@pytest.fixture
+def template_question(app, db_session, custom_template):
+    """Create a template question for testing."""
+    from models import TemplateQuestion
+    
+    question = TemplateQuestion(
+        template_id=custom_template.id,
+        text='How was your day?',
+        question_type='text',
+        question_order=1,
+        is_required=True
+    )
+    db_session.add(question)
+    db_session.commit()
+    return question
+
+
+@pytest.fixture
+def custom_template_with_questions(app, db_session, user):
+    """Create a custom template with multiple questions for testing."""
+    from models import JournalTemplate, TemplateQuestion
+    
+    template = JournalTemplate(
+        name='Template with Questions',
+        description='A template with multiple question types',
+        user_id=user.id,
+        is_system=False
+    )
+    db_session.add(template)
+    db_session.flush()  # Get ID without committing
+    
+    # Add various question types
+    questions = [
+        TemplateQuestion(
+            template_id=template.id,
+            text='How would you rate your day?',
+            question_type='number',
+            question_order=1,
+            is_required=True,
+            min_value=1,
+            max_value=10
+        ),
+        TemplateQuestion(
+            template_id=template.id,
+            text='What was the highlight of your day?',
+            question_type='text',
+            question_order=2,
+            is_required=False
+        ),
+        TemplateQuestion(
+            template_id=template.id,
+            text='Did you exercise today?',
+            question_type='boolean',
+            question_order=3,
+            is_required=True
+        ),
+        TemplateQuestion(
+            template_id=template.id,
+            text='How are you feeling?',
+            question_type='emotions',
+            question_order=4,
+            is_required=False
+        )
+    ]
+    
+    for question in questions:
+        db_session.add(question)
+    
+    db_session.commit()
+    return template
+
+
+@pytest.fixture
+def template_journal_entry(app, db_session, user, custom_template_with_questions):
+    """Create a journal entry created with a template."""
+    from models import JournalEntry, GuidedResponse, TemplateQuestion
+    
+    # Create the journal entry
+    entry = JournalEntry(
+        user_id=user.id,
+        content='Template-based guided journal entry',
+        entry_type='guided',
+        template_id=custom_template_with_questions.id
+    )
+    db_session.add(entry)
+    db_session.flush()  # Get ID without committing
+    
+    # Get template questions and create responses
+    questions = TemplateQuestion.query.filter_by(
+        template_id=custom_template_with_questions.id
+    ).order_by(TemplateQuestion.question_order).all()
+    
+    for question in questions:
+        # Create appropriate response based on question type
+        if question.question_type == 'number':
+            response_text = '8'
+        elif question.question_type == 'text':
+            response_text = f'Test response to: {question.text}'
+        elif question.question_type == 'boolean':
+            response_text = 'Yes'
+        elif question.question_type == 'emotions':
+            response_text = '["happy", "content"]'
+        else:
+            response_text = 'Test response'
+        
+        guided_response = GuidedResponse(
+            journal_entry_id=entry.id,
+            question_id=str(question.id),
+            question_text=question.text,  # Store the question text
+            response=response_text
+        )
+        db_session.add(guided_response)
+    
+    db_session.commit()
+    return entry
+
+
 def create_user_via_registration(client, user_data):
     """Helper function to create user via registration."""
     return client.post('/register', data=user_data, follow_redirects=True)

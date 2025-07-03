@@ -92,6 +92,9 @@
             <input type="hidden" name="template_id" value="{{ template_id }}">
             {% endif %}
             
+            <!-- Location and Weather Component -->
+            {% include 'components/location_weather.html' %}
+            
             {% for question in questions %}
             <div class="mb-4 card">
                 <div class="card-body">
@@ -514,4 +517,7 @@
     
     // Camera functionality is now handled by camera.js
 </script>
+
+<!-- Location Service JavaScript -->
+<script src="{{ url_for('static', filename='js/location.js') }}"></script>
 {% endblock %}
