@@ -12,32 +12,6 @@ import functools
 import re
 from validators import sanitize_text
 
-def get_real_ip():
-    """
-    Get the real IP address of the client, accounting for Cloudflare proxy.
-    
-    Returns:
-        str: The real IP address of the client
-    """
-    # Cloudflare sets CF-Connecting-IP header with the real client IP
-    if 'CF-Connecting-IP' in request.headers:
-        return request.headers['CF-Connecting-IP']
-    
-    # Standard proxy headers (in order of preference)
-    forwarded_ips = [
-        request.headers.get('X-Forwarded-For', '').split(',')[0].strip(),
-        request.headers.get('X-Real-IP', ''),
-        request.headers.get('X-Forwarded-For', ''),
-        request.remote_addr
-    ]
-    
-    # Return the first valid IP found
-    for ip in forwarded_ips:
-        if ip and ip != 'unknown':
-            return ip
-    
-    return request.remote_addr
-
 # Initialize CSP settings
 csp = {
     'default-src': [
@@ -73,12 +47,12 @@ csp = {
     ],
 }
 
-# Create Talisman instance (CSP disabled - using template-based CSP instead)
-talisman = Talisman(content_security_policy=False, force_https=False)
+# Create Talisman instance
+talisman = Talisman(content_security_policy=csp, force_https=False)
 
-# Create Limiter with default limits (using real IP for Cloudflare)
+# Create Limiter with default limits
 limiter = Limiter(
-    key_func=get_real_ip,
+    key_func=get_remote_address,
     default_limits=["200 per hour"],
     storage_uri="memory://"
 )
@@ -224,7 +198,7 @@ def setup_security(app):
                     app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                     suspicious_request = True
                 elif xss_pattern.search(value):
-                    app.logger.warning(f'XSS attempt blocked from {get_real_ip()}: {key}={value[:100]}')
+                    app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                     suspicious_request = True
         
         # Check form data
@@ -242,25 +216,12 @@ def setup_security(app):
                 if key in ('new_tags',):
                     continue  # Skip JSON tag data
                 
-                # Skip content fields from overly broad SQL injection patterns
-                # Allow quotes and semicolons in journal content
-                if key in ('content', 'response'):
-                    # Use more specific SQL injection patterns for content fields
-                    specific_sql_pattern = re.compile(
-                        r'(\bSELECT\b.*\bFROM\b|\bUNION\b.*\bSELECT\b|\bINSERT\b.*\bINTO\b|\bDROP\b.*\bTABLE\b|\bDELETE\b.*\bFROM\b|\bUPDATE\b.*\bSET\b|\bALTER\b.*\bTABLE\b|\bCREATE\b.*\bTABLE\b|\bEXEC\b|\b1=1\b|--[^\n]*$|\bOR\s+\d+=\d+\b|\bAND\s+\d+=\d+\b)', 
-                        re.IGNORECASE
-                    )
-                    if isinstance(value, str) and specific_sql_pattern.search(value):
-                        app.logger.warning(f'SQL injection attempt blocked from {get_real_ip()}: {key}={value[:100]}')
-                        suspicious_request = True
-                    continue
-                
                 if isinstance(value, str):
                     if sql_injection_pattern.search(value):
-                        app.logger.warning(f'SQL injection attempt blocked from {get_real_ip()}: {key}={value[:100]}')
+                        app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                         suspicious_request = True
                     elif xss_pattern.search(value) and key not in ('content', 'response'):  # Allow some HTML in content fields
-                        app.logger.warning(f'XSS attempt blocked from {get_real_ip()}: {key}={value[:100]}')
+                        app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                         suspicious_request = True
         
         # Block suspicious requests
@@ -301,10 +262,10 @@ def monitor_suspicious_activity():
     for key, value in list(request.args.items()):
         if isinstance(value, str):
             if sql_injection_pattern.search(value):
-                current_app.logger.warning(f'SQL injection attempt blocked from {get_real_ip()}: {key}={value[:100]}')
+                current_app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                 suspicious_request = True
             elif xss_pattern.search(value):
-                current_app.logger.warning(f'XSS attempt blocked from {get_real_ip()}: {key}={value[:100]}')
+                current_app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                 suspicious_request = True
     
     # Check form data
@@ -324,10 +285,10 @@ def monitor_suspicious_activity():
             
             if isinstance(value, str):
                 if sql_injection_pattern.search(value):
-                    current_app.logger.warning(f'SQL injection attempt blocked from {get_real_ip()}: {key}={value[:100]}')
+                    current_app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                     suspicious_request = True
                 elif xss_pattern.search(value) and key not in ('content', 'response'):  # Allow some HTML in content fields
-                    current_app.logger.warning(f'XSS attempt blocked from {get_real_ip()}: {key}={value[:100]}')
+                    current_app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                     suspicious_request = True
     
     # Block suspicious requests

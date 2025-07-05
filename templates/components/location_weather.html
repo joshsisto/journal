@@ -36,22 +36,16 @@
         
         <!-- Manual Location Search -->
         <div class="mb-3">
-            <div class="d-flex">
+            <div id="search-location-form" class="d-flex">
                 <input type="text" id="location-search-input" class="form-control me-2" 
                        placeholder="Search for a location (e.g., 'New York, NY')" />
-                <button type="button" id="location-search-btn" class="btn btn-outline-primary" title="Search for location">
-                    <i class="fas fa-search me-1"></i>
-                    <span class="d-none d-sm-inline">Search</span>
+                <button type="button" id="search-location-btn" class="btn btn-outline-primary me-1">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button type="button" id="clear-search" class="btn btn-outline-secondary">
+                    <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="form-text mt-2">
-                <i class="fas fa-info-circle me-1"></i>
-                Enter a city, address, or landmark to find its location and weather data.
-            </div>
-            <!-- Debug button for testing -->
-            <button type="button" id="test-location-search" class="btn btn-sm btn-secondary mt-2" style="display: none;">
-                Test Location Search
-            </button>
         </div>
         
         <!-- Recent Locations -->
@@ -134,7 +128,8 @@
         
         <!-- Show/Hide Advanced Options -->
         <div class="text-center">
-            <button type="button" class="btn btn-link btn-sm" id="toggle-advanced-location">
+            <button type="button" class="btn btn-link btn-sm" id="toggle-advanced-location" 
+                    onclick="toggleLocationAdvanced()">
                 <i class="fas fa-cog me-1"></i>
                 Show Advanced Options
             </button>
@@ -143,6 +138,20 @@
 </div>
 
 <script nonce="{{ csp_nonce() }}">
+// Toggle advanced location options
+function toggleLocationAdvanced() {
+    const coordsSection = document.getElementById('coordinates-section');
+    const toggleBtn = document.getElementById('toggle-advanced-location');
+    
+    if (coordsSection.style.display === 'none') {
+        coordsSection.style.display = '';
+        toggleBtn.innerHTML = '<i class="fas fa-cog me-1"></i>Hide Advanced Options';
+    } else {
+        coordsSection.style.display = 'none';
+        toggleBtn.innerHTML = '<i class="fas fa-cog me-1"></i>Show Advanced Options';
+    }
+}
+
 // Store CSRF token for API calls
 window.csrfToken = '{{ csrf_token() }}';
 </script>
