@@ -1,12 +1,18 @@
 <!-- Location and Weather Component -->
 <div class="card mb-3">
     <div class="card-header">
-        <h6 class="card-title mb-0">
+        <button class="btn btn-link text-decoration-none p-0 w-100 text-start" 
+                type="button" data-bs-toggle="collapse" 
+                data-bs-target="#location-weather-collapse" 
+                aria-expanded="false" 
+                aria-controls="location-weather-collapse">
             <i class="fas fa-map-marker-alt text-primary me-2"></i>
             Location & Weather
-        </h6>
+            <i class="fas fa-chevron-down float-end mt-1"></i>
+        </button>
     </div>
-    <div class="card-body">
+    <div class="collapse" id="location-weather-collapse">
+        <div class="card-body">
         <!-- Location Status Messages -->
         <div id="location-status"></div>
         
@@ -40,7 +46,8 @@
                 <input type="text" id="location-search-input" class="form-control me-2" 
                        placeholder="Search for a location (e.g., 'New York, NY')" />
                 <button type="button" id="search-location-btn" class="btn btn-outline-primary me-1">
-                    <i class="fas fa-search"></i>
+                    <i class="fas fa-search me-1"></i>
+                    Search
                 </button>
                 <button type="button" id="clear-search" class="btn btn-outline-secondary">
                     <i class="fas fa-times"></i>
@@ -51,13 +58,29 @@
         <!-- Recent Locations -->
         {% if recent_locations %}
         <div class="mb-3">
-            <label for="recent-locations" class="form-label">Recent Locations</label>
-            <select id="recent-locations" class="form-select">
-                <option value="">Choose from recent locations...</option>
-                {% for location in recent_locations %}
-                <option value="{{ location.id }}">{{ location.get_display_name() }}</option>
-                {% endfor %}
-            </select>
+            <div class="card">
+                <div class="card-header">
+                    <button class="btn btn-link text-decoration-none p-0 w-100 text-start" 
+                            type="button" data-bs-toggle="collapse" 
+                            data-bs-target="#recent-locations-collapse" 
+                            aria-expanded="false" 
+                            aria-controls="recent-locations-collapse">
+                        <i class="fas fa-history me-2"></i>
+                        Recent Locations
+                        <i class="fas fa-chevron-down float-end mt-1"></i>
+                    </button>
+                </div>
+                <div class="collapse" id="recent-locations-collapse">
+                    <div class="card-body">
+                        <select id="recent-locations" class="form-select">
+                            <option value="">Choose from recent locations...</option>
+                            {% for location in recent_locations %}
+                            <option value="{{ location.id }}">{{ location.get_display_name() }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
         
@@ -134,6 +157,7 @@
                 Show Advanced Options
             </button>
         </div>
+        </div>
     </div>
 </div>
 
@@ -154,4 +178,34 @@ function toggleLocationAdvanced() {
 
 // Store CSRF token for API calls
 window.csrfToken = '{{ csrf_token() }}';
+
+// Add chevron rotation for collapsible elements
+document.addEventListener('DOMContentLoaded', function() {
+    const setupChevronRotation = (collapseId, toggleSelector) => {
+        const collapseElement = document.getElementById(collapseId);
+        if (collapseElement) {
+            const chevronIcon = document.querySelector(toggleSelector + ' .fa-chevron-down');
+            
+            collapseElement.addEventListener('show.bs.collapse', function () {
+                if (chevronIcon) {
+                    chevronIcon.style.transform = 'rotate(180deg)';
+                    chevronIcon.style.transition = 'transform 0.2s ease';
+                }
+            });
+            
+            collapseElement.addEventListener('hide.bs.collapse', function () {
+                if (chevronIcon) {
+                    chevronIcon.style.transform = 'rotate(0deg)';
+                    chevronIcon.style.transition = 'transform 0.2s ease';
+                }
+            });
+        }
+    };
+    
+    // Setup chevron rotation for location/weather section
+    setupChevronRotation('location-weather-collapse', '[data-bs-target="#location-weather-collapse"]');
+    
+    // Setup chevron rotation for recent locations (if present)
+    setupChevronRotation('recent-locations-collapse', '[data-bs-target="#recent-locations-collapse"]');
+});
 </script>
