@@ -159,7 +159,7 @@ class JournalEntry(db.Model):
                           backref=db.backref('entries', lazy='dynamic'))
     photos = db.relationship('Photo', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
     location = db.relationship('Location', backref='journal_entries', lazy='joined')
-    weather = db.relationship('WeatherData', backref='journal_entries', lazy='joined')
+    weather = db.relationship('WeatherData', foreign_keys='WeatherData.journal_entry_id', backref='journal_entry', lazy='joined')
     
     def __repr__(self):
         return f'<JournalEntry {self.id} by User {self.user_id}>'
