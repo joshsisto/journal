@@ -10,54 +10,65 @@
         
         <!-- Template Selection -->
         <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-clipboard-list me-2"></i>Choose a Template
-                </h5>
-                <p class="text-muted">Select a template to customize your journal experience, or use the default guided questions.</p>
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="templateSelect" class="form-label">Select Template:</label>
-                        <div class="input-group">
-                            <select class="form-select" id="templateSelect" onchange="changeTemplate()">
-                                <option value="">Default Guided Journal</option>
-                                {% if system_templates %}
-                                    <optgroup label="System Templates">
-                                        {% for template in system_templates %}
-                                        <option value="{{ template.id }}" 
-                                                {% if template_id == template.id %}selected{% endif %}>
-                                            {{ template.name }}
-                                        </option>
-                                        {% endfor %}
-                                    </optgroup>
-                                {% endif %}
-                                {% if user_templates %}
-                                    <optgroup label="My Templates">
-                                        {% for template in user_templates %}
-                                        <option value="{{ template.id }}" 
-                                                {% if template_id == template.id %}selected{% endif %}>
-                                            {{ template.name }}
-                                        </option>
-                                        {% endfor %}
-                                    </optgroup>
-                                {% endif %}
-                            </select>
-                            <button type="button" class="btn btn-outline-primary" onclick="loadSelectedTemplate()" id="loadTemplateBtn">
-                                <i class="fas fa-arrow-right me-1"></i>Load Template
-                            </button>
+            <div class="card-header">
+                <button class="btn btn-link text-decoration-none p-0 w-100 text-start" 
+                        type="button" data-bs-toggle="collapse" 
+                        data-bs-target="#template-selection-collapse" 
+                        aria-expanded="false" 
+                        aria-controls="template-selection-collapse">
+                    <i class="fas fa-clipboard-list me-2"></i>
+                    Choose a Template
+                    <i class="fas fa-chevron-down float-end mt-1"></i>
+                </button>
+            </div>
+            <div class="collapse" id="template-selection-collapse">
+                <div class="card-body">
+                    <p class="text-muted">Select a template to customize your journal experience, or use the default guided questions.</p>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="templateSelect" class="form-label">Select Template:</label>
+                            <div class="input-group">
+                                <select class="form-select" id="templateSelect" onchange="changeTemplate()">
+                                    <option value="">Default Guided Journal</option>
+                                    {% if system_templates %}
+                                        <optgroup label="System Templates">
+                                            {% for template in system_templates %}
+                                            <option value="{{ template.id }}" 
+                                                    {% if template_id == template.id %}selected{% endif %}>
+                                                {{ template.name }}
+                                            </option>
+                                            {% endfor %}
+                                        </optgroup>
+                                    {% endif %}
+                                    {% if user_templates %}
+                                        <optgroup label="My Templates">
+                                            {% for template in user_templates %}
+                                            <option value="{{ template.id }}" 
+                                                    {% if template_id == template.id %}selected{% endif %}>
+                                                {{ template.name }}
+                                            </option>
+                                            {% endfor %}
+                                        </optgroup>
+                                    {% endif %}
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" onclick="loadSelectedTemplate()" id="loadTemplateBtn">
+                                    <i class="fas fa-arrow-right me-1"></i>Load Template
+                                </button>
+                            </div>
+                            <div class="form-text">Select a template and click "Load Template" to customize your journal questions.</div>
                         </div>
-                        <div class="form-text">Select a template and click "Load Template" to customize your journal questions.</div>
-                    </div>
-                    <div class="col-md-6 d-flex align-items-end">
-                        <a href="{{ url_for('journal.templates') }}" class="btn btn-outline-primary me-2">
-                            <i class="fas fa-cog me-1"></i>Manage Templates
-                        </a>
-                        <a href="{{ url_for('journal.create_template') }}" class="btn btn-outline-success">
-                            <i class="fas fa-plus me-1"></i>Create Template
-                        </a>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <a href="{{ url_for('journal.templates') }}" class="btn btn-outline-primary me-2">
+                                <i class="fas fa-cog me-1"></i>Manage Templates
+                            </a>
+                            <a href="{{ url_for('journal.create_template') }}" class="btn btn-outline-success">
+                                <i class="fas fa-plus me-1"></i>Create Template
+                            </a>
+                        </div>
                     </div>
                 </div>
+            </div>
                 
                 <div class="mt-3 p-3 rounded" id="templatePreview" 
                      style="{% if selected_template %}background-color: #e8f5e8; border: 1px solid #28a745;{% else %}background-color: #f8f9fa; border: 1px solid #dee2e6;{% endif %}">
@@ -141,33 +152,50 @@
                     <div class="mb-3">
                         <input type="hidden" id="question_{{ question.id }}_selected" name="question_{{ question.id }}" value="">
                         
-                        <div class="row">
-                            {% for category, emotions in emotions_by_category.items() %}
-                            <div class="col-md-4 mb-3">
-                                <div class="card h-100">
-                                    <div class="card-header {% if category == 'Positive' %}bg-success text-white{% elif category == 'Negative' %}bg-danger text-white{% else %}bg-light{% endif %}">
-                                        <h6 class="mb-0">{{ category }} Emotions</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="emotion-checkboxes" data-category="{{ category }}">
-                                            {% for emotion in emotions %}
-                                            <div class="form-check">
-                                                <input class="form-check-input emotion-checkbox" type="checkbox" 
-                                                       value="{{ emotion }}" id="emotion_{{ category|lower }}_{{ loop.index }}" 
-                                                       data-category="{{ category }}">
-                                                <label class="form-check-label" for="emotion_{{ category|lower }}_{{ loop.index }}">
-                                                    {{ emotion }}
-                                                </label>
+                        <div class="card">
+                            <div class="card-header">
+                                <button class="btn btn-link text-decoration-none p-0 w-100 text-start" 
+                                        type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#emotions-collapse-{{ question.id }}" 
+                                        aria-expanded="false" 
+                                        aria-controls="emotions-collapse-{{ question.id }}">
+                                    <i class="fas fa-heart me-2"></i>
+                                    Select Emotions
+                                    <i class="fas fa-chevron-down float-end mt-1"></i>
+                                </button>
+                            </div>
+                            <div class="collapse" id="emotions-collapse-{{ question.id }}">
+                                <div class="card-body">
+                                    <div class="row">
+                                        {% for category, emotions in emotions_by_category.items() %}
+                                        <div class="col-md-4 mb-3">
+                                            <div class="card h-100">
+                                                <div class="card-header {% if category == 'Positive' %}bg-success text-white{% elif category == 'Negative' %}bg-danger text-white{% else %}bg-light{% endif %}">
+                                                    <h6 class="mb-0">{{ category }} Emotions</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="emotion-checkboxes" data-category="{{ category }}">
+                                                        {% for emotion in emotions %}
+                                                        <div class="form-check">
+                                                            <input class="form-check-input emotion-checkbox" type="checkbox" 
+                                                                   value="{{ emotion }}" id="emotion_{{ category|lower }}_{{ loop.index }}" 
+                                                                   data-category="{{ category }}">
+                                                            <label class="form-check-label" for="emotion_{{ category|lower }}_{{ loop.index }}">
+                                                                {{ emotion }}
+                                                            </label>
+                                                        </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                    <div class="form-text mt-2">
+                                                        Click to select multiple emotions
+                                                    </div>
+                                                </div>
                                             </div>
-                                            {% endfor %}
                                         </div>
-                                        <div class="form-text mt-2">
-                                            Click to select multiple emotions
-                                        </div>
+                                        {% endfor %}
                                     </div>
                                 </div>
                             </div>
-                            {% endfor %}
                         </div>
                         
                         <div class="mt-3">
@@ -476,6 +504,38 @@
         updateLoadButtonText();
         
         console.log('Template selector initialized. Current template:', select.value);
+        
+        // Add chevron rotation for collapsible elements
+        const setupChevronRotation = (collapseId, toggleSelector) => {
+            const collapseElement = document.getElementById(collapseId);
+            if (collapseElement) {
+                const chevronIcon = document.querySelector(toggleSelector + ' .fa-chevron-down');
+                
+                collapseElement.addEventListener('show.bs.collapse', function () {
+                    if (chevronIcon) {
+                        chevronIcon.style.transform = 'rotate(180deg)';
+                        chevronIcon.style.transition = 'transform 0.2s ease';
+                    }
+                });
+                
+                collapseElement.addEventListener('hide.bs.collapse', function () {
+                    if (chevronIcon) {
+                        chevronIcon.style.transform = 'rotate(0deg)';
+                        chevronIcon.style.transition = 'transform 0.2s ease';
+                    }
+                });
+            }
+        };
+        
+        // Setup chevron rotation for template selection
+        setupChevronRotation('template-selection-collapse', '[data-bs-target="#template-selection-collapse"]');
+        
+        // Setup chevron rotation for emotions (if present)
+        const emotionsCollapses = document.querySelectorAll('[id^="emotions-collapse-"]');
+        emotionsCollapses.forEach(collapse => {
+            const collapseId = collapse.id;
+            setupChevronRotation(collapseId, `[data-bs-target="#${collapseId}"]`);
+        });
     });
 </script>
 <script nonce="{{ csp_nonce() }}">
