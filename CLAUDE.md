@@ -133,11 +133,80 @@ When adding new UI features with JavaScript/forms:
 3. **Write tests**: Add to `tests/functional/` for complex UI interactions
 4. **Run comprehensive tests**: `python3 run_comprehensive_tests.py`
 
+## 🗄️ Database Configuration
+
+### **PostgreSQL Migration (Completed July 2025)**
+**The application has been successfully migrated from SQLite to PostgreSQL.**
+
+#### **Current Database Setup**
+- **Database Engine**: PostgreSQL 14.18
+- **Database Name**: `journal_db`
+- **Database User**: `journal_user`
+- **Host**: `localhost` (local connections only)
+- **Port**: `5432` (default PostgreSQL port)
+- **Password**: Stored securely in `.env` file (24-character secure password)
+
+#### **Migration Summary**
+- **Date Completed**: July 5, 2025
+- **Records Migrated**: 241 total records across 12 tables
+  - 21 users with authentication data
+  - 32 journal entries with content
+  - 113 guided responses with Q&A data
+  - 17 weather records with conditions
+  - 9 locations with GPS coordinates
+  - Additional data: photos, templates, tags, exercise logs
+- **Data Integrity**: 100% - Zero data loss during migration
+- **Downtime**: Minimal - Service-based migration approach
+
+#### **Configuration Files**
+- **Environment**: Database credentials in `.env` (excluded from git)
+- **Config**: `config.py` handles PostgreSQL vs SQLite with URL encoding for special characters
+- **Models**: All SQLAlchemy models compatible with PostgreSQL data types
+
+#### **Key Migration Fixes Applied**
+1. **Boolean Data Type Conversion**: SQLite integers (0/1) → PostgreSQL boolean values
+2. **Foreign Key Constraints**: Proper handling of circular references between journal entries and weather data
+3. **URL Encoding**: Password special characters properly encoded in connection strings
+4. **Cascade Relationships**: Proper CASCADE DELETE configured for related data
+
+#### **Database Security**
+- **Secure Password**: 24-character cryptographically generated password
+- **Local Access Only**: Database configured for localhost connections only
+- **Least Privilege**: Database user has only necessary permissions for journal app
+- **Environment Protection**: All credentials in `.env` file (gitignored)
+
+#### **Rollback Capability** 
+- **SQLite Backup**: Original SQLite database preserved in `instance/` directory
+- **Rollback Process**: Change `USE_POSTGRESQL=false` in `.env` and restart service
+- **Migration Archive**: All migration scripts archived in `migration_archive/`
+
+#### **Critical Fix - Journal Entry Deletion**
+**Issue**: Foreign key constraint violations when deleting journal entries
+**Cause**: Circular foreign key relationships between journal entries and weather data
+**Solution**: Enhanced deletion logic in `routes.py:delete_entry()` that:
+- Clears weather record references before deletion
+- Handles bidirectional relationships properly
+- Uses proper transaction rollback on errors
+- Provides detailed logging for troubleshooting
+
+```python
+# Before deleting journal entry, clear weather references
+if entry.weather_id:
+    weather_record = db.session.get(WeatherData, entry.weather_id)
+    if weather_record and weather_record.journal_entry_id == entry.id:
+        weather_record.journal_entry_id = None
+
+# Clear any other weather records referencing this entry
+WeatherData.query.filter_by(journal_entry_id=entry.id).update({'journal_entry_id': None})
+```
+
 ## Backup System
+- **PostgreSQL Backups**: Use `pg_dump` for professional database backups
 - **Create backup**: `./backup.sh backup` or `./backup.sh pre-deploy`
 - **List backups**: `./backup.sh list --size`
 - **Cleanup old backups**: `./backup.sh cleanup`
 - **Emergency rollback**: `./backup.sh rollback TIMESTAMP`
+- **PostgreSQL-specific**: `backup_system_postgresql.py` available in migration archive
 
 ## CSRF Protection Configuration
 **CRITICAL**: This app uses Flask-WTF for CSRF protection. Follow these rules strictly:

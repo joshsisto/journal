@@ -12,6 +12,9 @@ itsdangerous==2.1.2
 # Required for SSL/HTTPS (needed for camera access)
 pyopenssl==23.2.0
 
+# PostgreSQL adapter
+psycopg2-binary>=2.9.0
+
 # Google Gemini AI integration
 google-generativeai>=0.3.0
 

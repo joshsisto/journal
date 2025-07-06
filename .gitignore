@@ -176,6 +176,31 @@ cython_debug/
 #custom
 uploads/
 backups/
+migration_archive/
+
+# Security - environment and credential files
+.env*
+*.env
+config.env
+secrets.env
+credentials.json
+private_key.pem
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+instance/*.db
+admin/*.db
+
+# Migration and setup scripts (after migration completion)
+*migrate*
+*setup*
+*postgresql*
 
 # IDE and editor directories
 .claude/

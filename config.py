@@ -7,7 +7,24 @@ load_dotenv()
 class Config:
     """Base configuration class.""" 
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-change-in-production'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///journal.db'
+    
+    # Database configuration with PostgreSQL as default, SQLite as fallback
+    if os.environ.get('DATABASE_URL'):
+        SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    elif os.environ.get('USE_POSTGRESQL', '').lower() == 'true':
+        # PostgreSQL configuration
+        from urllib.parse import quote_plus
+        DB_USER = os.environ.get('DB_USER', 'journal_user')
+        DB_PASSWORD = os.environ.get('DB_PASSWORD', 'change_me_in_production')
+        DB_HOST = os.environ.get('DB_HOST', 'localhost')
+        DB_PORT = os.environ.get('DB_PORT', '5432')
+        DB_NAME = os.environ.get('DB_NAME', 'journal_db')
+        # URL encode password to handle special characters
+        SQLALCHEMY_DATABASE_URI = f'postgresql://{DB_USER}:{quote_plus(DB_PASSWORD)}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+    else:
+        # SQLite fallback
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///journal.db'
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Email settings
