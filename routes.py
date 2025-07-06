@@ -1048,10 +1048,39 @@ def delete_entry(entry_id):
         user_id=current_user.id
     ).first_or_404()
     
-    db.session.delete(entry)
-    db.session.commit()
+    try:
+        # Handle weather data references before deleting the entry
+        # This prevents foreign key constraint violations during deletion
+        
+        # Remove journal_entry_id from weather record that this entry references
+        if entry.weather_id:
+            weather_record = db.session.get(WeatherData, entry.weather_id)
+            if weather_record and weather_record.journal_entry_id == entry.id:
+                current_app.logger.info(f"Clearing weather record {weather_record.id} reference to entry {entry.id}")
+                weather_record.journal_entry_id = None
+        
+        # Remove journal_entry_id from any other weather records that reference this entry
+        weather_ref_count = WeatherData.query.filter_by(journal_entry_id=entry.id).count()
+        if weather_ref_count > 0:
+            current_app.logger.info(f"Clearing {weather_ref_count} weather record references to entry {entry.id}")
+            WeatherData.query.filter_by(journal_entry_id=entry.id).update({'journal_entry_id': None})
+        
+        # Now safe to delete the journal entry (cascades will handle related data)
+        db.session.delete(entry)
+        db.session.commit()
+        
+        current_app.logger.info(f"Successfully deleted journal entry {entry.id} for user {current_user.username}")
+        flash('Journal entry deleted successfully.')
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        current_app.logger.error(f"Database error deleting journal entry {entry_id}: {e}")
+        flash('Error deleting journal entry. Please try again.', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Unexpected error deleting journal entry {entry_id}: {e}")
+        flash('Error deleting journal entry. Please try again.', 'danger')
     
-    flash('Journal entry deleted successfully.')
     return redirect(url_for('journal.index'))
 
 
