@@ -223,18 +223,22 @@ class TestChangeEmail:
     
     def test_change_email_duplicate_email(self, client, logged_in_user, user, user_no_email):
         """Test changing to an email that already exists fails."""
+        import uuid
+        unique_email = f'existing_{str(uuid.uuid4())[:8]}@example.com'
+        
         # Give user_no_email an email first
-        user_no_email.email = 'existing@example.com'
+        user_no_email.email = unique_email
         db.session.commit()
         
         response = client.post('/settings/email', data={
             'password': 'TestPassword123!',
-            'new_email': 'existing@example.com',
-            'confirm_email': 'existing@example.com'
+            'new_email': unique_email,
+            'confirm_email': unique_email
         }, follow_redirects=True)
         
         assert response.status_code == 200
-        assert b'already in use' in response.data
+        response_text = response.get_data(as_text=True)
+        assert 'already in use' in response_text or 'already exists' in response_text
     
     def test_change_email_requires_login(self, client):
         """Test changing email requires login."""

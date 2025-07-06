@@ -24,7 +24,7 @@ class TestRegisterDependencyInteractions:
         """Create test client."""
         return app.test_client()
 
-    @patch('routes.send_email')
+    @patch('email_utils.send_email')
     @patch('routes.db.session.commit')
     @patch('routes.db.session.add')
     @patch('routes.User.query')
@@ -125,7 +125,7 @@ class TestRegisterDependencyInteractions:
         mock_logger.error.assert_called()
 
     @patch('routes.current_app.logger')
-    @patch('routes.send_email')
+    @patch('email_utils.send_email')
     @patch('routes.db.session.commit')
     @patch('routes.db.session.add')
     @patch('routes.User.query')
