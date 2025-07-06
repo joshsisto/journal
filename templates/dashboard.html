@@ -200,6 +200,12 @@
                 
                 <!-- View toggle buttons -->
                 <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary" id="toggle-units-dashboard" title="Toggle Imperial/Metric units">
+                        <i class="fas fa-thermometer-half"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="toggle-time-format-dashboard" title="Toggle 12/24 hour format">
+                        <i class="fas fa-clock"></i>
+                    </button>
                     <button type="button" class="btn btn-outline-secondary active" data-view="card">
                         <i class="bi bi-card-text"></i>
                     </button>
@@ -226,7 +232,7 @@
                                         {% endif %}
                                     {% endif %}
                                 </span>
-                                <small>{{ format_datetime(entry.created_at) }}</small>
+                                <small class="time-display-dashboard" data-datetime="{{ entry.created_at.isoformat() }}">{{ format_datetime(entry.created_at, '%I:%M %p') }}</small>
                             </div>
                             <div class="card-body">
                                 <!-- Display tags -->
@@ -288,7 +294,7 @@
                                         {% endif %}
                                     {% endif %}
                                 </h5>
-                                <small>{{ format_datetime(entry.created_at) }}</small>
+                                <small class="time-display-dashboard" data-datetime="{{ entry.created_at.isoformat() }}">{{ format_datetime(entry.created_at, '%I:%M %p') }}</small>
                             </div>
                             
                             <!-- Display tags -->
@@ -747,6 +753,68 @@
             el.addEventListener('change', function() {
                 document.getElementById('filterForm').submit();
             });
+        });
+        
+        // Time format functionality for dashboard
+        function updateDashboardTimes() {
+            const timeElements = document.querySelectorAll('.time-display-dashboard');
+            const is24Hour = localStorage.getItem('timeFormat24Hour') === 'true';
+            const userTimezone = '{{ user_timezone }}';
+            
+            timeElements.forEach(element => {
+                const datetimeStr = element.getAttribute('data-datetime');
+                if (datetimeStr) {
+                    const entryDate = new Date(datetimeStr + 'Z'); // UTC time
+                    const localTime = new Date(entryDate.toLocaleString("en-US", {timeZone: userTimezone}));
+                    
+                    if (is24Hour) {
+                        element.textContent = localTime.toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        });
+                    } else {
+                        element.textContent = localTime.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Initialize dashboard times
+        updateDashboardTimes();
+        
+        // Dashboard time toggle button
+        const toggleTimeButton = document.getElementById('toggle-time-format-dashboard');
+        if (toggleTimeButton) {
+            toggleTimeButton.addEventListener('click', function() {
+                const currentSetting = localStorage.getItem('timeFormat24Hour') === 'true';
+                localStorage.setItem('timeFormat24Hour', (!currentSetting).toString());
+                updateDashboardTimes();
+            });
+        }
+        
+        // Dashboard units toggle button
+        const toggleUnitsButton = document.getElementById('toggle-units-dashboard');
+        if (toggleUnitsButton) {
+            toggleUnitsButton.addEventListener('click', function() {
+                const currentSetting = localStorage.getItem('useMetricUnits') === 'true';
+                localStorage.setItem('useMetricUnits', (!currentSetting).toString());
+                // Refresh page to update weather displays throughout
+                window.location.reload();
+            });
+        }
+        
+        // Listen for changes from other pages
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'timeFormat24Hour') {
+                updateDashboardTimes();
+            } else if (e.key === 'useMetricUnits') {
+                window.location.reload();
+            }
         });
     });
 </script>

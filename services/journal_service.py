@@ -109,7 +109,7 @@ def _handle_location_and_weather(form_data):
             except (ValueError, TypeError):
                 weather.temperature = None
             
-            weather.temperature_unit = 'celsius'  # Default unit
+            weather.temperature_unit = 'fahrenheit'  # Default unit
             weather.weather_condition = form_data.get('weather_condition', '').strip() or None
             weather.weather_description = form_data.get('weather_description', '').strip() or None
             
@@ -292,6 +292,12 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
         db.session.add(entry)
         db.session.flush()  # Get ID without committing
 
+        # Update weather record to link back to journal entry
+        if weather_id:
+            weather_record = WeatherData.query.get(weather_id)
+            if weather_record:
+                weather_record.journal_entry_id = entry.id
+
         # Handle photo uploads
         _handle_photo_uploads(entry, photos, allowed_file_func)
 
@@ -384,6 +390,12 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
 
         db.session.add(entry)
         db.session.flush()  # Get the ID without committing
+
+        # Update weather record to link back to journal entry
+        if weather_id:
+            weather_record = WeatherData.query.get(weather_id)
+            if weather_record:
+                weather_record.journal_entry_id = entry.id
 
         # Process form data
         for key, value in form_data.items():
