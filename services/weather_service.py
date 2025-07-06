@@ -62,7 +62,7 @@ class WeatherService:
                 'lat': latitude,
                 'lon': longitude,
                 'appid': self.api_key,
-                'units': 'metric'  # Celsius
+                'units': 'imperial'  # Fahrenheit
             }
             
             response = requests.get(weather_url, params=params, timeout=10)
@@ -284,14 +284,14 @@ class WeatherService:
         
         return {
             'temperature': main.get('temp'),
-            'temperature_unit': 'celsius',
+            'temperature_unit': 'fahrenheit',
             'humidity': main.get('humidity'),
             'pressure': main.get('pressure'),
             'weather_condition': weather.get('main'),
             'weather_description': weather.get('description'),
-            'wind_speed': wind.get('speed'),
+            'wind_speed': wind.get('speed'),  # Already in mph with imperial units
             'wind_direction': wind.get('deg'),
-            'visibility': weather_data.get('visibility', 0) / 1000 if weather_data.get('visibility') else None,  # Convert m to km
+            'visibility': weather_data.get('visibility', 0) / 1609.34 if weather_data.get('visibility') else None,  # Convert m to miles
             'weather_source': 'openweathermap'
         }
     

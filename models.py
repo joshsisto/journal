@@ -159,7 +159,7 @@ class JournalEntry(db.Model):
                           backref=db.backref('entries', lazy='dynamic'))
     photos = db.relationship('Photo', backref='journal_entry', lazy='dynamic', cascade='all, delete-orphan')
     location = db.relationship('Location', backref='journal_entries', lazy='joined')
-    weather = db.relationship('WeatherData', foreign_keys='WeatherData.journal_entry_id', backref='journal_entry', lazy='joined')
+    weather = db.relationship('WeatherData', foreign_keys=[weather_id], backref='journal_entries_by_weather', lazy='joined')
     
     def __repr__(self):
         return f'<JournalEntry {self.id} by User {self.user_id}>'
@@ -432,7 +432,7 @@ class WeatherData(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
-    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id', use_alter=True, name='fk_weather_journal_entry'), nullable=True)
     
     # Temperature data
     temperature = db.Column(db.Float, nullable=True)  # Temperature value
@@ -505,7 +505,11 @@ class WeatherData(db.Model):
         if self.wind_speed is not None:
             details.append(f"{self.wind_speed:.0f} mph wind")
         if self.precipitation is not None and self.precipitation > 0:
-            details.append(f"{self.precipitation:.1f}mm rain")
+            # Convert precipitation based on temperature unit (inches for imperial)
+            if self.temperature_unit == 'fahrenheit':
+                details.append(f"{self.precipitation / 25.4:.2f}in rain")  # Convert mm to inches
+            else:
+                details.append(f"{self.precipitation:.1f}mm rain")
         
         summary = ' • '.join(parts) if parts else 'Weather data available'
         if details:

@@ -32,13 +32,22 @@
         <div class="card mb-4">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <span>
-                        <strong>Date:</strong> {{ format_datetime(entry.created_at, '%Y-%m-%d') }}
-                    </span>
-                    <span>
-                        <strong>Time:</strong> {{ format_datetime(entry.created_at, '%H:%M') }}
+                    <div>
+                        <strong>Date & Time:</strong>
+                        <span class="me-3">{{ format_datetime(entry.created_at, '%A, %B %d, %Y') }}</span>
+                        <span id="time-display" class="time-display">
+                            {{ format_datetime(entry.created_at, '%I:%M %p') }}
+                        </span>
                         <small class="text-muted">({{ user_timezone }})</small>
-                    </span>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" id="toggle-units" title="Toggle Imperial/Metric units">
+                            <i class="fas fa-thermometer-half"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="toggle-time-format" title="Toggle 12/24 hour format">
+                            <i class="fas fa-clock"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             
@@ -97,7 +106,7 @@
                             Weather:
                         </strong>
                         <div class="mt-1">
-                            <span class="fw-semibold">{{ entry.weather.get_display_summary() }}</span>
+                            <span class="fw-semibold" id="weather-summary">{{ entry.weather.get_display_summary() }}</span>
                             {% if entry.weather.weather_description %}
                                 <br><small class="text-muted">{{ entry.weather.weather_description.title() }}</small>
                             {% endif %}
@@ -220,8 +229,122 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-    // Custom filter for nl2br not implemented in this example
-    // You would need to implement this in Flask
+<script nonce="{{ csp_nonce() }}">
+// Time format toggle functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const timeDisplay = document.getElementById('time-display');
+    const toggleButton = document.getElementById('toggle-time-format');
+    const entryDate = new Date('{{ entry.created_at.isoformat() }}Z'); // UTC time
+    
+    // Get user preference from localStorage, default to 12-hour
+    let is24Hour = localStorage.getItem('timeFormat24Hour') === 'true';
+    
+    function updateTimeDisplay() {
+        const userTimezone = '{{ user_timezone }}';
+        const localTime = new Date(entryDate.toLocaleString("en-US", {timeZone: userTimezone}));
+        
+        if (is24Hour) {
+            timeDisplay.textContent = localTime.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            toggleButton.title = 'Switch to 12-hour format';
+        } else {
+            timeDisplay.textContent = localTime.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+            toggleButton.title = 'Switch to 24-hour format';
+        }
+    }
+    
+    // Initialize display
+    updateTimeDisplay();
+    
+    // Toggle functionality
+    toggleButton.addEventListener('click', function() {
+        is24Hour = !is24Hour;
+        localStorage.setItem('timeFormat24Hour', is24Hour.toString());
+        updateTimeDisplay();
+    });
+    
+    // Units toggle functionality
+    const unitsToggle = document.getElementById('toggle-units');
+    if (unitsToggle) {
+        const weatherSummary = document.getElementById('weather-summary');
+        
+        // Weather data from server
+        const weatherData = {
+            temperature: {{ entry.weather.temperature|default(0) }},
+            temperatureUnit: '{{ entry.weather.temperature_unit|default("fahrenheit") }}',
+            condition: '{{ entry.weather.weather_condition|default("") }}',
+            humidity: {{ entry.weather.humidity|default(0) }},
+            windSpeed: {{ entry.weather.wind_speed|default(0) }},
+            precipitation: {{ entry.weather.precipitation|default(0) }}
+        };
+        
+        // Get user preference from localStorage, default to imperial
+        let useMetric = localStorage.getItem('useMetricUnits') === 'true';
+        
+        function updateWeatherDisplay() {
+            if (!weatherSummary || !weatherData.temperature) return;
+            
+            let tempDisplay, windDisplay, precipDisplay;
+            
+            if (useMetric) {
+                // Convert to metric
+                if (weatherData.temperatureUnit === 'fahrenheit') {
+                    const celsius = (weatherData.temperature - 32) * 5/9;
+                    tempDisplay = `${celsius.toFixed(0)}°C`;
+                } else {
+                    tempDisplay = `${weatherData.temperature.toFixed(0)}°C`;
+                }
+                windDisplay = `${(weatherData.windSpeed * 1.60934).toFixed(0)} km/h`;
+                precipDisplay = weatherData.precipitation > 0 ? `${weatherData.precipitation.toFixed(1)}mm` : '';
+                unitsToggle.title = 'Switch to Imperial units';
+            } else {
+                // Use imperial
+                if (weatherData.temperatureUnit === 'celsius') {
+                    const fahrenheit = (weatherData.temperature * 9/5) + 32;
+                    tempDisplay = `${fahrenheit.toFixed(0)}°F`;
+                } else {
+                    tempDisplay = `${weatherData.temperature.toFixed(0)}°F`;
+                }
+                windDisplay = `${weatherData.windSpeed.toFixed(0)} mph`;
+                precipDisplay = weatherData.precipitation > 0 ? `${(weatherData.precipitation / 25.4).toFixed(2)}in` : '';
+                unitsToggle.title = 'Switch to Metric units';
+            }
+            
+            // Build summary
+            let parts = [];
+            if (tempDisplay) parts.push(tempDisplay);
+            if (weatherData.condition) parts.push(weatherData.condition);
+            
+            let details = [];
+            if (weatherData.humidity) details.push(`${weatherData.humidity}% humidity`);
+            if (weatherData.windSpeed) details.push(`${windDisplay} wind`);
+            if (precipDisplay) details.push(`${precipDisplay} rain`);
+            
+            let summary = parts.join(' • ');
+            if (details.length > 0) {
+                summary += ` (${details.join(', ')})`;
+            }
+            
+            weatherSummary.textContent = summary;
+        }
+        
+        // Initialize display
+        updateWeatherDisplay();
+        
+        // Toggle functionality
+        unitsToggle.addEventListener('click', function() {
+            useMetric = !useMetric;
+            localStorage.setItem('useMetricUnits', useMetric.toString());
+            updateWeatherDisplay();
+        });
+    }
+});
 </script>
 {% endblock %}
