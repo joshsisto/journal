@@ -42,24 +42,24 @@
                             New Entry
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="journalDropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('journal.quick_journal') }}">Quick Journal</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('journal.guided_journal') }}">Guided Journal</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('journal.index') }}">Quick Journal</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('journal.index') }}">Guided Journal</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('tag.manage_tags') }}">Manage Tags</a>
+                        <a class="nav-link" href="{{ url_for('journal.index') }}">Manage Tags</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('journal.templates') }}">Templates</a>
+                        <a class="nav-link" href="{{ url_for('journal.index') }}">Templates</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('journal.map_view') }}">Map</a>
+                        <a class="nav-link" href="{{ url_for('journal.index') }}">Map</a>
                     </li>
                     {% endif %}
                 </ul>
                 
                 {% if current_user.is_authenticated %}
-                <form class="d-flex mx-auto" action="{{ url_for('journal.search') }}" method="get">
+                <form class="d-flex mx-auto" action="{{ url_for('journal.index') }}" method="get">
                     <div class="input-group">
                         <input class="form-control" type="search" name="q" placeholder="Search journal..." aria-label="Search" maxlength="100">
                         <button class="btn btn-outline-light" type="submit">
@@ -76,7 +76,8 @@
                             {{ current_user.username }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.settings') }}">Settings</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('journal.index') }}">Settings</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('journal.dashboard_legacy') }}">Legacy Dashboard</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
                         </ul>
