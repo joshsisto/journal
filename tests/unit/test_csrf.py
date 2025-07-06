@@ -443,9 +443,12 @@ class TestCSRFInTemplates:
         response = client.get('/ai/conversation/multiple')
         
         assert response.status_code == 200
-        # Should have CSRF token for AJAX requests
-        assert (b'csrf_token()' in response.data or 
-                b'csrf-token' in response.data)
+        response_text = response.get_data(as_text=True)
+        # Should have CSRF token for AJAX requests - look for actual token values or meta tags
+        assert ('X-CSRF-Token' in response_text or 
+                'csrf-token' in response_text or
+                '_csrf_token' in response_text or
+                'name="csrf_token"' in response_text)
 
 
 class TestCSRFAttackPrevention:

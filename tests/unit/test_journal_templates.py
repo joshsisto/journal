@@ -204,7 +204,7 @@ class TestTemplateQuestionManagement:
         ).first()
         assert question is not None
         assert question.question_type == 'text'
-        assert question.is_required is True
+        assert question.required is True
     
     def test_add_number_question(self, client, logged_in_user, custom_template):
         """Test adding a number question with min/max values."""
@@ -219,6 +219,10 @@ class TestTemplateQuestionManagement:
         response = client.post(f'/templates/{custom_template.id}/questions/add', data=data, follow_redirects=True)
         
         assert response.status_code == 200
+        # Debug: Print response content and question count
+        print(f"Response status: {response.status_code}")
+        print(f"Response content snippet: {response.data.decode()[:500]}")
+        print(f"Question count: {TemplateQuestion.query.filter_by(template_id=custom_template.id).count()}")
         
         # Check question was created with correct values
         question = TemplateQuestion.query.filter_by(
@@ -226,9 +230,10 @@ class TestTemplateQuestionManagement:
             question_type='number'
         ).first()
         assert question is not None
-        assert question.min_value == 1
-        assert question.max_value == 10
-        assert question.is_required is False
+        properties = question.get_properties()
+        assert properties.get('min') == 1
+        assert properties.get('max') == 10
+        assert question.required is False
     
     def test_add_boolean_question(self, client, logged_in_user, custom_template):
         """Test adding a boolean question."""
@@ -248,7 +253,7 @@ class TestTemplateQuestionManagement:
             question_type='boolean'
         ).first()
         assert question is not None
-        assert question.text == 'Did you exercise today?'
+        assert question.question_text == 'Did you exercise today?'
     
     def test_add_emotions_question(self, client, logged_in_user, custom_template):
         """Test adding an emotions question."""
@@ -424,7 +429,7 @@ class TestTemplateGuidedJournalEntries:
         for question in questions:
             question_key = f'question_{question.id}'
             if question.question_type == 'text':
-                data[question_key] = f'Response to: {question.text}'
+                data[question_key] = f'Response to: {question.question_text}'
             elif question.question_type == 'number':
                 data[question_key] = '7'
             elif question.question_type == 'boolean':
@@ -454,7 +459,7 @@ class TestTemplateGuidedJournalEntries:
             # Should match one of the template questions
             matching_question = next((q for q in questions if str(q.id) == response.question_id), None)
             assert matching_question is not None
-            assert response.question_text == matching_question.text
+            assert response.question_text == matching_question.question_text
     
     def test_view_template_entry_shows_custom_questions(self, client, logged_in_user, template_journal_entry):
         """Test viewing template-based entry shows custom questions."""
@@ -489,7 +494,7 @@ class TestTemplateGuidedJournalEntries:
             text='Did you exercise today?',
             question_type='boolean',
             question_order=1,
-            is_required=True
+            required=True
         )
         db.session.add(base_question)
         
@@ -499,7 +504,7 @@ class TestTemplateGuidedJournalEntries:
             text='What type of exercise did you do?',
             question_type='text',
             question_order=2,
-            is_required=False,
+            required=False,
             condition_expression='exercised_today == true'
         )
         db.session.add(conditional_question)
@@ -510,8 +515,8 @@ class TestTemplateGuidedJournalEntries:
         
         assert response.status_code == 200
         # Both questions should be present in the form (condition evaluation happens client-side)
-        assert base_question.text.encode() in response.data
-        assert conditional_question.text.encode() in response.data
+        assert base_question.question_text.encode() in response.data
+        assert conditional_question.question_text.encode() in response.data
 
 
 class TestQuestionManagerIntegration:
@@ -554,9 +559,9 @@ class TestQuestionManagerIntegration:
         assert 'required' in question_dict
         assert 'condition' in question_dict
         
-        assert question_dict['text'] == template_question.text
+        assert question_dict['text'] == template_question.question_text
         assert question_dict['type'] == template_question.question_type
-        assert question_dict['required'] == template_question.is_required
+        assert question_dict['required'] == template_question.required
 
 
 class TestTemplateBackwardCompatibility:

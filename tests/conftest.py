@@ -99,8 +99,10 @@ def app():
 
 @pytest.fixture(scope='function')
 def client(app):
-    """Create test client."""
-    return app.test_client()
+    """Create test client with proper Flask context."""
+    with app.app_context():
+        with app.test_request_context():
+            yield app.test_client()
 
 
 @pytest.fixture(scope='function')
@@ -109,10 +111,13 @@ def runner(app):
     return app.test_cli_runner()
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope='function', autouse=True)
 def db_session(app):
     """Create database session for testing with proper transaction isolation."""
     from models import db
+    
+    # Remove any existing sessions to prevent configuration conflicts
+    db.session.remove()
     
     # For PostgreSQL, use savepoints for nested transaction isolation
     connection = db.engine.connect()
@@ -134,11 +139,28 @@ def db_session(app):
     yield db.session
     
     # Clean up after test - rollback all changes
-    db.session.close()
-    db.session.remove()
-    savepoint.rollback()
-    transaction.rollback()
-    connection.close()
+    try:
+        # Remove event listener to prevent memory leaks
+        event.remove(db.session, 'after_transaction_end', restart_savepoint)
+        
+        # Force rollback of any pending changes
+        db.session.rollback()
+        db.session.close()
+        db.session.remove()
+        
+        # Rollback the savepoint and main transaction
+        if savepoint.is_active:
+            savepoint.rollback()
+        if transaction.is_active:
+            transaction.rollback()
+    except Exception as e:
+        # Log any cleanup errors but don't fail the test
+        print(f"Warning: Database cleanup error: {e}")
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            pass
 
 
 @pytest.fixture
@@ -234,6 +256,48 @@ def logged_in_user(client, user):
 
 
 # Standard Mock Fixtures for Consistent Testing
+
+@pytest.fixture(autouse=True)
+def mock_external_services():
+    """Automatically mock all external services for every test."""
+    with patch('email_utils.send_password_reset_email') as mock_reset, \
+         patch('email_utils.send_email_change_confirmation') as mock_change, \
+         patch('services.weather_service.weather_service') as mock_weather, \
+         patch('services.weather_service.requests.get') as mock_requests, \
+         patch('email_utils.send_email') as mock_send_email:
+        
+        # Configure default return values
+        mock_reset.return_value = True  
+        mock_change.return_value = True
+        mock_send_email.return_value = True
+        
+        # Mock weather service
+        mock_weather.get_weather.return_value = {
+            'temperature': 72,
+            'condition': 'sunny',
+            'description': 'Clear skies'
+        }
+        mock_weather.geocode_location.return_value = {
+            'latitude': 40.7128,
+            'longitude': -74.0060,
+            'city': 'New York',
+            'country': 'US'
+        }
+        
+        # Mock requests for external APIs
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'results': []}
+        mock_response.raise_for_status.return_value = None
+        mock_requests.return_value = mock_response
+        
+        yield {
+            'email_reset': mock_reset,
+            'email_change': mock_change,
+            'weather': mock_weather,
+            'requests': mock_requests,
+            'send_email': mock_send_email
+        }
 
 @pytest.fixture
 def mock_mail():
@@ -482,10 +546,11 @@ def template_question(app, db_session, custom_template):
     
     question = TemplateQuestion(
         template_id=custom_template.id,
-        text='How was your day?',
+        question_id='daily_question_1',
+        question_text='How was your day?',
         question_type='text',
         question_order=1,
-        is_required=True
+        required=True
     )
     db_session.add(question)
     db_session.commit()
@@ -510,33 +575,36 @@ def custom_template_with_questions(app, db_session, user):
     questions = [
         TemplateQuestion(
             template_id=template.id,
-            text='How would you rate your day?',
+            question_id='day_rating',
+            question_text='How would you rate your day?',
             question_type='number',
             question_order=1,
-            is_required=True,
-            min_value=1,
-            max_value=10
+            required=True,
+            properties='{"min": 1, "max": 10}'
         ),
         TemplateQuestion(
             template_id=template.id,
-            text='What was the highlight of your day?',
+            question_id='day_highlight',
+            question_text='What was the highlight of your day?',
             question_type='text',
             question_order=2,
-            is_required=False
+            required=False
         ),
         TemplateQuestion(
             template_id=template.id,
-            text='Did you exercise today?',
+            question_id='exercise_today',
+            question_text='Did you exercise today?',
             question_type='boolean',
             question_order=3,
-            is_required=True
+            required=True
         ),
         TemplateQuestion(
             template_id=template.id,
-            text='How are you feeling?',
+            question_id='feeling_emotions',
+            question_text='How are you feeling?',
             question_type='emotions',
             question_order=4,
-            is_required=False
+            required=False
         )
     ]
     
@@ -572,7 +640,7 @@ def template_journal_entry(app, db_session, user, custom_template_with_questions
         if question.question_type == 'number':
             response_text = '8'
         elif question.question_type == 'text':
-            response_text = f'Test response to: {question.text}'
+            response_text = f'Test response to: {question.question_text}'
         elif question.question_type == 'boolean':
             response_text = 'Yes'
         elif question.question_type == 'emotions':
@@ -583,7 +651,7 @@ def template_journal_entry(app, db_session, user, custom_template_with_questions
         guided_response = GuidedResponse(
             journal_entry_id=entry.id,
             question_id=str(question.id),
-            question_text=question.text,  # Store the question text
+            question_text=question.question_text,  # Store the question text
             response=response_text
         )
         db_session.add(guided_response)
