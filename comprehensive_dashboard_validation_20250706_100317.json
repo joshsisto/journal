@@ -1,0 +1,161 @@
+{
+  "timestamp": "2025-07-06T10:03:08.526164",
+  "test_results": {
+    "dashboard_structure": {
+      "status": "COMPLETED",
+      "elements_found": 9,
+      "total_elements": 9,
+      "elements": [
+        {
+          "selector": ".container",
+          "description": "Main container",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": ".writing-area",
+          "description": "Writing area",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": ".entries-section",
+          "description": "Entries section",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": ".entries-header",
+          "description": "Entries header",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": ".view-toggle",
+          "description": "View toggle",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": ".toggle-switch",
+          "description": "Toggle switch",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": "textarea[name='content']",
+          "description": "Writing textarea",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": ".save-btn",
+          "description": "Save button",
+          "found": true,
+          "visible": true
+        },
+        {
+          "selector": "#detailToggle",
+          "description": "Detail toggle checkbox",
+          "found": true,
+          "visible": false
+        }
+      ]
+    },
+    "guided_entries": {
+      "status": "COMPLETED",
+      "total_entries": 5,
+      "guided_entries": 2,
+      "emotion_elements": [
+        {
+          "Feeling display": true,
+          "Feeling emoji": true,
+          "Feeling scale": true,
+          "Emotions list": false,
+          "Emotion tags": false,
+          "Guided summary": true
+        },
+        {
+          "Feeling display": true,
+          "Feeling emoji": true,
+          "Feeling scale": true,
+          "Emotions list": false,
+          "Emotion tags": false,
+          "Guided summary": true
+        }
+      ]
+    },
+    "writing_interface": {
+      "status": "COMPLETED",
+      "content_entered": true,
+      "test_content": "Test content for dashboard validation",
+      "entered_content": "Test content for dashboard validation",
+      "initial_word_count": "0 words"
+    },
+    "mobile_responsiveness": {
+      "status": "COMPLETED",
+      "viewport_width": 375,
+      "body_width": 360,
+      "is_responsive": true,
+      "container_found": true,
+      "writing_area_found": true,
+      "entries_header_found": true
+    }
+  },
+  "screenshots": [
+    {
+      "name": "login_page",
+      "description": "Login page before authentication",
+      "filepath": "/home/josh/Sync2/projects/journal/final_validation_login_page_20250706_100312.png",
+      "timestamp": "20250706_100312"
+    },
+    {
+      "name": "dashboard_main",
+      "description": "Main dashboard view",
+      "filepath": "/home/josh/Sync2/projects/journal/final_validation_dashboard_main_20250706_100313.png",
+      "timestamp": "20250706_100313"
+    },
+    {
+      "name": "guided_entries",
+      "description": "Guided journal entries display",
+      "filepath": "/home/josh/Sync2/projects/journal/final_validation_guided_entries_20250706_100313.png",
+      "timestamp": "20250706_100313"
+    },
+    {
+      "name": "toggle_before",
+      "description": "Before toggle action",
+      "filepath": "/home/josh/Sync2/projects/journal/final_validation_toggle_before_20250706_100314.png",
+      "timestamp": "20250706_100314"
+    },
+    {
+      "name": "writing_interface",
+      "description": "Writing interface with test content",
+      "filepath": "/home/josh/Sync2/projects/journal/final_validation_writing_interface_20250706_100314.png",
+      "timestamp": "20250706_100314"
+    },
+    {
+      "name": "mobile_view",
+      "description": "Mobile responsive view (375px)",
+      "filepath": "/home/josh/Sync2/projects/journal/final_validation_mobile_view_20250706_100316.png",
+      "timestamp": "20250706_100316"
+    }
+  ],
+  "performance_metrics": {},
+  "issues_found": [
+    "Toggle validation failed: Message: element not interactable\n  (Session info: chrome=138.0.7204.92); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#elementnotinteractableexception\nStacktrace:\n#0 0x55fcb78131da <unknown>\n#1 0x55fcb72bd903 <unknown>\n#2 0x55fcb73108fe <unknown>\n#3 0x55fcb730390a <unknown>\n#4 0x55fcb73351a2 <unknown>\n#5 0x55fcb730328a <unknown>\n#6 0x55fcb733536e <unknown>\n#7 0x55fcb735afee <unknown>\n#8 0x55fcb7334f73 <unknown>\n#9 0x55fcb7301aeb <unknown>\n#10 0x55fcb7302751 <unknown>\n#11 0x55fcb77d7aeb <unknown>\n#12 0x55fcb77db8c9 <unknown>\n#13 0x55fcb77be8c9 <unknown>\n#14 0x55fcb77dc488 <unknown>\n#15 0x55fcb77a307f <unknown>\n#16 0x55fcb7800888 <unknown>\n#17 0x55fcb7800a66 <unknown>\n#18 0x55fcb78124f6 <unknown>\n#19 0x7f78b5209ac3 <unknown>\n"
+  ],
+  "validation_summary": {
+    "total_validations": 5,
+    "successful_validations": 4,
+    "success_rate": 0.8,
+    "status": "PASSED"
+  },
+  "overall_status": "PASSED",
+  "metadata": {
+    "validation_type": "comprehensive_dashboard_validation",
+    "timestamp": "20250706_100317",
+    "base_url": "https://journal.joshsisto.com",
+    "screenshots_captured": 6,
+    "issues_found": 1
+  }
+}

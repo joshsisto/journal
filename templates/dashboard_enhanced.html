@@ -386,7 +386,7 @@
     
     <!-- Writing Section -->
     <div class="writing-section">
-        <form method="POST" action="{{ url_for('journal.index') }}" id="quickJournalForm">
+        <form method="POST" action="{{ url_for('journal.quick_journal') }}" id="quickJournalForm">
             {{ csrf_token() }}
             <textarea 
                 name="content" 

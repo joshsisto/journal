@@ -1,0 +1,81 @@
+{
+  "timestamp": "2025-07-06T13:14:21.031742",
+  "authentication_test": {
+    "status": "SUCCESS",
+    "redirected_to": "https://journal.joshsisto.com/dashboard"
+  },
+  "legacy_dashboard_test": {
+    "status": "SUCCESS",
+    "page_title": "500 Internal Server Error",
+    "page_height": 78,
+    "url": "https://journal.joshsisto.com/dashboard/legacy"
+  },
+  "css_analysis": {
+    "status": "SUCCESS",
+    "compact_indicators": {
+      "compact_padding": true,
+      "tight_margins": true,
+      "compact_font": true,
+      "compact_textarea": true,
+      "full_width_layout": true,
+      "text_focused_line_height": true
+    },
+    "padding_8px_count": 6,
+    "margin_12px_count": 2,
+    "total_compact_rules": 6
+  },
+  "screenshots": [
+    {
+      "name": "login_page",
+      "description": "Login page interface",
+      "filepath": "/home/josh/Sync2/projects/journal/compact_design_login_page_20250706_131422.png",
+      "timestamp": "20250706_131422"
+    },
+    {
+      "name": "legacy_dashboard",
+      "description": "Legacy dashboard for comparison",
+      "filepath": "/home/josh/Sync2/projects/journal/compact_design_legacy_dashboard_20250706_131426.png",
+      "timestamp": "20250706_131426"
+    },
+    {
+      "name": "mobile_responsive",
+      "description": "Mobile view (375px width)",
+      "filepath": "/home/josh/Sync2/projects/journal/compact_design_mobile_responsive_20250706_131429.png",
+      "timestamp": "20250706_131429"
+    }
+  ],
+  "design_assessment": {
+    "compact_score": 6,
+    "max_score": 6,
+    "compact_percentage": 100.0,
+    "rating": "EXCELLENT",
+    "status": "PASSED",
+    "features": [
+      [
+        "Compact Padding",
+        true
+      ],
+      [
+        "Tight Margins",
+        true
+      ],
+      [
+        "Compact Font Size",
+        true
+      ],
+      [
+        "Compact Textarea",
+        true
+      ],
+      [
+        "Full Width Layout",
+        true
+      ],
+      [
+        "Text-Focused Line Height",
+        true
+      ]
+    ]
+  },
+  "overall_status": "PASSED"
+}
