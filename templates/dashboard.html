@@ -1102,6 +1102,11 @@
         const weatherClose = document.getElementById('weatherClose');
         const useGpsBtn = document.getElementById('useGpsBtn');
         
+        // Only proceed if critical elements exist
+        if (!templateSelect || !guidedSection) {
+            return;
+        }
+        
         let isGuidedMode = false;
         let isWeatherMode = false;
         let currentTemplateId = null;
