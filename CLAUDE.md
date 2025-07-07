@@ -53,6 +53,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Test guided journal E2E**: `python3 -m pytest tests/functional/test_guided_journal_e2e.py -v`
 - **Validate CSRF tokens**: `python3 validate_csrf.py`
 
+### 🚀 **MCP Browser Testing Framework** (Production Security Testing)
+- **Setup framework**: `./deploy_mcp_testing.sh setup`
+- **Run security scan**: `./deploy_mcp_testing.sh security https://journal.joshsisto.com 5`
+- **Run comprehensive suite**: `./deploy_mcp_testing.sh all https://journal.joshsisto.com 8`
+- **Run fuzz testing**: `./deploy_mcp_testing.sh fuzz https://journal.joshsisto.com 3`
+- **Run concurrency tests**: `./deploy_mcp_testing.sh concurrency https://journal.joshsisto.com 10`
+- **Run login flow tests**: `./deploy_mcp_testing.sh login https://journal.joshsisto.com 3`
+- **Check framework status**: `./deploy_mcp_testing.sh status`
+- **Python API**: `python3 run_mcp_tests.py --mode [security|fuzz|concurrency|login|all] --url [URL]`
+- **Framework documentation**: See `README_MCP_TESTING.md` for complete usage guide
+- **Purpose**: Multi-agent browser automation testing using MCP Task and WebFetch tools for comprehensive security analysis
+- **Coverage**: OWASP Top 10, fuzz testing (1000+ payloads), concurrency testing, authentication flows
+- **Automated**: Can be integrated into pre-commit hooks and CI/CD pipelines
+
 ## IMPORTANT: Development Workflow
 
 ### Code Changes & Testing
@@ -61,11 +75,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **During development**: `python3 run_tests.py [relevant-category]`
 3. **Before committing**: Comprehensive pre-commit hook runs automatically
 4. **For UI changes**: `python3 -m pytest tests/functional/ -v`
+5. **Security testing**: `./deploy_mcp_testing.sh security https://journal.joshsisto.com 3` (for security-related changes)
 
 **📋 Standard workflow:**
 1. **Before changes**: `python3 run_tests.py quick`
 2. **During development**: `python3 run_tests.py [relevant-category]`
 3. **Before committing**: `python3 run_tests.py all`
+
+**🚀 MCP Security Testing Workflow** (For production security validation):
+1. **Pre-deployment**: `./deploy_mcp_testing.sh security https://journal.joshsisto.com 5`
+2. **Post-deployment**: `./deploy_mcp_testing.sh all https://journal.joshsisto.com 8`
+3. **Weekly comprehensive**: `./deploy_mcp_testing.sh all https://journal.joshsisto.com 10` (full security audit)
+4. **Emergency security check**: `python3 run_mcp_tests.py --mode security --url https://journal.joshsisto.com`
 
 ### Service Restart
 **🔥 CRITICAL: Service restart is AUTOMATIC via git hook** - the app runs as a systemd service and code changes require a restart to take effect:
@@ -95,9 +116,56 @@ This is critical for:
 **Git Hook Setup**:
 - **Post-commit**: `hooks/post-commit` (automatic service restart + health check)
 - **Pre-commit comprehensive**: `hooks/pre-commit-comprehensive` (prevents all issues + AI health check)
-- **Install comprehensive hook**: `cp hooks/pre-commit-comprehensive .git/hooks/pre-commit`
+- **Pre-commit with MCP**: `hooks/pre-commit-comprehensive-mcp` (includes MCP security testing)
+- **MCP security pre-commit**: `hooks/pre-commit-mcp-security` (MCP security testing only)
+- **MCP security post-commit**: `hooks/post-commit-mcp-security` (comprehensive MCP validation)
 - **Post-deploy health check**: `hooks/post-deploy-health-check` (standalone health validation)
-- **Standard hooks**: Already installed automatically
+
+**Hook Installation Options**:
+- **🚀 Automated Installer** (Recommended): `./install_mcp_hooks.sh`
+  - Interactive menu with options for different hook configurations
+  - Automatic hook testing and status checking
+  - Command-line options: `mcp`, `comprehensive`, `standard`, `remove`
+- **Manual Installation**:
+  - **Standard comprehensive**: `cp hooks/pre-commit-comprehensive .git/hooks/pre-commit`
+  - **Enhanced with MCP security**: `cp hooks/pre-commit-comprehensive-mcp .git/hooks/pre-commit`
+  - **MCP security only**: `cp hooks/pre-commit-mcp-security .git/hooks/pre-commit`
+  - **MCP post-commit**: `cp hooks/post-commit-mcp-security .git/hooks/post-commit`
+
+**Hook Management Commands**:
+- **Install MCP security hooks**: `./install_mcp_hooks.sh mcp`
+- **Install comprehensive + MCP**: `./install_mcp_hooks.sh comprehensive`
+- **Check hook status**: `./install_mcp_hooks.sh status`
+- **Test hooks**: `./install_mcp_hooks.sh test`
+- **Remove all hooks**: `./install_mcp_hooks.sh remove`
+
+## 🚀 MCP Security Testing Integration
+
+**NEW**: The journal application now includes a comprehensive MCP Browser Testing Framework for production security validation:
+
+### **MCP Testing Framework Components**:
+- **Security Testing Agent** - CSRF, SQL injection, XSS, authentication security analysis
+- **Fuzz Testing Agent** - 1000+ malicious payloads, form input validation, API fuzzing
+- **Concurrency Testing Agent** - Race conditions, resource exhaustion, multi-user load testing
+- **Login Flow Testing Agent** - Authentication flows, session management, password security
+
+### **Integration with Git Hooks**:
+- **Pre-commit Security**: Automatically runs MCP security tests for security-related file changes
+- **Post-commit Validation**: Comprehensive security analysis after successful commits
+- **Targeted Testing**: Smart detection of changed files to run relevant security tests
+- **Report Generation**: Automated security reports and scoring (0-100 scale)
+
+### **When MCP Tests Run Automatically**:
+- **Pre-commit**: Security tests for changes to `routes.py`, `app.py`, `models.py`, templates
+- **Post-commit**: Comprehensive security validation on main/master branch
+- **Targeted**: Login flow tests for auth changes, UI tests for template changes
+- **Scheduled**: Weekly comprehensive security audits (configurable)
+
+### **MCP Test Results**:
+- **Security Scoring**: Quantitative assessment (85+ recommended for production)
+- **Vulnerability Detection**: OWASP Top 10 coverage, custom security checks
+- **Performance Metrics**: Response times, concurrency handling, resource usage
+- **Compliance Reporting**: Security standards validation and audit trails
 
 ## 🎯 Preventing Guided Journal Issues
 

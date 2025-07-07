@@ -400,11 +400,239 @@ def dashboard():
     )
     entries = paginated_entries.items
     
+    # Load available templates
+    from models import JournalTemplate
+    system_templates = JournalTemplate.query.filter_by(is_system=True).all()
+    user_templates = JournalTemplate.query.filter_by(user_id=current_user.id).all()
+    
     return render_template(
         'dashboard.html', 
         entries=entries,
-        paginated_entries=paginated_entries
+        paginated_entries=paginated_entries,
+        system_templates=system_templates,
+        user_templates=user_templates
     )
+
+
+@journal_bp.route('/dashboard', methods=['POST'])
+@login_required
+def dashboard_post():
+    """Handle journal entry submission from dashboard (both quick and guided)"""
+    entry_type = request.form.get('entry_type', 'quick')
+    template_id = request.form.get('template_id', '').strip()
+    location_data = request.form.get('location_data', '').strip()
+    weather_data = request.form.get('weather_data', '').strip()
+    
+    
+    if entry_type == 'guided':
+        # Handle guided journal entry
+        try:
+            # Create the journal entry
+            entry = JournalEntry(
+                user_id=current_user.id,
+                content='',  # Guided entries store content in responses
+                entry_type='guided',
+                template_id=int(template_id) if template_id else None
+            )
+            db.session.add(entry)
+            db.session.flush()  # Get the entry ID
+            
+            # Handle location and weather data
+            location_record = None
+            weather_record = None
+            
+            if location_data:
+                try:
+                    loc_data = json.loads(location_data)
+                    location_record = Location(
+                        latitude=loc_data.get('latitude'),
+                        longitude=loc_data.get('longitude'),
+                        address=loc_data.get('address', ''),
+                        city='Unknown',  # Will be updated by location service
+                        state='Unknown'
+                    )
+                    db.session.add(location_record)
+                    db.session.flush()
+                    entry.location_id = location_record.id
+                except (json.JSONDecodeError, KeyError) as e:
+                    current_app.logger.warning(f"Invalid location data: {e}")
+            
+            if weather_data:
+                try:
+                    weather_info = json.loads(weather_data)
+                    weather_record = WeatherData(
+                        temperature=weather_info.get('temperature'),
+                        weather_condition=weather_info.get('condition', ''),
+                        humidity=weather_info.get('humidity'),
+                        journal_entry_id=entry.id
+                    )
+                    db.session.add(weather_record)
+                    db.session.flush()
+                    entry.weather_id = weather_record.id
+                except (json.JSONDecodeError, KeyError) as e:
+                    current_app.logger.warning(f"Invalid weather data: {e}")
+            
+            # Store guided responses
+            guided_responses = []
+            
+            if template_id:
+                # Load template questions and process responses
+                from models import JournalTemplate, TemplateQuestion
+                template = JournalTemplate.query.get(int(template_id))
+                if template:
+                    entry_content_set = False
+                    for question in template.questions.order_by(TemplateQuestion.question_order):
+                        response_value = request.form.get(question.question_id, '').strip()
+                        if response_value:
+                            guided_responses.append(GuidedResponse(
+                                journal_entry_id=entry.id,
+                                question_id=question.question_id,
+                                question_text=question.question_text,
+                                response=response_value
+                            ))
+                            
+                            # Set main content from first text response or content/day questions
+                            if not entry_content_set and (
+                                'content' in question.question_id.lower() or 
+                                'day' in question.question_id.lower() or
+                                question.question_type == 'text'
+                            ):
+                                entry.content = response_value
+                                entry_content_set = True
+            else:
+                # Default guided questions
+                question_texts = {
+                    'feeling_scale': 'How are you feeling?',
+                    'additional_emotions': 'Select emotions',
+                    'feeling_reason': 'Why do you feel that way?',
+                    'about_day': 'Tell me about your day',
+                    'exercise': 'Did you exercise today?',
+                    'exercise_type': 'What type of workout?',
+                    'anything_else': 'Anything else to discuss?'
+                }
+                
+                for question_id, question_text in question_texts.items():
+                    response_value = request.form.get(question_id, '').strip()
+                    
+                    # Skip exercise_type if exercise wasn't "Yes"
+                    if question_id == 'exercise_type':
+                        exercise_response = request.form.get('exercise', '').strip()
+                        if exercise_response != 'Yes':
+                            continue
+                    
+                    if response_value:
+                        guided_responses.append(GuidedResponse(
+                            journal_entry_id=entry.id,
+                            question_id=question_id,
+                            question_text=question_text,
+                            response=response_value
+                        ))
+                        
+                        # Set main content from about_day for entry content
+                        if question_id == 'about_day':
+                            entry.content = response_value
+            
+            # Add all responses to session
+            for response in guided_responses:
+                db.session.add(response)
+            
+            db.session.commit()
+            flash('Guided journal entry saved successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error saving guided entry: {str(e)}")
+            flash('Error saving guided entry. Please try again.', 'error')
+    else:
+        # Handle quick journal entry
+        content = request.form.get('content', '').strip()
+        if content:
+            try:
+                entry = JournalEntry(
+                    user_id=current_user.id,
+                    content=content,
+                    entry_type='quick'
+                )
+                db.session.add(entry)
+                db.session.flush()
+                
+                # Handle location and weather data for quick entries too
+                if location_data:
+                    try:
+                        loc_data = json.loads(location_data)
+                        location_record = Location(
+                            latitude=loc_data.get('latitude'),
+                            longitude=loc_data.get('longitude'),
+                            address=loc_data.get('address', ''),
+                            city='Unknown',
+                            state='Unknown'
+                        )
+                        db.session.add(location_record)
+                        db.session.flush()
+                        entry.location_id = location_record.id
+                    except (json.JSONDecodeError, KeyError) as e:
+                        current_app.logger.warning(f"Invalid location data: {e}")
+                
+                if weather_data:
+                    try:
+                        weather_info = json.loads(weather_data)
+                        weather_record = WeatherData(
+                            temperature=weather_info.get('temperature'),
+                            weather_condition=weather_info.get('condition', ''),
+                            humidity=weather_info.get('humidity'),
+                            journal_entry_id=entry.id
+                        )
+                        db.session.add(weather_record)
+                        db.session.flush()
+                        entry.weather_id = weather_record.id
+                    except (json.JSONDecodeError, KeyError) as e:
+                        current_app.logger.warning(f"Invalid weather data: {e}")
+                
+                db.session.commit()
+                flash('Journal entry saved successfully!', 'success')
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Error saving quick entry: {str(e)}")
+                flash('Error saving entry. Please try again.', 'error')
+    
+    return redirect(url_for('journal.dashboard'))
+
+
+@api_bp.route('/templates/<int:template_id>/questions')
+@login_required
+def get_template_questions(template_id):
+    """API endpoint to get questions for a specific template"""
+    from models import JournalTemplate, TemplateQuestion
+    
+    # Get template and verify access
+    template = JournalTemplate.query.get_or_404(template_id)
+    
+    # Check if user has access to this template (system templates or own templates)
+    if not template.is_system and template.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+    
+    # Get questions for this template
+    questions = []
+    for question in template.questions.order_by(TemplateQuestion.question_order):
+        questions.append({
+            'question_id': question.question_id,
+            'question_text': question.question_text,
+            'question_type': question.question_type,
+            'required': question.required,
+            'properties': question.properties
+        })
+    
+    return jsonify({
+        'success': True,
+        'template_name': template.name,
+        'questions': questions
+    })
+
+
+@journal_bp.route('/create_template')
+@login_required
+def create_template():
+    """Template creation page"""
+    return render_template('journal/create_template.html')
 
 
 @journal_bp.route('/dashboard/legacy')
@@ -412,3 +640,50 @@ def dashboard():
 def dashboard_legacy():
     """Legacy dashboard with full calendar and filtering features"""
     return render_template("dashboard_legacy.html")
+
+
+@journal_bp.route('/entry/<int:entry_id>')
+@login_required
+def view_entry(entry_id):
+    """View individual journal entry with options to delete or have AI conversation"""
+    entry = JournalEntry.query.filter_by(id=entry_id, user_id=current_user.id).first_or_404()
+    
+    return render_template(
+        'view_entry.html',
+        entry=entry
+    )
+
+
+@journal_bp.route('/entry/<int:entry_id>/delete', methods=['POST'])
+@login_required
+def delete_entry(entry_id):
+    """Delete a journal entry"""
+    entry = JournalEntry.query.filter_by(id=entry_id, user_id=current_user.id).first_or_404()
+    
+    try:
+        # Clear weather record references before deletion (if any)
+        if entry.weather_id:
+            weather_record = db.session.get(WeatherData, entry.weather_id)
+            if weather_record and weather_record.journal_entry_id == entry.id:
+                weather_record.journal_entry_id = None
+
+        # Clear any other weather records referencing this entry
+        WeatherData.query.filter_by(journal_entry_id=entry.id).update({'journal_entry_id': None})
+        
+        # Delete guided responses if any
+        if entry.guided_responses:
+            for response in entry.guided_responses:
+                db.session.delete(response)
+        
+        # Delete the entry itself
+        db.session.delete(entry)
+        db.session.commit()
+        
+        flash('Journal entry deleted successfully!', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting entry {entry_id}: {str(e)}")
+        flash('Error deleting entry. Please try again.', 'error')
+    
+    return redirect(url_for('journal.dashboard'))
