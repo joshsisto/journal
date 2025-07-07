@@ -4,7 +4,13 @@
 
 {% block styles %}
 <style>
-    /* Enhanced Dashboard - Compact, Tight UI Design */
+    /* Enhanced Dashboard - Compact, Tight UI Design with Theme Support */
+    body {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    
     .container {
         max-width: none;
         width: 100%;
@@ -27,13 +33,13 @@
         font-size: 1.5rem;
         margin: 0;
         font-weight: 600;
-        color: #2c3e50;
+        color: var(--text-primary);
     }
     
     /* Compact writing area */
     .writing-section {
-        background: #ffffff;
-        border: 1px solid #e1e5e9;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
         border-radius: 4px;
         padding: 12px;
         margin-bottom: 16px;
@@ -47,14 +53,15 @@
         font-size: 14px;
         line-height: 1.4;
         padding: 8px;
-        background: #f8f9fa;
+        background: var(--bg-secondary);
         border-radius: 3px;
+        color: var(--text-primary);
     }
     
     .writing-textarea:focus {
         outline: none;
-        background: #ffffff;
-        border: 1px solid #4dabf7;
+        background: var(--bg-primary);
+        border: 1px solid var(--accent-color);
     }
     
     .writing-controls {
@@ -63,32 +70,369 @@
         align-items: center;
         margin-top: 8px;
         padding-top: 8px;
-        border-top: 1px solid #e9ecef;
+        border-top: 1px solid var(--border-color);
     }
     
     .word-count {
         font-size: 12px;
-        color: #6c757d;
+        color: var(--text-secondary);
     }
     
-    .save-btn {
-        background: #4dabf7;
+    .action-buttons {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+    
+    .save-btn, .toggle-btn {
+        background: var(--accent-color);
         color: white;
         border: none;
         padding: 6px 16px;
         border-radius: 3px;
         font-size: 13px;
         cursor: pointer;
+        transition: background-color 0.2s ease;
     }
     
-    .save-btn:hover {
+    .small-btn {
+        padding: 6px 8px;
+        font-size: 14px;
+        min-width: auto;
+    }
+    
+    .save-btn:hover, .toggle-btn:hover {
         background: #339af0;
+    }
+    
+    .toggle-btn.active {
+        background: #28a745;
+    }
+    
+    .toggle-btn.active:hover {
+        background: #218838;
+    }
+    
+    /* Template dropdown */
+    .template-dropdown-container {
+        position: relative;
+    }
+    
+    .template-select {
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 3px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        min-width: 100px;
+    }
+    
+    .template-select:hover {
+        background: #339af0;
+    }
+    
+    .template-select:focus {
+        outline: none;
+        background: #339af0;
+    }
+    
+    /* Template select options */
+    .template-select option {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        padding: 4px 8px;
+    }
+    
+    /* Guided questions section - Compact Design */
+    .guided-section {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 16px;
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            max-height: 0;
+            padding: 0 12px;
+        }
+        to {
+            opacity: 1;
+            max-height: 800px;
+            padding: 12px;
+        }
+    }
+    
+    .guided-questions {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .question-item {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 8px;
+        align-items: center;
+        padding: 4px 0;
+    }
+    
+    .question-item.full-width {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+    
+    .question-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin: 0;
+    }
+    
+    .question-input {
+        padding: 6px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 3px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-size: 13px;
+        resize: vertical;
+        min-height: 24px;
+    }
+    
+    .question-input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        background: var(--bg-primary);
+    }
+    
+    .question-input.textarea {
+        min-height: 60px;
+        font-family: inherit;
+    }
+    
+    /* Interactive emoji slider */
+    .feeling-scale-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .feeling-slider {
+        width: 100%;
+        height: 6px;
+        background: var(--border-color);
+        border-radius: 3px;
+        outline: none;
+        appearance: none;
+    }
+    
+    .feeling-slider::-webkit-slider-thumb {
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent-color);
+        cursor: pointer;
+    }
+    
+    .feeling-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent-color);
+        cursor: pointer;
+        border: none;
+    }
+    
+    .feeling-display {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+    }
+    
+    .feeling-current {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 500;
+    }
+    
+    .feeling-emoji {
+        font-size: 18px;
+    }
+    
+    /* Compact emotion selector */
+    .emotion-selector {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-height: 80px;
+        overflow-y: auto;
+    }
+    
+    .emotion-tag {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 2px 6px;
+        border-radius: 8px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+    
+    .emotion-tag:hover {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+    }
+    
+    .emotion-tag.selected {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+    }
+    
+    .emotion-tag.positive {
+        border-color: #28a745;
+    }
+    
+    .emotion-tag.negative {
+        border-color: #dc3545;
+    }
+    
+    .emotion-tag.neutral {
+        border-color: #6c757d;
+    }
+    
+    .emotion-tag.positive.selected {
+        background: #28a745;
+    }
+    
+    .emotion-tag.negative.selected {
+        background: #dc3545;
+    }
+    
+    .emotion-tag.neutral.selected {
+        background: #6c757d;
+    }
+    
+    .guided-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .question-progress {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+    
+    .guided-action-buttons {
+        display: flex;
+        gap: 6px;
+    }
+    
+    /* Weather and location section */
+    .weather-section {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 16px;
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    .weather-controls {
+        display: grid;
+        gap: 8px;
+    }
+    
+    .weather-item {
+        display: grid;
+        grid-template-columns: 80px 1fr;
+        gap: 8px;
+        align-items: center;
+    }
+    
+    .weather-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin: 0;
+    }
+    
+    .location-controls {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .location-input {
+        flex: 1;
+        padding: 6px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 3px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-size: 13px;
+    }
+    
+    .location-input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        background: var(--bg-primary);
+    }
+    
+    .location-btn {
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        padding: 6px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    
+    .location-btn:hover {
+        background: #339af0;
+    }
+    
+    .weather-display {
+        padding: 6px 8px;
+        background: var(--bg-secondary);
+        border-radius: 3px;
+        font-size: 13px;
+        color: var(--text-primary);
+    }
+    
+    .weather-status {
+        color: var(--text-secondary);
+        font-style: italic;
+    }
+    
+    .weather-actions {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
     }
     
     /* Compact entries section */
     .entries-section {
-        background: #ffffff;
-        border: 1px solid #e1e5e9;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
         border-radius: 4px;
         padding: 12px;
     }
@@ -99,13 +443,13 @@
         align-items: center;
         margin-bottom: 12px;
         padding-bottom: 8px;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid var(--border-color);
     }
     
     .entries-title {
         font-size: 1.1rem;
         font-weight: 600;
-        color: #495057;
+        color: var(--text-primary);
         margin: 0;
     }
     
@@ -117,7 +461,7 @@
     
     .toggle-label {
         font-size: 12px;
-        color: #6c757d;
+        color: var(--text-secondary);
         margin: 0;
     }
     
@@ -141,7 +485,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: #ccc;
+        background-color: var(--border-color);
         transition: .3s;
         border-radius: 20px;
     }
@@ -153,13 +497,13 @@
         width: 16px;
         left: 2px;
         bottom: 2px;
-        background-color: white;
+        background-color: var(--bg-primary);
         transition: .3s;
         border-radius: 50%;
     }
     
     input:checked + .toggle-slider {
-        background-color: #4dabf7;
+        background-color: var(--accent-color);
     }
     
     input:checked + .toggle-slider:before {
@@ -168,9 +512,17 @@
     
     /* Compact entry items */
     .entry-item {
-        border-bottom: 1px solid #f1f3f4;
+        border-bottom: 1px solid var(--border-color);
         padding: 8px 0;
         margin: 0;
+        transition: background-color 0.2s ease;
+    }
+    
+    .entry-item:hover {
+        background-color: var(--bg-secondary);
+        border-radius: 4px;
+        margin: 0 -8px;
+        padding: 8px 8px;
     }
     
     .entry-item:last-child {
@@ -199,26 +551,36 @@
         color: #1976d2;
     }
     
+    [data-theme="dark"] .entry-type.quick {
+        background: #1565c0;
+        color: #e3f2fd;
+    }
+    
     .entry-type.guided {
         background: #f3e5f5;
         color: #7b1fa2;
     }
     
+    [data-theme="dark"] .entry-type.guided {
+        background: #6a1b9a;
+        color: #f3e5f5;
+    }
+    
     .entry-date {
         font-size: 11px;
-        color: #868e96;
+        color: var(--text-secondary);
     }
     
     .entry-content {
         font-size: 13px;
         line-height: 1.4;
-        color: #495057;
+        color: var(--text-primary);
         margin: 4px 0;
     }
     
     /* Guided entry specific */
     .guided-summary {
-        background: #f8f9fa;
+        background: var(--bg-secondary);
         padding: 6px 8px;
         border-radius: 3px;
         margin: 4px 0;
@@ -259,17 +621,17 @@
     }
     
     .show-detailed .guided-summary {
-        background: #fff;
-        border: 1px solid #e9ecef;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
         padding: 8px;
     }
     
     .context-info {
         margin-top: 6px;
         padding-top: 6px;
-        border-top: 1px solid #f1f3f4;
+        border-top: 1px solid var(--border-color);
         font-size: 11px;
-        color: #6c757d;
+        color: var(--text-secondary);
     }
     
     .context-item {
@@ -286,28 +648,28 @@
     
     .entry-action {
         font-size: 11px;
-        color: #4dabf7;
+        color: var(--accent-color);
         text-decoration: none;
         padding: 2px 4px;
         border-radius: 2px;
     }
     
     .entry-action:hover {
-        background: #e7f3ff;
-        color: #1971c2;
+        background: var(--bg-secondary);
+        color: var(--accent-color);
     }
     
     /* Pagination */
     .pagination-wrapper {
         margin-top: 16px;
         padding-top: 12px;
-        border-top: 1px solid #e9ecef;
+        border-top: 1px solid var(--border-color);
         text-align: center;
     }
     
     .pagination-info {
         font-size: 12px;
-        color: #6c757d;
+        color: var(--text-secondary);
         margin-bottom: 8px;
     }
     
@@ -320,25 +682,60 @@
     .pagination-btn {
         padding: 4px 8px;
         font-size: 12px;
-        border: 1px solid #dee2e6;
-        background: white;
-        color: #6c757d;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-secondary);
         text-decoration: none;
         border-radius: 3px;
     }
     
     .pagination-btn:hover {
-        background: #f8f9fa;
-        color: #495057;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
     }
     
     .pagination-btn.active {
-        background: #4dabf7;
+        background: var(--accent-color);
         color: white;
-        border-color: #4dabf7;
+        border-color: var(--accent-color);
     }
     
-    /* Mobile responsiveness */
+    /* Wide screen layout - side by side */
+    @media (min-width: 1200px) {
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        
+        .writing-entries-container {
+            display: contents;
+        }
+        
+        .entries-section {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    }
+    
+    /* Tablet and desktop - tighter layout */
+    @media (min-width: 769px) and (max-width: 1199px) {
+        .guided-questions {
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        
+        .question-item.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .question-item {
+            grid-template-columns: 150px 1fr;
+        }
+    }
+    
+    /* Mobile responsiveness - extra compact */
     @media (max-width: 768px) {
         .container {
             padding: 6px 12px;
@@ -358,6 +755,53 @@
         .toggle-container {
             align-self: flex-end;
         }
+        
+        .action-buttons {
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+        }
+        
+        .action-buttons button {
+            width: 100%;
+        }
+        
+        .guided-controls {
+            flex-direction: column;
+            gap: 8px;
+            align-items: stretch;
+        }
+        
+        .guided-action-buttons {
+            justify-content: center;
+        }
+        
+        /* Mobile specific guided questions */
+        .question-item {
+            grid-template-columns: 1fr;
+            gap: 2px;
+        }
+        
+        .question-item:not(.full-width) {
+            grid-template-columns: 1fr;
+        }
+        
+        .guided-section {
+            padding: 8px;
+        }
+        
+        .guided-questions {
+            gap: 6px;
+        }
+        
+        .emotion-selector {
+            max-height: 60px;
+        }
+        
+        .emotion-tag {
+            font-size: 10px;
+            padding: 1px 4px;
+        }
     }
     
     @media (max-width: 480px) {
@@ -366,7 +810,8 @@
         }
         
         .writing-section,
-        .entries-section {
+        .entries-section,
+        .guided-section {
             padding: 8px;
         }
         
@@ -379,15 +824,15 @@
 
 {% block content %}
 <div class="main-container">
-    <!-- Dashboard Header -->
-    <div class="dashboard-header">
-        <h1>Journal</h1>
-    </div>
+    <!-- Dashboard Header - Removed for compact design -->
     
+    <div class="writing-entries-container">
     <!-- Writing Section -->
     <div class="writing-section">
-        <form method="POST" action="{{ url_for('journal.index') }}" id="quickJournalForm">
-            {{ csrf_token() }}
+        <form method="POST" action="{{ url_for('journal.dashboard') }}" id="quickJournalForm">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="location_data" id="quickLocationDataField" value="">
+            <input type="hidden" name="weather_data" id="quickWeatherDataField" value="">
             <textarea 
                 name="content" 
                 id="entryContent"
@@ -398,9 +843,79 @@
             
             <div class="writing-controls">
                 <span class="word-count" id="wordCount">0 words</span>
-                <button type="submit" class="save-btn">Save Entry</button>
+                <div class="action-buttons">
+                    <div class="template-dropdown-container">
+                        <select id="templateSelect" class="template-select">
+                            <option value="">Guided</option>
+                            {% if system_templates %}
+                                <optgroup label="System Templates">
+                                    {% for template in system_templates %}
+                                    <option value="{{ template.id }}">{{ template.name }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endif %}
+                            {% if user_templates %}
+                                <optgroup label="My Templates">
+                                    {% for template in user_templates %}
+                                    <option value="{{ template.id }}">{{ template.name }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endif %}
+                            <option value="create">+ Create Template</option>
+                        </select>
+                    </div>
+                    <button type="button" class="toggle-btn small-btn" id="weatherToggle" title="Add weather & location">🌤️</button>
+                    <button type="submit" class="save-btn">Save Entry</button>
+                </div>
             </div>
         </form>
+        
+        <!-- Guided Questions Section (hidden by default) -->
+        <div class="guided-section" id="guidedSection" style="display: none;">
+            <div class="guided-form">
+                <form method="POST" action="{{ url_for('journal.dashboard') }}" id="guidedJournalForm">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="entry_type" value="guided">
+                    <input type="hidden" name="template_id" id="templateIdField" value="">
+                    <input type="hidden" name="location_data" id="locationDataField" value="">
+                    <input type="hidden" name="weather_data" id="weatherDataField" value="">
+                    
+                    <div class="guided-questions" id="guidedQuestions">
+                        <!-- Questions will be loaded dynamically -->
+                    </div>
+                    
+                    <div class="guided-controls">
+                        <span class="question-progress" id="questionProgress">Question 1 of 5</span>
+                        <div class="guided-action-buttons">
+                            <button type="button" class="toggle-btn" id="guidedClose">Close</button>
+                            <button type="submit" class="save-btn">Save Guided Entry</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Weather and Location Section (hidden by default) -->
+        <div class="weather-section" id="weatherSection" style="display: none;">
+            <div class="weather-controls">
+                <div class="weather-item">
+                    <label class="weather-label">Location</label>
+                    <div class="location-controls">
+                        <input type="text" id="locationInput" class="location-input" placeholder="Enter location or use GPS">
+                        <button type="button" class="location-btn" id="useGpsBtn" title="Use current location">📍</button>
+                    </div>
+                </div>
+                <div class="weather-item">
+                    <label class="weather-label">Weather</label>
+                    <div class="weather-display" id="weatherDisplay">
+                        <span class="weather-status">Click GPS to get weather</span>
+                    </div>
+                </div>
+                <div class="weather-actions">
+                    <button type="button" class="toggle-btn" id="weatherClose">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Journal Entries Section -->
@@ -419,9 +934,8 @@
         <div class="entries-container" id="entriesContainer">
             {% if entries %}
                 {% for entry in entries %}
-                <div class="entry-item entry-type {{ entry.entry_type }}">
+                <div class="entry-item entry-type {{ entry.entry_type }}" onclick="viewEntry({{ entry.id }})" style="cursor: pointer;">
                     <div class="entry-header">
-                        <span class="entry-type {{ entry.entry_type }}">{{ entry.entry_type }}</span>
                         <span class="entry-date">{{ entry.created_at.strftime('%b %d, %Y at %I:%M %p') }}</span>
                     </div>
                     
@@ -447,17 +961,9 @@
                             {% endif %}
                             
                             {% if emotion_response %}
-                                {% set emotions = emotion_response.response|from_json %}
-                                {% if emotions %}
-                                    <div class="emotion-tags">
-                                        {% for emotion in emotions[:3] %}
-                                            <span class="emotion-tag">{{ emotion }}</span>
-                                        {% endfor %}
-                                        {% if emotions|length > 3 %}
-                                            <span class="emotion-tag">+{{ emotions|length - 3 }} more</span>
-                                        {% endif %}
-                                    </div>
-                                {% endif %}
+                                <div class="emotion-tags">
+                                    <span class="emotion-tag">{{ emotion_response.response[:30] }}{% if emotion_response.response|length > 30 %}...{% endif %}</span>
+                                </div>
                             {% endif %}
                             
                             <!-- Detailed content (hidden by default) -->
@@ -487,8 +993,8 @@
                     {% endif %}
                     
                     <div class="entry-actions detailed-only">
-                        <a href="{{ url_for('journal.view_entry', entry_id=entry.id) }}" class="entry-action">View Full Entry</a>
-                        <a href="{{ url_for('export.export_entry', entry_id=entry.id) }}" class="entry-action">Export</a>
+                        <span class="entry-action">Entry #{{ entry.id }}</span>
+                        <span class="entry-action">{{ entry.created_at.strftime('%b %d, %Y') }}</span>
                     </div>
                 </div>
                 {% endfor %}
@@ -527,6 +1033,7 @@
         </div>
         {% endif %}
     </div>
+    </div> <!-- Close writing-entries-container -->
 </div>
 {% endblock %}
 
@@ -584,6 +1091,441 @@
         
         // Focus on writing area when page loads
         entryContent.focus();
+        
+        // Template and guided journal functionality
+        const templateSelect = document.getElementById('templateSelect');
+        const guidedSection = document.getElementById('guidedSection');
+        const guidedClose = document.getElementById('guidedClose');
+        const guidedQuestions = document.getElementById('guidedQuestions');
+        const weatherToggle = document.getElementById('weatherToggle');
+        const weatherSection = document.getElementById('weatherSection');
+        const weatherClose = document.getElementById('weatherClose');
+        const useGpsBtn = document.getElementById('useGpsBtn');
+        
+        let isGuidedMode = false;
+        let isWeatherMode = false;
+        let currentTemplateId = null;
+        
+        // Template selection
+        templateSelect.addEventListener('change', function() {
+            const value = this.value;
+            
+            if (value === 'create') {
+                // Redirect to template creation
+                window.open('/journal/create_template', '_blank');
+                this.value = ''; // Reset selection
+            } else if (value === '') {
+                // Default guided mode
+                currentTemplateId = null;
+                showGuidedSection();
+            } else {
+                // Load specific template
+                currentTemplateId = value;
+                showGuidedSection(value);
+            }
+        });
+        
+        // Weather toggle
+        weatherToggle.addEventListener('click', function() {
+            if (isWeatherMode) {
+                hideWeatherSection();
+            } else {
+                showWeatherSection();
+            }
+        });
+        
+        weatherClose.addEventListener('click', function() {
+            hideWeatherSection();
+        });
+        
+        guidedClose.addEventListener('click', function() {
+            hideGuidedSection();
+        });
+        
+        function showGuidedSection(templateId = null) {
+            isGuidedMode = true;
+            guidedSection.style.display = 'block';
+            
+            // Set template ID in hidden field
+            document.getElementById('templateIdField').value = templateId || '';
+            
+            if (templateId) {
+                loadTemplate(templateId);
+            } else {
+                loadGuidedQuestions();
+            }
+        }
+        
+        function hideGuidedSection() {
+            isGuidedMode = false;
+            guidedSection.style.display = 'none';
+            templateSelect.value = '';
+            currentTemplateId = null;
+        }
+        
+        function showWeatherSection() {
+            isWeatherMode = true;
+            weatherToggle.classList.add('active');
+            weatherSection.style.display = 'block';
+        }
+        
+        function hideWeatherSection() {
+            isWeatherMode = false;
+            weatherToggle.classList.remove('active');
+            weatherSection.style.display = 'none';
+        }
+        
+        // GPS location functionality
+        useGpsBtn.addEventListener('click', function() {
+            if (navigator.geolocation) {
+                this.textContent = '⏳';
+                this.disabled = true;
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        
+                        // Get location name and weather
+                        fetchLocationAndWeather(lat, lon);
+                    },
+                    function(error) {
+                        useGpsBtn.textContent = '📍';
+                        useGpsBtn.disabled = false;
+                        alert('Unable to get location: ' + error.message);
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by this browser.');
+            }
+        });
+        
+        function fetchLocationAndWeather(lat, lon) {
+            // This would integrate with your existing weather service
+            // For now, just show a placeholder
+            const locationText = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+            document.getElementById('locationInput').value = locationText;
+            document.getElementById('weatherDisplay').innerHTML = '<span>📍 Location detected, fetching weather...</span>';
+            
+            useGpsBtn.textContent = '📍';
+            useGpsBtn.disabled = false;
+            
+            // Store location data
+            const locationData = {
+                latitude: lat,
+                longitude: lon,
+                address: locationText
+            };
+            
+            // TODO: Integrate with actual weather API
+            setTimeout(() => {
+                const weatherData = {
+                    temperature: 72,
+                    condition: 'Partly Cloudy',
+                    humidity: 65,
+                    location: locationText
+                };
+                
+                document.getElementById('weatherDisplay').innerHTML = '<span>🌤️ 72°F, Partly Cloudy</span>';
+                
+                // Populate hidden fields for both forms
+                document.getElementById('quickLocationDataField').value = JSON.stringify(locationData);
+                document.getElementById('quickWeatherDataField').value = JSON.stringify(weatherData);
+                document.getElementById('locationDataField').value = JSON.stringify(locationData);
+                document.getElementById('weatherDataField').value = JSON.stringify(weatherData);
+            }, 1000);
+        }
+        
+        function loadTemplate(templateId) {
+            // Load template questions from server
+            fetch(`/api/templates/${templateId}/questions`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderTemplateQuestions(data.questions);
+                        document.getElementById('questionProgress').textContent = `${data.questions.length} questions (${data.template_name})`;
+                    } else {
+                        console.error('Failed to load template:', data.error);
+                        loadGuidedQuestions(); // Fallback to default
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading template:', error);
+                    loadGuidedQuestions(); // Fallback to default
+                });
+        }
+        
+        function renderTemplateQuestions(questions) {
+            guidedQuestions.innerHTML = '';
+            
+            questions.forEach(question => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question-item';
+                questionDiv.id = `question_${question.question_id}`;
+                
+                if (question.question_type === 'text' && question.properties && JSON.parse(question.properties || '{}').multiline) {
+                    questionDiv.classList.add('full-width');
+                }
+                
+                let inputHtml = '';
+                
+                if (question.question_type === 'number') {
+                    const props = JSON.parse(question.properties || '{}');
+                    const min = props.min || 1;
+                    const max = props.max || 10;
+                    const defaultVal = Math.floor((min + max) / 2);
+                    
+                    inputHtml = `
+                        <div class="feeling-scale-container">
+                            <input type="range" name="${question.question_id}" class="feeling-slider" 
+                                   min="${min}" max="${max}" value="${defaultVal}" id="${question.question_id}_slider">
+                            <div class="feeling-display">
+                                <span>😭</span>
+                                <div class="feeling-current">
+                                    <span id="${question.question_id}_value">${defaultVal}</span>
+                                    <span id="${question.question_id}_emoji" class="feeling-emoji">😐</span>
+                                </div>
+                                <span>🤩</span>
+                            </div>
+                        </div>
+                    `;
+                } else if (question.question_type === 'emotions') {
+                    const emotions = {
+                        positive: ['Happy', 'Excited', 'Grateful', 'Proud', 'Confident', 'Peaceful', 'Loved', 'Optimistic'],
+                        negative: ['Sad', 'Angry', 'Anxious', 'Frustrated', 'Disappointed', 'Lonely', 'Overwhelmed', 'Stressed'],
+                        neutral: ['Calm', 'Curious', 'Reflective', 'Tired', 'Focused', 'Content', 'Indifferent', 'Thoughtful']
+                    };
+                    
+                    let emotionTags = '';
+                    Object.entries(emotions).forEach(([category, emotionList]) => {
+                        emotionList.forEach(emotion => {
+                            emotionTags += `<span class="emotion-tag ${category}" data-emotion="${emotion}">${emotion}</span>`;
+                        });
+                    });
+                    
+                    inputHtml = `
+                        <div class="emotion-selector">${emotionTags}</div>
+                        <input type="hidden" name="${question.question_id}" id="${question.question_id}_selected" value="">
+                    `;
+                } else if (question.question_type === 'boolean') {
+                    inputHtml = `
+                        <div class="form-check-inline" style="display: flex; gap: 12px;">
+                            <label><input type="radio" name="${question.question_id}" value="Yes" style="margin-right: 4px;"> Yes</label>
+                            <label><input type="radio" name="${question.question_id}" value="No" style="margin-right: 4px;"> No</label>
+                        </div>
+                    `;
+                } else {
+                    const props = JSON.parse(question.properties || '{}');
+                    if (props.multiline) {
+                        inputHtml = `<textarea name="${question.question_id}" class="question-input textarea" rows="2" placeholder="Share your thoughts..."></textarea>`;
+                    } else {
+                        inputHtml = `<input type="text" name="${question.question_id}" class="question-input" placeholder="Enter your response...">`;
+                    }
+                }
+                
+                questionDiv.innerHTML = `
+                    <label class="question-label">${question.question_text}</label>
+                    ${inputHtml}
+                `;
+                
+                guidedQuestions.appendChild(questionDiv);
+            });
+            
+            // Set up interactive functionality for template questions
+            setupFeelingSlider();
+            setupEmotionSelector();
+        }
+        
+        function loadGuidedQuestions() {
+            // All guided questions from original system
+            const questions = [
+                {
+                    id: 'feeling_scale',
+                    text: 'How are you feeling?',
+                    type: 'slider',
+                    required: true
+                },
+                {
+                    id: 'additional_emotions',
+                    text: 'Select emotions',
+                    type: 'emotions',
+                    required: false
+                },
+                {
+                    id: 'feeling_reason',
+                    text: 'Why do you feel that way?',
+                    type: 'textarea',
+                    required: false
+                },
+                {
+                    id: 'about_day',
+                    text: 'Tell me about your day',
+                    type: 'textarea',
+                    required: true
+                },
+                {
+                    id: 'exercise',
+                    text: 'Did you exercise today?',
+                    type: 'boolean',
+                    required: false
+                },
+                {
+                    id: 'exercise_type',
+                    text: 'What type of workout?',
+                    type: 'text',
+                    required: false,
+                    dependsOn: 'exercise'
+                },
+                {
+                    id: 'anything_else',
+                    text: 'Anything else to discuss?',
+                    type: 'textarea',
+                    required: false
+                }
+            ];
+            
+            guidedQuestions.innerHTML = '';
+            
+            questions.forEach((question, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question-item';
+                questionDiv.id = `question_${question.id}`;
+                
+                if (question.type === 'textarea') {
+                    questionDiv.classList.add('full-width');
+                }
+                
+                if (question.dependsOn) {
+                    questionDiv.style.display = 'none';
+                }
+                
+                let inputHtml = '';
+                
+                if (question.type === 'slider') {
+                    inputHtml = `
+                        <div class="feeling-scale-container">
+                            <input type="range" name="${question.id}" class="feeling-slider" 
+                                   min="1" max="10" value="5" id="${question.id}_slider">
+                            <div class="feeling-display">
+                                <span>😭</span>
+                                <div class="feeling-current">
+                                    <span id="${question.id}_value">5</span>
+                                    <span id="${question.id}_emoji" class="feeling-emoji">😐</span>
+                                </div>
+                                <span>🤩</span>
+                            </div>
+                        </div>
+                    `;
+                } else if (question.type === 'emotions') {
+                    const emotions = {
+                        positive: ['Happy', 'Excited', 'Grateful', 'Proud', 'Confident', 'Peaceful', 'Loved', 'Optimistic'],
+                        negative: ['Sad', 'Angry', 'Anxious', 'Frustrated', 'Disappointed', 'Lonely', 'Overwhelmed', 'Stressed'],
+                        neutral: ['Calm', 'Curious', 'Reflective', 'Tired', 'Focused', 'Content', 'Indifferent', 'Thoughtful']
+                    };
+                    
+                    let emotionTags = '';
+                    Object.entries(emotions).forEach(([category, emotionList]) => {
+                        emotionList.forEach(emotion => {
+                            emotionTags += `<span class="emotion-tag ${category}" data-emotion="${emotion}">${emotion}</span>`;
+                        });
+                    });
+                    
+                    inputHtml = `
+                        <div class="emotion-selector">${emotionTags}</div>
+                        <input type="hidden" name="${question.id}" id="${question.id}_selected" value="">
+                    `;
+                } else if (question.type === 'boolean') {
+                    inputHtml = `
+                        <div class="form-check-inline" style="display: flex; gap: 12px;">
+                            <label><input type="radio" name="${question.id}" value="Yes" style="margin-right: 4px;"> Yes</label>
+                            <label><input type="radio" name="${question.id}" value="No" style="margin-right: 4px;"> No</label>
+                        </div>
+                    `;
+                } else if (question.type === 'textarea') {
+                    inputHtml = `<textarea name="${question.id}" class="question-input textarea" rows="2" placeholder="Share your thoughts..."></textarea>`;
+                } else {
+                    inputHtml = `<input type="text" name="${question.id}" class="question-input" placeholder="Optional">`;
+                }
+                
+                questionDiv.innerHTML = `
+                    <label class="question-label">${question.text}</label>
+                    ${inputHtml}
+                `;
+                
+                guidedQuestions.appendChild(questionDiv);
+            });
+            
+            // Set up interactive functionality
+            setupFeelingSlider();
+            setupEmotionSelector();
+            setupConditionalQuestions();
+            
+            // Update progress
+            document.getElementById('questionProgress').textContent = `${questions.length} questions`;
+        }
+        
+        function setupFeelingSlider() {
+            const slider = document.getElementById('feeling_scale_slider');
+            const valueDisplay = document.getElementById('feeling_scale_value');
+            const emojiDisplay = document.getElementById('feeling_scale_emoji');
+            
+            if (slider && valueDisplay && emojiDisplay) {
+                slider.addEventListener('input', function() {
+                    const value = parseInt(this.value);
+                    valueDisplay.textContent = value;
+                    
+                    // Update emoji based on value
+                    const emojis = ['', '😭', '😢', '😞', '😔', '😐', '🙂', '😊', '😄', '😁', '🤩'];
+                    emojiDisplay.textContent = emojis[value] || '❓';
+                });
+            }
+        }
+        
+        function setupEmotionSelector() {
+            const emotionTags = document.querySelectorAll('.emotion-tag');
+            const selectedInput = document.getElementById('additional_emotions_selected');
+            let selectedEmotions = [];
+            
+            emotionTags.forEach(tag => {
+                tag.addEventListener('click', function() {
+                    const emotion = this.dataset.emotion;
+                    
+                    if (this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        selectedEmotions = selectedEmotions.filter(e => e !== emotion);
+                    } else {
+                        this.classList.add('selected');
+                        selectedEmotions.push(emotion);
+                    }
+                    
+                    if (selectedInput) {
+                        selectedInput.value = JSON.stringify(selectedEmotions);
+                    }
+                });
+            });
+        }
+        
+        function setupConditionalQuestions() {
+            const exerciseRadios = document.querySelectorAll('input[name="exercise"]');
+            const exerciseTypeQuestion = document.getElementById('question_exercise_type');
+            
+            exerciseRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (exerciseTypeQuestion) {
+                        if (this.value === 'Yes') {
+                            exerciseTypeQuestion.style.display = 'grid';
+                        } else {
+                            exerciseTypeQuestion.style.display = 'none';
+                        }
+                    }
+                });
+            });
+        }
     });
+    
+    // Handle clicking on journal entries
+    function viewEntry(entryId) {
+        window.location.href = `/entry/${entryId}`;
+    }
 </script>
 {% endblock %}
