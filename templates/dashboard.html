@@ -344,7 +344,7 @@
         gap: 6px;
     }
     
-    /* Weather and location section */
+    /* Weather and location section - Streamlined design */
     .weather-section {
         background: var(--bg-primary);
         border: 1px solid var(--border-color);
@@ -355,27 +355,63 @@
     }
     
     .weather-controls {
-        display: grid;
+        display: flex;
+        flex-direction: column;
         gap: 8px;
     }
     
-    .weather-item {
-        display: grid;
-        grid-template-columns: 80px 1fr;
-        gap: 8px;
+    .weather-header {
+        display: flex;
+        justify-content: space-between;
         align-items: center;
+        margin-bottom: 8px;
     }
     
-    .weather-label {
+    .weather-title {
         font-size: 13px;
-        font-weight: 500;
+        font-weight: 600;
         color: var(--text-primary);
         margin: 0;
     }
     
-    .location-controls {
+    .weather-actions {
+        display: flex;
+        gap: 6px;
+    }
+    
+    .weather-btn {
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        min-width: auto;
+    }
+    
+    .weather-btn:hover {
+        background: #339af0;
+    }
+    
+    .weather-btn.clear-btn {
+        background: #dc3545;
+    }
+    
+    .weather-btn.clear-btn:hover {
+        background: #c82333;
+    }
+    
+    .weather-btn:disabled {
+        background: var(--text-secondary);
+        cursor: not-allowed;
+    }
+    
+    .location-search-container {
         display: flex;
         gap: 4px;
+        margin-bottom: 8px;
     }
     
     .location-input {
@@ -385,7 +421,7 @@
         border-radius: 3px;
         background: var(--bg-secondary);
         color: var(--text-primary);
-        font-size: 13px;
+        font-size: 12px;
     }
     
     .location-input:focus {
@@ -394,39 +430,80 @@
         background: var(--bg-primary);
     }
     
-    .location-btn {
-        background: var(--accent-color);
+    .location-input::placeholder {
+        color: var(--text-secondary);
+        font-style: italic;
+    }
+    
+    .search-btn {
+        background: #6f42c1;
         color: white;
         border: none;
         padding: 6px 8px;
         border-radius: 3px;
-        font-size: 12px;
+        font-size: 11px;
         cursor: pointer;
         transition: background-color 0.2s ease;
     }
     
-    .location-btn:hover {
-        background: #339af0;
+    .search-btn:hover {
+        background: #5a32a3;
     }
     
     .weather-display {
-        padding: 6px 8px;
+        padding: 8px;
         background: var(--bg-secondary);
         border-radius: 3px;
-        font-size: 13px;
+        font-size: 12px;
         color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .weather-content {
+        text-align: center;
+    }
+    
+    .weather-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .weather-temp {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .weather-condition {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    
+    .location-info {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-top: 4px;
     }
     
     .weather-status {
         color: var(--text-secondary);
         font-style: italic;
+        font-size: 12px;
     }
     
-    .weather-actions {
-        display: flex;
-        justify-content: flex-end;
-        padding-top: 8px;
-        border-top: 1px solid var(--border-color);
+    .weather-loading {
+        color: var(--accent-color);
+        animation: pulse 1.5s ease-in-out infinite alternate;
+    }
+    
+    @keyframes pulse {
+        from { opacity: 1; }
+        to { opacity: 0.5; }
     }
     
     /* Compact entries section */
@@ -898,21 +975,24 @@
         <!-- Weather and Location Section (hidden by default) -->
         <div class="weather-section" id="weatherSection" style="display: none;">
             <div class="weather-controls">
-                <div class="weather-item">
-                    <label class="weather-label">Location</label>
-                    <div class="location-controls">
-                        <input type="text" id="locationInput" class="location-input" placeholder="Enter location or use GPS">
-                        <button type="button" class="location-btn" id="useGpsBtn" title="Use current location">📍</button>
+                <div class="weather-header">
+                    <h3 class="weather-title">📍 Weather & Location</h3>
+                    <div class="weather-actions">
+                        <button type="button" class="weather-btn" id="autoDetectBtn" title="Auto-detect location & weather">🎯 Auto</button>
+                        <button type="button" class="weather-btn clear-btn" id="clearWeatherBtn" title="Clear weather data">🗑️ Clear</button>
+                        <button type="button" class="weather-btn" id="weatherClose" title="Close section">✕</button>
                     </div>
                 </div>
-                <div class="weather-item">
-                    <label class="weather-label">Weather</label>
-                    <div class="weather-display" id="weatherDisplay">
-                        <span class="weather-status">Click GPS to get weather</span>
-                    </div>
+                
+                <div class="location-search-container">
+                    <input type="text" id="locationInput" class="location-input" placeholder="Search location (e.g. New York, Paris)">
+                    <button type="button" class="search-btn" id="searchLocationBtn" title="Search location">🔍 Search</button>
                 </div>
-                <div class="weather-actions">
-                    <button type="button" class="toggle-btn" id="weatherClose">Close</button>
+                
+                <div class="weather-display" id="weatherDisplay">
+                    <div class="weather-content">
+                        <span class="weather-status">Click Auto to detect location & weather automatically</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1100,7 +1180,11 @@
         const weatherToggle = document.getElementById('weatherToggle');
         const weatherSection = document.getElementById('weatherSection');
         const weatherClose = document.getElementById('weatherClose');
-        const useGpsBtn = document.getElementById('useGpsBtn');
+        const autoDetectBtn = document.getElementById('autoDetectBtn');
+        const clearWeatherBtn = document.getElementById('clearWeatherBtn');
+        const searchLocationBtn = document.getElementById('searchLocationBtn');
+        const locationInput = document.getElementById('locationInput');
+        const weatherDisplay = document.getElementById('weatherDisplay');
         
         // Only proceed if critical elements exist
         if (!templateSelect || !guidedSection) {
@@ -1110,6 +1194,8 @@
         let isGuidedMode = false;
         let isWeatherMode = false;
         let currentTemplateId = null;
+        let currentLocationData = null;
+        let currentWeatherData = null;
         
         // Template selection
         templateSelect.addEventListener('change', function() {
@@ -1130,12 +1216,40 @@
             }
         });
         
-        // Weather toggle
+        // Weather toggle - Now automatically detects when opened
         weatherToggle.addEventListener('click', function() {
             if (isWeatherMode) {
                 hideWeatherSection();
             } else {
                 showWeatherSection();
+                // Automatically detect location when opened
+                autoDetectLocation();
+            }
+        });
+        
+        // New streamlined weather controls
+        autoDetectBtn.addEventListener('click', autoDetectLocation);
+        
+        clearWeatherBtn.addEventListener('click', function() {
+            clearWeatherData();
+        });
+        
+        searchLocationBtn.addEventListener('click', function() {
+            const location = locationInput.value.trim();
+            if (location) {
+                searchLocation(location);
+            } else {
+                alert('Please enter a location to search');
+            }
+        });
+        
+        // Allow Enter key in location search
+        locationInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const location = this.value.trim();
+                if (location) {
+                    searchLocation(location);
+                }
             }
         });
         
@@ -1180,11 +1294,13 @@
             weatherSection.style.display = 'none';
         }
         
-        // GPS location functionality
-        useGpsBtn.addEventListener('click', function() {
+        // Auto-detect location - streamlined single click
+        function autoDetectLocation() {
             if (navigator.geolocation) {
-                this.textContent = '⏳';
-                this.disabled = true;
+                autoDetectBtn.textContent = '⏳ Detecting...';
+                autoDetectBtn.disabled = true;
+                
+                showWeatherLoading('Detecting your location...');
                 
                 navigator.geolocation.getCurrentPosition(
                     function(position) {
@@ -1195,50 +1311,140 @@
                         fetchLocationAndWeather(lat, lon);
                     },
                     function(error) {
-                        useGpsBtn.textContent = '📍';
-                        useGpsBtn.disabled = false;
-                        alert('Unable to get location: ' + error.message);
-                    }
+                        autoDetectBtn.textContent = '🎯 Auto';
+                        autoDetectBtn.disabled = false;
+                        showWeatherError('Unable to get location: ' + error.message);
+                    },
+                    { timeout: 10000, enableHighAccuracy: true }
                 );
             } else {
-                alert('Geolocation is not supported by this browser.');
+                showWeatherError('Geolocation is not supported by this browser');
             }
-        });
+        }
         
-        function fetchLocationAndWeather(lat, lon) {
-            // This would integrate with your existing weather service
-            // For now, just show a placeholder
-            const locationText = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-            document.getElementById('locationInput').value = locationText;
-            document.getElementById('weatherDisplay').innerHTML = '<span>📍 Location detected, fetching weather...</span>';
+        // Search for location by name
+        function searchLocation(locationName) {
+            searchLocationBtn.textContent = '⏳';
+            searchLocationBtn.disabled = true;
             
-            useGpsBtn.textContent = '📍';
-            useGpsBtn.disabled = false;
+            showWeatherLoading(`Searching for "${locationName}"...`);
             
-            // Store location data
-            const locationData = {
-                latitude: lat,
-                longitude: lon,
-                address: locationText
-            };
-            
-            // TODO: Integrate with actual weather API
+            // Simulate location search (in real implementation, use geocoding API)
             setTimeout(() => {
-                const weatherData = {
-                    temperature: 72,
-                    condition: 'Partly Cloudy',
-                    humidity: 65,
-                    location: locationText
+                // Mock data - replace with real geocoding API
+                const mockLocationData = {
+                    latitude: 40.7128,
+                    longitude: -74.0060,
+                    name: locationName,
+                    city: locationName.split(',')[0].trim(),
+                    state: locationName.split(',')[1]?.trim() || 'Unknown',
+                    country: 'US',
+                    address: locationName
                 };
                 
-                document.getElementById('weatherDisplay').innerHTML = '<span>🌤️ 72°F, Partly Cloudy</span>';
+                currentLocationData = mockLocationData;
+                locationInput.value = locationName;
                 
-                // Populate hidden fields for both forms
-                document.getElementById('quickLocationDataField').value = JSON.stringify(locationData);
-                document.getElementById('quickWeatherDataField').value = JSON.stringify(weatherData);
-                document.getElementById('locationDataField').value = JSON.stringify(locationData);
-                document.getElementById('weatherDataField').value = JSON.stringify(weatherData);
+                // Fetch weather for this location
+                fetchWeatherForLocation(mockLocationData);
+                
+                searchLocationBtn.textContent = '🔍 Search';
+                searchLocationBtn.disabled = false;
+            }, 1500);
+        }
+        
+        // Clear all weather and location data
+        function clearWeatherData() {
+            currentLocationData = null;
+            currentWeatherData = null;
+            locationInput.value = '';
+            
+            showWeatherStatus('Weather and location cleared');
+            
+            // Clear hidden form fields
+            document.getElementById('quickLocationDataField').value = '';
+            document.getElementById('quickWeatherDataField').value = '';
+            document.getElementById('locationDataField').value = '';
+            document.getElementById('weatherDataField').value = '';
+        }
+        
+        function fetchLocationAndWeather(lat, lon) {
+            showWeatherLoading('Getting location details...');
+            
+            // Simulate reverse geocoding (replace with real API)
+            setTimeout(() => {
+                const locationData = {
+                    latitude: lat,
+                    longitude: lon,
+                    name: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+                    city: 'Current Location',
+                    state: 'GPS',
+                    country: 'Auto-detected',
+                    address: `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+                };
+                
+                currentLocationData = locationData;
+                locationInput.value = locationData.name;
+                
+                fetchWeatherForLocation(locationData);
             }, 1000);
+        }
+        
+        function fetchWeatherForLocation(locationData) {
+            showWeatherLoading('Getting weather data...');
+            
+            // Simulate weather API call (replace with real weather service)
+            setTimeout(() => {
+                const weatherData = {
+                    temperature: Math.floor(Math.random() * 30) + 50, // Random temp 50-80°F
+                    condition: ['Sunny', 'Partly Cloudy', 'Cloudy', 'Rainy'][Math.floor(Math.random() * 4)],
+                    humidity: Math.floor(Math.random() * 40) + 40, // 40-80% humidity
+                    location: locationData.name
+                };
+                
+                currentWeatherData = weatherData;
+                
+                showWeatherData(locationData, weatherData);
+                updateFormFields();
+                
+                autoDetectBtn.textContent = '🎯 Auto';
+                autoDetectBtn.disabled = false;
+            }, 1500);
+        }
+        
+        function showWeatherData(locationData, weatherData) {
+            const weatherContent = `
+                <div class="weather-info">
+                    <div class="weather-temp">${weatherData.temperature}°F</div>
+                    <div class="weather-condition">${weatherData.condition}</div>
+                    <div class="location-info">📍 ${locationData.city}, ${locationData.state}</div>
+                </div>
+            `;
+            
+            weatherDisplay.innerHTML = weatherContent;
+        }
+        
+        function showWeatherLoading(message) {
+            weatherDisplay.innerHTML = `<div class="weather-content"><span class="weather-loading">${message}</span></div>`;
+        }
+        
+        function showWeatherStatus(message) {
+            weatherDisplay.innerHTML = `<div class="weather-content"><span class="weather-status">${message}</span></div>`;
+        }
+        
+        function showWeatherError(message) {
+            weatherDisplay.innerHTML = `<div class="weather-content"><span class="weather-status" style="color: #dc3545;">${message}</span></div>`;
+        }
+        
+        function updateFormFields() {
+            const locationJSON = currentLocationData ? JSON.stringify(currentLocationData) : '';
+            const weatherJSON = currentWeatherData ? JSON.stringify(currentWeatherData) : '';
+            
+            // Update hidden fields for both forms
+            document.getElementById('quickLocationDataField').value = locationJSON;
+            document.getElementById('quickWeatherDataField').value = weatherJSON;
+            document.getElementById('locationDataField').value = locationJSON;
+            document.getElementById('weatherDataField').value = weatherJSON;
         }
         
         function loadTemplate(templateId) {
