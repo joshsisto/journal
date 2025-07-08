@@ -1013,7 +1013,7 @@
                 <div class="action-buttons">
                     <div class="template-dropdown-container">
                         <select id="templateSelect" class="template-select">
-                            <option value="">Guided</option>
+                            <option value="">🎯 Start Guided Journal</option>
                             {% if system_templates %}
                                 <optgroup label="System Templates">
                                     {% for template in system_templates %}
@@ -1300,18 +1300,35 @@
         let currentLocationData = null;
         let currentWeatherData = null;
         
-        // Template selection
+        // Streamlined guided journal - auto-start on first interaction
+        let hasInteractedWithTemplate = false;
+        
+        templateSelect.addEventListener('click', function() {
+            // Auto-start default guided journal on first click (streamlined UX)
+            if (!isGuidedMode && !hasInteractedWithTemplate) {
+                hasInteractedWithTemplate = true;
+                currentTemplateId = null;
+                showGuidedSection();
+                // Update dropdown text to show it's active
+                this.options[0].textContent = '📝 Default Guided (Active)';
+            }
+        });
+        
+        // Template selection for changing templates
         templateSelect.addEventListener('change', function() {
             const value = this.value;
+            hasInteractedWithTemplate = true;
             
             if (value === 'create') {
                 // Redirect to template creation
                 window.open('/journal/create_template', '_blank');
                 this.value = ''; // Reset selection
+                this.options[0].textContent = '🎯 Start Guided Journal';
             } else if (value === '') {
                 // Default guided mode
                 currentTemplateId = null;
                 showGuidedSection();
+                this.options[0].textContent = '📝 Default Guided (Active)';
             } else {
                 // Load specific template
                 currentTemplateId = value;
@@ -1383,6 +1400,9 @@
             guidedSection.style.display = 'none';
             templateSelect.value = '';
             currentTemplateId = null;
+            hasInteractedWithTemplate = false;
+            // Reset dropdown text to initial state
+            templateSelect.options[0].textContent = '🎯 Start Guided Journal';
         }
         
         function showWeatherSection() {
