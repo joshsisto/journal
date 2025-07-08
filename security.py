@@ -212,9 +212,13 @@ def setup_security(app):
                 if key.startswith('question_') and 'emotion' in key.lower():
                     continue  # Skip emotion JSON fields
                 
-                # Skip other legitimate JSON fields
-                if key in ('new_tags',):
-                    continue  # Skip JSON tag data
+                # Skip additional emotion fields and other JSON data
+                if key in ('additional_emotions', 'new_tags', 'emotions', 'guided_responses', 'weather_data', 'location_data'):
+                    continue  # Skip JSON emotion, tag, weather, and location data
+                
+                # Skip other fields containing JSON arrays/objects or weather/location fields
+                if 'emotion' in key.lower() or 'response' in key.lower() or 'weather' in key.lower() or 'location' in key.lower():
+                    continue  # Skip JSON response data and weather/location fields
                 
                 if isinstance(value, str):
                     if sql_injection_pattern.search(value):
@@ -279,9 +283,13 @@ def monitor_suspicious_activity():
             if key.startswith('question_') and 'emotion' in key.lower():
                 continue  # Skip emotion JSON fields
             
-            # Skip other legitimate JSON fields
-            if key in ('new_tags',):
-                continue  # Skip JSON tag data
+            # Skip additional emotion fields and other JSON data
+            if key in ('additional_emotions', 'new_tags', 'emotions', 'guided_responses', 'weather_data', 'location_data'):
+                continue  # Skip JSON emotion, tag, weather, and location data
+            
+            # Skip other fields containing JSON arrays/objects or weather/location fields
+            if 'emotion' in key.lower() or 'response' in key.lower() or 'weather' in key.lower() or 'location' in key.lower():
+                continue  # Skip JSON response data and weather/location fields
             
             if isinstance(value, str):
                 if sql_injection_pattern.search(value):

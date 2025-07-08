@@ -414,6 +414,176 @@ def dashboard():
     )
 
 
+@journal_bp.route('/journal/guided', methods=['GET'])
+@login_required
+def guided_journal():
+    """Display the guided journal entry form."""
+    from models import JournalTemplate
+    system_templates = JournalTemplate.query.filter_by(is_system=True).all()
+    user_templates = JournalTemplate.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template('journal/guided.html', 
+                         system_templates=system_templates,
+                         user_templates=user_templates)
+
+def dashboard_post_guided():
+    """Handle guided journal entry submission (extracted from dashboard_post)."""
+    template_id = request.form.get('template_id', '').strip()
+    location_data = request.form.get('location_data', '').strip()
+    weather_data = request.form.get('weather_data', '').strip()
+    
+    try:
+        # Create the journal entry
+        entry = JournalEntry(
+            user_id=current_user.id,
+            content='',  # Guided entries store content in responses
+            entry_type='guided',
+            template_id=int(template_id) if template_id else None
+        )
+        db.session.add(entry)
+        db.session.flush()  # Get the entry ID
+        
+        # Handle location and weather data
+        location_record = None
+        weather_record = None
+        
+        if location_data:
+            try:
+                loc_data = json.loads(location_data)
+                location_record = Location(
+                    latitude=loc_data.get('latitude'),
+                    longitude=loc_data.get('longitude'),
+                    address=loc_data.get('address', ''),
+                    city='Unknown',  # Will be updated by location service
+                    state='Unknown'
+                )
+                db.session.add(location_record)
+                db.session.flush()
+                entry.location_id = location_record.id
+            except (json.JSONDecodeError, KeyError) as e:
+                current_app.logger.warning(f"Invalid location data: {e}")
+        
+        if weather_data:
+            try:
+                weather_info = json.loads(weather_data)
+                weather_record = WeatherData(
+                    temperature=weather_info.get('temperature'),
+                    weather_condition=weather_info.get('condition', ''),
+                    humidity=weather_info.get('humidity'),
+                    journal_entry_id=entry.id
+                )
+                db.session.add(weather_record)
+                db.session.flush()
+                entry.weather_id = weather_record.id
+            except (json.JSONDecodeError, KeyError) as e:
+                current_app.logger.warning(f"Invalid weather data: {e}")
+        
+        # Store guided responses
+        guided_responses = []
+        
+        if template_id:
+            # Load template questions and process responses
+            from models import JournalTemplate, TemplateQuestion
+            template = JournalTemplate.query.get(int(template_id))
+            if template:
+                entry_content_set = False
+                for question in template.questions.order_by(TemplateQuestion.question_order):
+                    response_value = request.form.get(question.question_id, '').strip()
+                    if response_value:
+                        guided_responses.append(GuidedResponse(
+                            journal_entry_id=entry.id,
+                            question_id=question.question_id,
+                            question_text=question.question_text,
+                            response=response_value
+                        ))
+                        
+                        # Set main content from first text response or content/day questions
+                        if not entry_content_set and (
+                            'content' in question.question_id.lower() or 
+                            'day' in question.question_id.lower() or
+                            question.question_type == 'text'
+                        ):
+                            entry.content = response_value
+                            entry_content_set = True
+        else:
+            # Default guided questions
+            question_responses = [
+                ('feeling_scale', 'How are you feeling today? (1-10)', 'number'),
+                ('feeling_reason', 'What made you feel this way?', 'text'),
+                ('daily_highlight', 'What was the best part of your day?', 'text'),
+                ('challenge_overcome', 'Did you overcome any challenges today?', 'text'),
+                ('gratitude', 'What are you grateful for today?', 'text'),
+                ('tomorrow_goal', 'What do you want to accomplish tomorrow?', 'text'),
+                ('additional_emotions', 'Additional emotions', 'emotions'),
+                ('exercise', 'Did you exercise today?', 'boolean'),
+                ('exercise_type', 'What type of exercise?', 'text'),
+                ('exercise_duration', 'How long did you exercise? (minutes)', 'number'),
+                ('sleep_hours', 'How many hours did you sleep last night?', 'number'),
+                ('mood_summary', 'How would you describe your overall mood?', 'text')
+            ]
+            
+            entry_content_set = False
+            for question_id, question_text, question_type in question_responses:
+                response_value = request.form.get(question_id, '').strip()
+                if response_value:
+                    guided_responses.append(GuidedResponse(
+                        journal_entry_id=entry.id,
+                        question_id=question_id,
+                        question_text=question_text,
+                        response=response_value
+                    ))
+                    
+                    # Use the first meaningful text response as the main content
+                    if not entry_content_set and question_type == 'text' and len(response_value) > 10:
+                        entry.content = response_value
+                        entry_content_set = True
+        
+        # Add guided responses to session
+        for response in guided_responses:
+            db.session.add(response)
+        
+        # Handle tags
+        tag_ids = request.form.getlist('tags')
+        new_tags_json = request.form.get('new_tags', '[]')
+        
+        try:
+            new_tags = json.loads(new_tags_json) if new_tags_json else []
+        except json.JSONDecodeError:
+            new_tags = []
+        
+        # Add existing tags
+        if tag_ids:
+            from models import Tag
+            for tag_id in tag_ids:
+                tag = Tag.query.get(int(tag_id))
+                if tag and tag.user_id == current_user.id:
+                    entry.tags.append(tag)
+        
+        # Create new tags
+        for tag_name in new_tags:
+            if tag_name.strip():
+                from models import Tag
+                new_tag = Tag(name=tag_name.strip(), user_id=current_user.id)
+                db.session.add(new_tag)
+                db.session.flush()
+                entry.tags.append(new_tag)
+        
+        db.session.commit()
+        flash('Guided journal entry saved successfully!', 'success')
+        return redirect(url_for('journal.dashboard'))
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creating guided journal entry: {e}")
+        flash('An error occurred while saving your entry. Please try again.', 'error')
+        return redirect(url_for('journal.dashboard'))
+
+@journal_bp.route('/journal/guided', methods=['POST'])
+@login_required
+def guided_journal_post():
+    """Handle guided journal entry submission."""
+    return dashboard_post_guided()
+
 @journal_bp.route('/dashboard', methods=['POST'])
 @login_required
 def dashboard_post():
@@ -445,11 +615,15 @@ def dashboard_post():
                 try:
                     loc_data = json.loads(location_data)
                     location_record = Location(
+                        name=loc_data.get('name', ''),
                         latitude=loc_data.get('latitude'),
                         longitude=loc_data.get('longitude'),
                         address=loc_data.get('address', ''),
-                        city='Unknown',  # Will be updated by location service
-                        state='Unknown'
+                        city=loc_data.get('city', 'Unknown'),
+                        state=loc_data.get('state', 'Unknown'),
+                        country=loc_data.get('country', ''),
+                        postal_code=loc_data.get('postal_code', ''),
+                        location_type='manual'
                     )
                     db.session.add(location_record)
                     db.session.flush()
@@ -560,11 +734,15 @@ def dashboard_post():
                     try:
                         loc_data = json.loads(location_data)
                         location_record = Location(
+                            name=loc_data.get('name', ''),
                             latitude=loc_data.get('latitude'),
                             longitude=loc_data.get('longitude'),
                             address=loc_data.get('address', ''),
-                            city='Unknown',
-                            state='Unknown'
+                            city=loc_data.get('city', 'Unknown'),
+                            state=loc_data.get('state', 'Unknown'),
+                            country=loc_data.get('country', ''),
+                            postal_code=loc_data.get('postal_code', ''),
+                            location_type='manual'
                         )
                         db.session.add(location_record)
                         db.session.flush()
@@ -669,6 +847,9 @@ def delete_entry(entry_id):
 
         # Clear any other weather records referencing this entry
         WeatherData.query.filter_by(journal_entry_id=entry.id).update({'journal_entry_id': None})
+        
+        # Flush to ensure weather references are cleared before deleting entry
+        db.session.flush()
         
         # Delete guided responses if any
         if entry.guided_responses:
