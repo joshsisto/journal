@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}View Journal Entry{% endblock %}
+
+{% block styles %}
+<style>
+    /* Entry View Page - Compact, Dark Mode Compatible */
+    body {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    
+    .container {
+        max-width: 800px;
+        padding: 16px;
+        margin-top: 20px;
+    }
+    
+    .entry-container {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 24px;
+        margin-bottom: 20px;
+    }
+    
+    .entry-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .entry-meta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .entry-type-badge {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        line-height: 1;
+    }
+    
+    .entry-type-badge.quick {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    
+    [data-theme="dark"] .entry-type-badge.quick {
+        background: #1565c0;
+        color: #e3f2fd;
+    }
+    
+    .entry-type-badge.guided {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+    
+    [data-theme="dark"] .entry-type-badge.guided {
+        background: #6a1b9a;
+        color: #f3e5f5;
+    }
+    
+    .entry-date {
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+    
+    .entry-id {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    
+    .entry-content {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text-primary);
+        margin: 20px 0;
+        white-space: pre-wrap;
+    }
+    
+    /* Guided entry specific styles */
+    .guided-responses {
+        margin-top: 24px;
+    }
+    
+    .guided-section {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .guided-section h4 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .guided-section .response {
+        font-size: 15px;
+        line-height: 1.5;
+        color: var(--text-primary);
+    }
+    
+    .feeling-scale {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+    
+    .feeling-emoji {
+        font-size: 24px;
+    }
+    
+    .context-info {
+        margin-top: 20px;
+        padding: 16px;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .context-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+    
+    .context-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Action buttons */
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .btn-primary {
+        background: var(--accent-color);
+        border-color: var(--accent-color);
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+    
+    .btn-primary:hover {
+        background: #339af0;
+        border-color: #339af0;
+    }
+    
+    .btn-danger {
+        background: #dc3545;
+        border-color: #dc3545;
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+    
+    .btn-danger:hover {
+        background: #c82333;
+        border-color: #bd2130;
+    }
+    
+    .btn-secondary {
+        background: var(--text-secondary);
+        border-color: var(--text-secondary);
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+    
+    .btn-secondary:hover {
+        background: var(--text-primary);
+        border-color: var(--text-primary);
+    }
+    
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .container {
+            padding: 12px;
+        }
+        
+        .entry-container {
+            padding: 16px;
+        }
+        
+        .entry-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+        }
+        
+        .action-buttons .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="entry-container">
+        <!-- Entry Header -->
+        <div class="entry-header">
+            <div class="entry-meta">
+                <span class="entry-type-badge {{ entry.entry_type }}">{{ entry.entry_type }}</span>
+                <span class="entry-date">{{ entry.created_at.strftime('%B %d, %Y at %I:%M %p') }}</span>
+            </div>
+            <div class="entry-id">Entry #{{ entry.id }}</div>
+        </div>
+        
+        {% if entry.entry_type == 'quick' %}
+            <!-- Quick Entry Content -->
+            <div class="entry-content">{{ entry.content }}</div>
+        {% else %}
+            <!-- Guided Entry Content -->
+            <div class="guided-responses">
+                {% set feeling_response = entry.guided_responses|selectattr('question_id', 'equalto', 'feeling_scale')|first %}
+                {% set main_response = entry.guided_responses|selectattr('question_id', 'equalto', 'main_content')|first %}
+                {% set emotion_response = entry.guided_responses|selectattr('question_id', 'equalto', 'additional_emotions')|first %}
+                
+                {% if feeling_response %}
+                    <div class="guided-section">
+                        <h4>How you felt</h4>
+                        <div class="feeling-scale">
+                            {% set feeling_num = feeling_response.response|int %}
+                            <span class="feeling-emoji">
+                                {% if feeling_num >= 8 %}😊{% elif feeling_num >= 6 %}🙂{% elif feeling_num >= 4 %}😐{% else %}😔{% endif %}
+                            </span>
+                            {{ feeling_response.response }}/10
+                        </div>
+                    </div>
+                {% endif %}
+                
+                {% if main_response %}
+                    <div class="guided-section">
+                        <h4>Journal Entry</h4>
+                        <div class="response">{{ main_response.response }}</div>
+                    </div>
+                {% endif %}
+                
+                {% if emotion_response %}
+                    <div class="guided-section">
+                        <h4>Emotions</h4>
+                        <div class="response">{{ emotion_response.response }}</div>
+                    </div>
+                {% endif %}
+                
+                <!-- Other guided responses -->
+                {% for response in entry.guided_responses %}
+                    {% if response.question_id not in ['feeling_scale', 'main_content', 'additional_emotions'] %}
+                        <div class="guided-section">
+                            <h4>{{ response.question_text }}</h4>
+                            <div class="response">{{ response.response }}</div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <!-- Context Information -->
+        {% if entry.location or entry.weather %}
+            <div class="context-info">
+                <h4 style="font-size: 12px; margin-bottom: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Context</h4>
+                {% if entry.location %}
+                    <div class="context-item">
+                        <span>📍</span>
+                        <span>{{ entry.location.get_display_name() }}</span>
+                    </div>
+                {% endif %}
+                {% if entry.weather %}
+                    <div class="context-item">
+                        <span>🌤️</span>
+                        <span>{{ entry.weather.get_display_summary() }}</span>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+        
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <a href="{{ url_for('journal.dashboard') }}" class="btn btn-secondary">
+                ← Back to Dashboard
+            </a>
+            
+            <button class="btn btn-primary" onclick="startAIConversation({{ entry.id }})">
+                💬 AI Conversation
+            </button>
+            
+            <button class="btn btn-danger" onclick="confirmDelete({{ entry.id }})">
+                🗑️ Delete Entry
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background: var(--bg-primary); border-color: var(--border-color);">
+            <div class="modal-header" style="border-color: var(--border-color);">
+                <h5 class="modal-title" id="deleteModalLabel" style="color: var(--text-primary);">Delete Journal Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="color: var(--text-primary);">
+                Are you sure you want to delete this journal entry? This action cannot be undone.
+            </div>
+            <div class="modal-footer" style="border-color: var(--border-color);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Delete Entry</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce() }}">
+    function confirmDelete(entryId) {
+        const deleteForm = document.getElementById('deleteForm');
+        deleteForm.action = `/entry/${entryId}/delete`;
+        
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+    
+    function startAIConversation(entryId) {
+        // TODO: Implement AI conversation functionality
+        alert('AI conversation feature coming soon!');
+    }
+    
+    // Apply theme to modal elements
+    document.addEventListener('DOMContentLoaded', function() {
+        const themeObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+                    // Theme changed, modal styles will automatically update via CSS variables
+                }
+            });
+        });
+        
+        themeObserver.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['data-theme']
+        });
+    });
+</script>
+{% endblock %}

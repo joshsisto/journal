@@ -91,40 +91,74 @@ def _handle_location_and_weather(form_data):
                 db.session.flush()  # Get ID without committing
                 location_id = location.id
         
-        # Check if we have weather data
-        has_weather_data = any([
+        # Check if we have weather data (either individual fields or valid JSON)
+        weather_data_json = form_data.get('weather_data', '').strip()
+        has_individual_weather = any([
             form_data.get('weather_temperature'),
             form_data.get('weather_condition'),
             form_data.get('weather_humidity')
         ])
+        
+        # Check if JSON is valid and has meaningful data
+        has_valid_json = False
+        weather_json_data = {}
+        if weather_data_json:
+            try:
+                weather_json_data = json.loads(weather_data_json)
+                # Check if JSON has any meaningful weather fields
+                has_valid_json = any([
+                    weather_json_data.get('temperature'),
+                    weather_json_data.get('condition'),
+                    weather_json_data.get('humidity'),
+                    weather_json_data.get('pressure'),
+                    weather_json_data.get('wind_speed')
+                ])
+            except (json.JSONDecodeError, TypeError) as e:
+                current_app.logger.warning(f"Invalid weather JSON data: {e}")
+                weather_json_data = {}
+                has_valid_json = False
+        
+        has_weather_data = has_individual_weather or has_valid_json
         
         if has_weather_data:
             # Create weather record
             weather = WeatherData()
             weather.location_id = location_id
             
-            # Set weather fields
+            # JSON data already parsed above, use it directly
+            
+            # Set weather fields (JSON takes precedence over individual fields)
             try:
-                weather.temperature = float(form_data.get('weather_temperature')) if form_data.get('weather_temperature') else None
+                temperature = weather_json_data.get('temperature') or form_data.get('weather_temperature')
+                weather.temperature = float(temperature) if temperature else None
             except (ValueError, TypeError):
                 weather.temperature = None
             
-            weather.temperature_unit = 'fahrenheit'  # Default unit
-            weather.weather_condition = form_data.get('weather_condition', '').strip() or None
-            weather.weather_description = form_data.get('weather_description', '').strip() or None
+            weather.temperature_unit = 'celsius'  # Default unit (from location.js)
+            weather.weather_condition = (
+                weather_json_data.get('condition') or 
+                form_data.get('weather_condition', '').strip() or None
+            )
+            weather.weather_description = (
+                weather_json_data.get('description') or 
+                form_data.get('weather_description', '').strip() or None
+            )
             
             try:
-                weather.humidity = int(form_data.get('weather_humidity')) if form_data.get('weather_humidity') else None
+                humidity = weather_json_data.get('humidity') or form_data.get('weather_humidity')
+                weather.humidity = int(humidity) if humidity else None
             except (ValueError, TypeError):
                 weather.humidity = None
             
             try:
-                weather.wind_speed = float(form_data.get('weather_wind_speed')) if form_data.get('weather_wind_speed') else None
+                wind_speed = weather_json_data.get('wind_speed') or form_data.get('weather_wind_speed')
+                weather.wind_speed = float(wind_speed) if wind_speed else None
             except (ValueError, TypeError):
                 weather.wind_speed = None
             
             try:
-                weather.pressure = float(form_data.get('weather_pressure')) if form_data.get('weather_pressure') else None
+                pressure = weather_json_data.get('pressure') or form_data.get('weather_pressure')
+                weather.pressure = float(pressure) if pressure else None
             except (ValueError, TypeError):
                 weather.pressure = None
             
@@ -194,11 +228,14 @@ def _handle_photo_uploads(entry, photos, allowed_file_func):
                 current_app.logger.error(f'Photo upload error: {str(e)}')
 
 
-def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed_file_func, form_data=None):
+def create_quick_entry(user_id, form_data, tag_ids=None, new_tags_json=None, photos=None, allowed_file_func=None):
     """
     Creates a quick journal entry.
     """
     try:
+        # Get content from form_data
+        content = form_data.get('content', '')
+        
         # Sanitize content
         sanitized_content = sanitize_journal_content(content)
 
@@ -210,9 +247,7 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
             raise ValueError('Journal entry is too long. Please shorten your entry.')
 
         # Handle location and weather data
-        location_id, weather_id = None, None
-        if form_data:
-            location_id, weather_id = _handle_location_and_weather(form_data)
+        location_id, weather_id = _handle_location_and_weather(form_data)
 
         # Create journal entry
         entry = JournalEntry(
@@ -294,7 +329,7 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
 
         # Update weather record to link back to journal entry
         if weather_id:
-            weather_record = WeatherData.query.get(weather_id)
+            weather_record = db.session.get(WeatherData, weather_id)
             if weather_record:
                 weather_record.journal_entry_id = entry.id
 
@@ -310,6 +345,23 @@ def create_quick_entry(user_id, content, tag_ids, new_tags_json, photos, allowed
         # Log unexpected errors
         current_app.logger.error(f'Error saving quick journal entry: {str(e)}')
         return None, 'An error occurred while saving your journal entry. Please try again.'
+
+# Simple wrapper functions for easier testing
+def create_quick_entry_simple(user_id, form_data):
+    """Simple wrapper for create_quick_entry for testing."""
+    entry, error = create_quick_entry(user_id, form_data)
+    if error:
+        raise ValueError(error)
+    return entry
+
+def create_guided_entry_simple(user_id, form_data):
+    """Simple wrapper for create_guided_entry for testing."""
+    # Allow the function to process the form data properly
+    main_content = form_data.get('content', '')
+    entry, error = create_guided_entry(user_id, form_data, None, None, None, main_content, None)
+    if error:
+        raise ValueError(error)
+    return entry
 
 def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main_content, allowed_file_func, template_id=None):
     """
@@ -393,7 +445,7 @@ def create_guided_entry(user_id, form_data, tag_ids, new_tags_json, photos, main
 
         # Update weather record to link back to journal entry
         if weather_id:
-            weather_record = WeatherData.query.get(weather_id)
+            weather_record = db.session.get(WeatherData, weather_id)
             if weather_record:
                 weather_record.journal_entry_id = entry.id
 

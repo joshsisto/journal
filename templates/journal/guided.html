@@ -59,7 +59,7 @@
                             <div class="form-text">Select a template and click "Load Template" to customize your journal questions.</div>
                         </div>
                         <div class="col-md-6 d-flex align-items-end">
-                            <a href="{{ url_for('journal.templates') }}" class="btn btn-outline-primary me-2">
+                            <a href="{{ url_for('journal.create_template') }}" class="btn btn-outline-primary me-2">
                                 <i class="fas fa-cog me-1"></i>Manage Templates
                             </a>
                             <a href="{{ url_for('journal.create_template') }}" class="btn btn-outline-success">
@@ -102,6 +102,9 @@
             {% if template_id %}
             <input type="hidden" name="template_id" value="{{ template_id }}">
             {% endif %}
+            
+            <!-- Hidden field for combined weather data (backend expects this) -->
+            <input type="hidden" name="weather_data" id="combined-weather-data" value="">
             
             <!-- Location and Weather Component -->
             {% include 'components/location_weather.html' %}
@@ -576,6 +579,61 @@
     });
     
     // Camera functionality is now handled by camera.js
+</script>
+
+<!-- Weather data consolidation script -->
+<script nonce="{{ csp_nonce() }}">
+    // Function to combine individual weather fields into JSON for backend
+    function consolidateWeatherData() {
+        const weatherData = {};
+        
+        // Get individual weather field values
+        const temperature = document.getElementById('weather_temperature')?.value;
+        const condition = document.getElementById('weather_condition')?.value;
+        const description = document.getElementById('weather_description')?.value;
+        const humidity = document.getElementById('weather_humidity')?.value;
+        const windSpeed = document.getElementById('weather_wind_speed')?.value;
+        const pressure = document.getElementById('weather_pressure')?.value;
+        
+        // Only include fields that have values
+        if (temperature) weatherData.temperature = parseFloat(temperature);
+        if (condition) weatherData.condition = condition;
+        if (description) weatherData.description = description;
+        if (humidity) weatherData.humidity = parseInt(humidity);
+        if (windSpeed) weatherData.wind_speed = parseFloat(windSpeed);
+        if (pressure) weatherData.pressure = parseFloat(pressure);
+        
+        // Set the combined weather data field
+        const combinedField = document.getElementById('combined-weather-data');
+        if (combinedField && Object.keys(weatherData).length > 0) {
+            combinedField.value = JSON.stringify(weatherData);
+            console.log('Weather data consolidated:', weatherData);
+        } else {
+            combinedField.value = '';
+            console.log('No weather data to consolidate');
+        }
+    }
+    
+    // Consolidate weather data before form submission
+    document.getElementById('guidedJournalForm').addEventListener('submit', function(e) {
+        consolidateWeatherData();
+        console.log('Form submission with weather data:', document.getElementById('combined-weather-data').value);
+    });
+    
+    // Also consolidate when weather fields are updated (for real-time debugging)
+    document.addEventListener('DOMContentLoaded', function() {
+        const weatherFields = [
+            'weather_temperature', 'weather_condition', 'weather_description',
+            'weather_humidity', 'weather_wind_speed', 'weather_pressure'
+        ];
+        
+        weatherFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.addEventListener('change', consolidateWeatherData);
+            }
+        });
+    });
 </script>
 
 <!-- Location Service JavaScript -->
