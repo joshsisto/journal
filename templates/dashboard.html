@@ -613,6 +613,28 @@
         margin-bottom: 4px;
     }
     
+    /* Entry body with content on left, context on right */
+    .entry-body {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .entry-main-content {
+        flex: 1;
+        min-width: 0; /* Allow content to shrink */
+    }
+    
+    .entry-context {
+        flex-shrink: 0;
+        max-width: 180px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: flex-end;
+    }
+    
     .entry-type {
         font-size: 11px;
         font-weight: 600;
@@ -714,6 +736,47 @@
     .context-item {
         display: inline-block;
         margin-right: 8px;
+    }
+    
+    /* Right-side weather and location display */
+    .entry-weather-info {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 6px 8px;
+        font-size: 11px;
+        text-align: right;
+        min-width: 100px;
+    }
+    
+    .weather-temp {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 2px;
+    }
+    
+    .weather-condition {
+        font-size: 10px;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+    }
+    
+    .entry-location-info {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 4px 6px;
+        font-size: 10px;
+        color: var(--text-secondary);
+        text-align: right;
+        max-width: 140px;
+        word-wrap: break-word;
+    }
+    
+    .location-name {
+        font-weight: 500;
+        color: var(--text-primary);
     }
     
     /* Entry actions */
@@ -879,6 +942,27 @@
             font-size: 10px;
             padding: 1px 4px;
         }
+        
+        /* Mobile entry layout - stack content vertically */
+        .entry-body {
+            flex-direction: column;
+            gap: 8px;
+            align-items: stretch;
+        }
+        
+        .entry-context {
+            max-width: none;
+            align-items: flex-start;
+            flex-direction: row;
+            gap: 8px;
+        }
+        
+        .entry-weather-info,
+        .entry-location-info {
+            text-align: left;
+            flex: 1;
+            min-width: 0;
+        }
     }
     
     @media (max-width: 480px) {
@@ -894,6 +978,12 @@
         
         .entry-item {
             padding: 6px 0;
+        }
+        
+        /* Extra small mobile - stack context items vertically */
+        .entry-context {
+            flex-direction: column;
+            gap: 4px;
         }
     }
 </style>
@@ -1019,58 +1109,71 @@
                         <span class="entry-date">{{ entry.created_at.strftime('%b %d, %Y at %I:%M %p') }}</span>
                     </div>
                     
-                    {% if entry.entry_type == 'quick' %}
-                        <div class="entry-content">{{ entry.content[:200] }}{% if entry.content|length > 200 %}...{% endif %}</div>
-                    {% else %}
-                        <!-- Guided entry summary -->
-                        <div class="guided-summary">
-                            {% set feeling_response = entry.guided_responses|selectattr('question_id', 'equalto', 'feeling_scale')|first %}
-                            {% set main_response = entry.guided_responses|selectattr('question_id', 'equalto', 'main_content')|first %}
-                            {% set emotion_response = entry.guided_responses|selectattr('question_id', 'equalto', 'additional_emotions')|first %}
-                            
-                            {% if feeling_response %}
-                                <div class="feeling-indicator">
-                                    {% set feeling_num = feeling_response.response|int %}
-                                    {% if feeling_num >= 8 %}😊{% elif feeling_num >= 6 %}🙂{% elif feeling_num >= 4 %}😐{% else %}😔{% endif %}
-                                    {{ feeling_response.response }}/10
-                                </div>
-                            {% endif %}
-                            
-                            {% if main_response %}
-                                <div class="entry-content">{{ main_response.response[:150] }}{% if main_response.response|length > 150 %}...{% endif %}</div>
-                            {% endif %}
-                            
-                            {% if emotion_response %}
-                                <div class="emotion-tags">
-                                    <span class="emotion-tag">{{ emotion_response.response[:30] }}{% if emotion_response.response|length > 30 %}...{% endif %}</span>
-                                </div>
-                            {% endif %}
-                            
-                            <!-- Detailed content (hidden by default) -->
-                            <div class="detailed-only">
-                                {% for response in entry.guided_responses %}
-                                    {% if response.question_id not in ['feeling_scale', 'main_content', 'additional_emotions'] %}
-                                        <div style="margin-top: 8px;">
-                                            <strong style="font-size: 11px; color: #6c757d;">{{ response.question_text }}:</strong>
-                                            <div style="font-size: 12px;">{{ response.response }}</div>
+                    <div class="entry-body">
+                        <div class="entry-main-content">
+                            {% if entry.entry_type == 'quick' %}
+                                <div class="entry-content">{{ entry.content[:200] }}{% if entry.content|length > 200 %}...{% endif %}</div>
+                            {% else %}
+                                <!-- Guided entry summary -->
+                                <div class="guided-summary">
+                                    {% set feeling_response = entry.guided_responses|selectattr('question_id', 'equalto', 'feeling_scale')|first %}
+                                    {% set main_response = entry.guided_responses|selectattr('question_id', 'equalto', 'main_content')|first %}
+                                    {% set emotion_response = entry.guided_responses|selectattr('question_id', 'equalto', 'additional_emotions')|first %}
+                                    
+                                    {% if feeling_response %}
+                                        <div class="feeling-indicator">
+                                            {% set feeling_num = feeling_response.response|int %}
+                                            {% if feeling_num >= 8 %}😊{% elif feeling_num >= 6 %}🙂{% elif feeling_num >= 4 %}😐{% else %}😔{% endif %}
+                                            {{ feeling_response.response }}/10
                                         </div>
                                     {% endif %}
-                                {% endfor %}
+                                    
+                                    {% if main_response %}
+                                        <div class="entry-content">{{ main_response.response[:150] }}{% if main_response.response|length > 150 %}...{% endif %}</div>
+                                    {% endif %}
+                                    
+                                    {% if emotion_response %}
+                                        <div class="emotion-tags">
+                                            <span class="emotion-tag">{{ emotion_response.response[:30] }}{% if emotion_response.response|length > 30 %}...{% endif %}</span>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <!-- Detailed content (hidden by default) -->
+                                    <div class="detailed-only">
+                                        {% for response in entry.guided_responses %}
+                                            {% if response.question_id not in ['feeling_scale', 'main_content', 'additional_emotions'] %}
+                                                <div style="margin-top: 8px;">
+                                                    <strong style="font-size: 11px; color: #6c757d;">{{ response.question_text }}:</strong>
+                                                    <div style="font-size: 12px;">{{ response.response }}</div>
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Weather and Location Context on the Right -->
+                        {% if entry.location or entry.weather %}
+                            <div class="entry-context">
+                                {% if entry.weather %}
+                                    <div class="entry-weather-info">
+                                        <div class="weather-temp">{{ entry.weather.temperature|round|int }}°</div>
+                                        <div class="weather-condition">{{ entry.weather.weather_condition }}</div>
+                                    </div>
+                                {% endif %}
                                 
-                                <!-- Context information -->
-                                {% if entry.location_data or entry.weather_data %}
-                                    <div class="context-info">
-                                        {% if entry.location_data %}
-                                            <span class="context-item">📍 {{ entry.location_data.city }}, {{ entry.location_data.state }}</span>
-                                        {% endif %}
-                                        {% if entry.weather_data %}
-                                            <span class="context-item">🌤️ {{ entry.weather_data.condition }}, {{ entry.weather_data.temperature }}°F</span>
+                                {% if entry.location %}
+                                    <div class="entry-location-info">
+                                        <div class="location-name">📍 {{ entry.location.city }}</div>
+                                        {% if entry.location.state and entry.location.state != 'Unknown' %}
+                                            <div>{{ entry.location.state }}</div>
                                         {% endif %}
                                     </div>
                                 {% endif %}
                             </div>
-                        </div>
-                    {% endif %}
+                        {% endif %}
+                    </div>
                     
                     <div class="entry-actions detailed-only">
                         <span class="entry-action">Entry #{{ entry.id }}</span>
