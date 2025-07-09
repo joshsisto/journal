@@ -228,7 +228,7 @@
         <div class="entry-header">
             <div class="entry-meta">
                 <span class="entry-type-badge {{ entry.entry_type }}">{{ entry.entry_type }}</span>
-                <span class="entry-date">{{ entry.created_at.strftime('%B %d, %Y at %I:%M %p') }}</span>
+                <span class="entry-date">{{ format_datetime(entry.created_at, '%B %d, %Y at %I:%M %p') }}</span>
             </div>
             <div class="entry-id">Entry #{{ entry.id }}</div>
         </div>
@@ -339,6 +339,30 @@
         </div>
     </div>
 </div>
+
+<!-- AI Conversation Modal -->
+<div class="modal fade" id="aiModal" tabindex="-1" aria-labelledby="aiModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: var(--bg-primary); border-color: var(--border-color);">
+            <div class="modal-header" style="border-color: var(--border-color);">
+                <h5 class="modal-title" id="aiModalLabel" style="color: var(--text-primary);">🤖 AI Conversation about Entry #{{ entry.id }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="color: var(--text-primary);">
+                <div id="aiMessagesModal" style="height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; padding: 12px; background: var(--bg-secondary); margin-bottom: 12px;"></div>
+                
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="aiInputModal" class="form-control" placeholder="Ask AI about this journal entry..." style="flex: 1; background: var(--bg-secondary); color: var(--text-primary); border-color: var(--border-color);">
+                    <button type="button" class="btn btn-primary" id="sendAIModalBtn">💬 Send</button>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-color: var(--border-color);">
+                <button type="button" class="btn btn-secondary" id="clearAIModalBtn">🗑️ Clear</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -351,13 +375,135 @@
         modal.show();
     }
     
+    // AI conversation variables
+    let aiConversationHistory = [];
+    let currentEntryId = null;
+    
     function startAIConversation(entryId) {
-        // TODO: Implement AI conversation functionality
-        alert('AI conversation feature coming soon!');
+        currentEntryId = entryId;
+        
+        // Initialize conversation if empty
+        if (aiConversationHistory.length === 0) {
+            addAIModalMessage('ai', 'Hi! I\'m here to help you reflect on this specific journal entry. What would you like to discuss about it?');
+        }
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('aiModal'));
+        modal.show();
+    }
+    
+    function addAIModalMessage(sender, message) {
+        const aiMessagesModal = document.getElementById('aiMessagesModal');
+        const messageDiv = document.createElement('div');
+        messageDiv.style.marginBottom = '12px';
+        messageDiv.style.padding = '8px 12px';
+        messageDiv.style.borderRadius = '8px';
+        messageDiv.style.maxWidth = '85%';
+        
+        if (sender === 'user') {
+            messageDiv.style.backgroundColor = '#007bff';
+            messageDiv.style.color = 'white';
+            messageDiv.style.marginLeft = 'auto';
+            messageDiv.style.textAlign = 'right';
+        } else {
+            messageDiv.style.backgroundColor = 'var(--bg-primary)';
+            messageDiv.style.color = 'var(--text-primary)';
+            messageDiv.style.border = '1px solid var(--border-color)';
+        }
+        
+        messageDiv.textContent = message;
+        aiMessagesModal.appendChild(messageDiv);
+        aiMessagesModal.scrollTop = aiMessagesModal.scrollHeight;
+        
+        // Add to conversation history
+        aiConversationHistory.push({sender, message, timestamp: new Date()});
+    }
+    
+    function sendAIModalMessage() {
+        const aiInputModal = document.getElementById('aiInputModal');
+        const message = aiInputModal.value.trim();
+        if (!message) return;
+        
+        // Add user message
+        addAIModalMessage('user', message);
+        aiInputModal.value = '';
+        
+        // Show thinking indicator
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.id = 'thinkingModal';
+        thinkingDiv.style.marginBottom = '12px';
+        thinkingDiv.style.padding = '8px 12px';
+        thinkingDiv.style.backgroundColor = 'var(--bg-primary)';
+        thinkingDiv.style.border = '1px solid var(--border-color)';
+        thinkingDiv.style.borderRadius = '8px';
+        thinkingDiv.style.color = 'var(--text-secondary)';
+        thinkingDiv.style.fontStyle = 'italic';
+        thinkingDiv.textContent = 'AI is thinking...';
+        document.getElementById('aiMessagesModal').appendChild(thinkingDiv);
+        document.getElementById('aiMessagesModal').scrollTop = document.getElementById('aiMessagesModal').scrollHeight;
+        
+        // Send to AI endpoint with entry ID
+        fetch('/ai/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                message: message,
+                entry_id: currentEntryId,
+                conversation_history: aiConversationHistory
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Remove thinking indicator
+            const thinking = document.getElementById('thinkingModal');
+            if (thinking) thinking.remove();
+            
+            if (data.success) {
+                addAIModalMessage('ai', data.response);
+            } else {
+                addAIModalMessage('ai', 'Sorry, I encountered an error. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('AI chat error:', error);
+            const thinking = document.getElementById('thinkingModal');
+            if (thinking) thinking.remove();
+            addAIModalMessage('ai', 'Sorry, I\'m having trouble connecting. Please try again.');
+        });
+    }
+    
+    function clearAIModalConversation() {
+        document.getElementById('aiMessagesModal').innerHTML = '';
+        aiConversationHistory = [];
+        addAIModalMessage('ai', 'Hi! I\'m here to help you reflect on this specific journal entry. What would you like to discuss about it?');
     }
     
     // Apply theme to modal elements
     document.addEventListener('DOMContentLoaded', function() {
+        // AI modal event listeners
+        const sendAIModalBtn = document.getElementById('sendAIModalBtn');
+        const clearAIModalBtn = document.getElementById('clearAIModalBtn');
+        const aiInputModal = document.getElementById('aiInputModal');
+        
+        if (sendAIModalBtn) {
+            sendAIModalBtn.addEventListener('click', sendAIModalMessage);
+        }
+        
+        if (clearAIModalBtn) {
+            clearAIModalBtn.addEventListener('click', clearAIModalConversation);
+        }
+        
+        if (aiInputModal) {
+            aiInputModal.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendAIModalMessage();
+                }
+            });
+        }
+        
         const themeObserver = new MutationObserver(function(mutations) {
             mutations.forEach(function(mutation) {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {

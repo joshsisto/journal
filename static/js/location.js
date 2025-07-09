@@ -157,8 +157,13 @@ class LocationService {
      * Update location form fields with geocoded data
      */
     updateLocationFields(locationData) {
+        // Set the location name to the city + state if available, otherwise use name
+        const locationName = locationData.city && locationData.state ? 
+            `${locationData.city}, ${locationData.state}` : 
+            locationData.name || 'Current Location';
+        
         const fields = {
-            'location_name': locationData.name,
+            'location_name': locationName,
             'location_city': locationData.city,
             'location_state': locationData.state,
             'location_country': locationData.country,
@@ -186,12 +191,12 @@ class LocationService {
         const weatherHtml = `
             <div class="weather-summary">
                 <i class="fas fa-cloud-sun text-primary me-2"></i>
-                <span class="weather-temp">${Math.round(weatherData.temperature)}°C</span>
+                <span class="weather-temp">${Math.round(weatherData.temperature)}°F</span>
                 <span class="weather-condition ms-2">${weatherData.weather_condition}</span>
             </div>
             <div class="weather-details mt-2">
                 <small class="text-muted">
-                    ${weatherData.humidity}% humidity • ${weatherData.wind_speed} m/s wind
+                    ${weatherData.humidity}% humidity • ${weatherData.wind_speed} mph wind
                 </small>
             </div>
         `;
@@ -252,9 +257,10 @@ class LocationService {
         const locationDisplay = document.getElementById('location-display');
         if (!locationDisplay) return;
 
-        const displayName = locationData.name || 
-                           `${locationData.city}, ${locationData.state}` ||
-                           'Current Location';
+        // Use city + state as display name if available, otherwise use name
+        const displayName = locationData.city && locationData.state ? 
+            `${locationData.city}, ${locationData.state}` : 
+            locationData.name || 'Current Location';
 
         const displayHtml = `
             <div class="location-preview">

@@ -150,23 +150,14 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     {% if current_user.is_authenticated %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="journalDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            New Entry
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="journalDropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('journal.index') }}">Quick Journal</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('journal.index') }}">Guided Journal</a></li>
-                        </ul>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('tag.manage_tags') }}">Manage Tags</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('journal.index') }}">Manage Tags</a>
+                        <a class="nav-link" href="{{ url_for('journal.templates') }}">Templates</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('journal.index') }}">Templates</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('journal.index') }}">Map</a>
+                        <a class="nav-link" href="{{ url_for('journal.map') }}">Map</a>
                     </li>
                     {% endif %}
                 </ul>
@@ -230,7 +221,7 @@
                 {% elif category == 'warning' %}
                     {% set alert_class = 'alert-warning' %}
                 {% endif %}
-                <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
+                <div class="alert {{ alert_class }} alert-dismissible fade show auto-dismiss" role="alert">
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
@@ -252,7 +243,19 @@
     <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
     
     <!-- CSRF token for form submissions -->
-    <script>
+    <script nonce="{{ csp_nonce() }}">
+        // Auto-dismiss flash messages after 15 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const autoDismissAlerts = document.querySelectorAll('.auto-dismiss');
+            autoDismissAlerts.forEach(function(alert) {
+                setTimeout(function() {
+                    // Use Bootstrap's alert close method
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 15000); // 15 seconds
+            });
+        });
+        
         // Theme Management
         function initTheme() {
             const themeToggle = document.getElementById('themeToggle');
@@ -310,7 +313,9 @@
             // Re-initialize theme in case toggle wasn't available earlier
             initTheme();
             
-            const csrfToken = '{{ csrf_token() }}';
+            // Set global CSRF token for API calls
+            window.csrfToken = '{{ csrf_token() }}';
+            const csrfToken = window.csrfToken;
             const forms = document.querySelectorAll('form:not([method="get"])');
             
             forms.forEach(function(form) {

@@ -115,22 +115,81 @@ class WeatherService:
         if not self.api_key:
             return None
         
+        # Try multiple search formats to improve geocoding success
+        search_variants = [
+            location_name,  # Original search term
+        ]
+        
+        # If the search contains a space but no comma, try adding commas
+        if ' ' in location_name and ',' not in location_name:
+            parts = location_name.split()
+            if len(parts) == 2:
+                # "Sacramento California" -> "Sacramento, CA" and "Sacramento, California"
+                city, state = parts
+                search_variants.extend([
+                    f"{city}, {state}",
+                    f"{city}, {state}, US"
+                ])
+                # Also try common state abbreviations
+                state_abbrevs = {
+                    'california': 'CA', 'texas': 'TX', 'florida': 'FL', 'new york': 'NY',
+                    'illinois': 'IL', 'pennsylvania': 'PA', 'ohio': 'OH', 'georgia': 'GA',
+                    'north carolina': 'NC', 'michigan': 'MI', 'new jersey': 'NJ', 'virginia': 'VA',
+                    'washington': 'WA', 'arizona': 'AZ', 'massachusetts': 'MA', 'tennessee': 'TN',
+                    'indiana': 'IN', 'missouri': 'MO', 'maryland': 'MD', 'wisconsin': 'WI',
+                    'colorado': 'CO', 'minnesota': 'MN', 'south carolina': 'SC', 'alabama': 'AL',
+                    'louisiana': 'LA', 'kentucky': 'KY', 'oregon': 'OR', 'oklahoma': 'OK',
+                    'connecticut': 'CT', 'utah': 'UT', 'iowa': 'IA', 'nevada': 'NV',
+                    'arkansas': 'AR', 'mississippi': 'MS', 'kansas': 'KS', 'new mexico': 'NM',
+                    'nebraska': 'NE', 'west virginia': 'WV', 'idaho': 'ID', 'hawaii': 'HI',
+                    'new hampshire': 'NH', 'maine': 'ME', 'montana': 'MT', 'rhode island': 'RI',
+                    'delaware': 'DE', 'south dakota': 'SD', 'north dakota': 'ND', 'alaska': 'AK',
+                    'vermont': 'VT', 'wyoming': 'WY'
+                }
+                state_lower = state.lower()
+                if state_lower in state_abbrevs:
+                    search_variants.append(f"{city}, {state_abbrevs[state_lower]}")
+        
+        # Also try just the first word (city name) as a fallback
+        if ' ' in location_name:
+            first_word = location_name.split()[0]
+            search_variants.append(first_word)
+        
         try:
-            geocode_url = f"{self.geo_url}/direct"
-            params = {
-                'q': location_name,
-                'limit': 1,
-                'appid': self.api_key
-            }
+            for search_term in search_variants:
+                logger.debug(f"Trying geocoding with: '{search_term}'")
+                
+                geocode_url = f"{self.geo_url}/direct"
+                params = {
+                    'q': search_term,
+                    'limit': 5,  # Get more results to find best match
+                    'appid': self.api_key
+                }
+                
+                response = requests.get(geocode_url, params=params, timeout=10)
+                response.raise_for_status()
+                geo_data = response.json()
+                
+                if geo_data:
+                    # For the original location name, try to find the best match
+                    if search_term == location_name or ',' in search_term:
+                        # Use the first result for exact matches or comma-separated searches
+                        location = geo_data[0]
+                        logger.debug(f"Found location: {location.get('name')}, {location.get('state')}, {location.get('country')}")
+                        return (location['lat'], location['lon'])
+                    
+                    # For single-word fallback searches, prefer US locations
+                    for location in geo_data:
+                        if location.get('country') == 'US':
+                            logger.debug(f"Found US location: {location.get('name')}, {location.get('state')}, {location.get('country')}")
+                            return (location['lat'], location['lon'])
+                    
+                    # If no US location found, use the first result
+                    location = geo_data[0]
+                    logger.debug(f"Using first result: {location.get('name')}, {location.get('state')}, {location.get('country')}")
+                    return (location['lat'], location['lon'])
             
-            response = requests.get(geocode_url, params=params, timeout=10)
-            response.raise_for_status()
-            geo_data = response.json()
-            
-            if geo_data:
-                location = geo_data[0]
-                return (location['lat'], location['lon'])
-            
+            logger.warning(f"No geocoding results found for '{location_name}' with any search variant")
             return None
             
         except requests.RequestException as e:
