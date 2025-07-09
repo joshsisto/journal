@@ -158,13 +158,8 @@ def create_app(config_class=Config):
     register_template_utils(app)    
     
     # Register blueprints
-    from routes import auth_bp, journal_bp, tag_bp, export_bp, ai_bp, api_bp
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(journal_bp)
-    app.register_blueprint(tag_bp, url_prefix='/tags')
-    app.register_blueprint(export_bp, url_prefix='/export')
-    app.register_blueprint(ai_bp, url_prefix='/ai')
-    app.register_blueprint(api_bp)  # api_bp already has /api prefix
+    from routes import register_blueprints
+    register_blueprints(app)
     
     # Rate limits are applied directly on the route functions
     # No need to apply them here
