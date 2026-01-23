@@ -1,6 +1,6 @@
 """Journal routes for creating, viewing, and managing entries."""
 from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, send_file, abort
 from flask_login import login_required, current_user
 from sqlalchemy import desc
 import json
@@ -334,11 +334,36 @@ def dashboard_post_guided():
 def view_entry(entry_id):
     """View individual journal entry with options to delete or have AI conversation"""
     entry = JournalEntry.query.filter_by(id=entry_id, user_id=current_user.id).first_or_404()
-    
+
     return render_template(
         'view_entry.html',
         entry=entry
     )
+
+
+@journal_bp.route('/photo/<int:photo_id>')
+@login_required
+def view_photo(photo_id):
+    """Serve a photo for a journal entry"""
+    photo = Photo.query.get_or_404(photo_id)
+
+    # Verify the user owns the associated journal entry
+    entry = JournalEntry.query.get_or_404(photo.journal_entry_id)
+    if entry.user_id != current_user.id:
+        abort(403)
+
+    # Construct the file path
+    upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads/photos')
+    photo_dir = os.path.join(current_app.root_path, upload_folder)
+    photo_path = os.path.join(photo_dir, photo.filename)
+
+    # Check if file exists
+    if not os.path.exists(photo_path):
+        current_app.logger.error(f"Photo file not found: {photo_path}")
+        abort(404)
+
+    # Send the file
+    return send_file(photo_path, mimetype='image/jpeg')
 
 
 @journal_bp.route('/entry/<int:entry_id>/delete', methods=['POST'])

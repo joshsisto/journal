@@ -66,43 +66,6 @@ python3 -m pytest tests/functional/test_guided_journal_e2e.py -v
 python3 validate_csrf.py
 ```
 
-### 🚀 **MCP Browser Testing Framework** (Production Security Testing)
-```bash
-# Setup framework
-./deploy_mcp_testing.sh setup
-
-# Run security scan
-./deploy_mcp_testing.sh security https://journal.joshsisto.com 5
-
-# Run comprehensive suite
-./deploy_mcp_testing.sh all https://journal.joshsisto.com 8
-
-# Run fuzz testing
-./deploy_mcp_testing.sh fuzz https://journal.joshsisto.com 3
-
-# Run concurrency tests
-./deploy_mcp_testing.sh concurrency https://journal.joshsisto.com 10
-
-# Run login flow tests
-./deploy_mcp_testing.sh login https://journal.joshsisto.com 3
-
-# Check framework status
-./deploy_mcp_testing.sh status
-
-# Python API
-python3 run_mcp_tests.py --mode [security|fuzz|concurrency|login|all] --url [URL]
-```
-
-## MCP Testing Framework Details
-
-**Purpose**: Multi-agent browser automation testing using MCP Task and WebFetch tools for comprehensive security analysis
-
-**Coverage**: OWASP Top 10, fuzz testing (1000+ payloads), concurrency testing, authentication flows
-
-**Automated**: Can be integrated into pre-commit hooks and CI/CD pipelines
-
-**Framework documentation**: See `README_MCP_TESTING.md` for complete usage guide
-
 ## Preventing Guided Journal Issues
 
 **CRITICAL**: Use comprehensive testing to prevent the types of issues that broke guided journal functionality:

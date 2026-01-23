@@ -43,21 +43,11 @@ python3 run_tests.py quick
 **Core References:**
 - **[README.md](README.md)** - Project overview and getting started
 - **[TESTING_REFERENCE.md](TESTING_REFERENCE.md)** - All testing commands and workflows
-- **[SECURITY_REFERENCE.md](SECURITY_REFERENCE.md)** - CSRF, MCP testing, security validation
+- **[SECURITY_REFERENCE.md](SECURITY_REFERENCE.md)** - CSRF, security validation, and best practices
 - **[DEVELOPMENT_WORKFLOW_DETAILS.md](DEVELOPMENT_WORKFLOW_DETAILS.md)** - Git hooks, service management, code style
 
 **Backup System:**
 - **[BACKUP_SYSTEM_GUIDE.md](BACKUP_SYSTEM_GUIDE.md)** - Complete backup commands and procedures
-- **[BACKUP_SYSTEM_SUMMARY.md](BACKUP_SYSTEM_SUMMARY.md)** - Quick reference
-- **[BACKUP_TROUBLESHOOTING_SUMMARY.md](BACKUP_TROUBLESHOOTING_SUMMARY.md)** - Issue resolution
-
-**Workflow Enhancements:**
-- **[IMMEDIATE_WORKFLOW_IMPROVEMENTS.md](IMMEDIATE_WORKFLOW_IMPROVEMENTS.md)** - Quick wins (30 min setup)
-- **[ENTERPRISE_WORKFLOW_IMPROVEMENTS.md](ENTERPRISE_WORKFLOW_IMPROVEMENTS.md)** - Long-term roadmap
-- **[WORKFLOW_ENHANCEMENT_SUMMARY.md](WORKFLOW_ENHANCEMENT_SUMMARY.md)** - Complete overview
-
-**Advanced Features:**
-- **[MCP_INTEGRATION_SUMMARY.md](MCP_INTEGRATION_SUMMARY.md)** - MCP security testing framework
 
 ## 🏥 **Production Environment**
 

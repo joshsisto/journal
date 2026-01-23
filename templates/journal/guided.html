@@ -105,6 +105,9 @@
             
             <!-- Hidden field for combined weather data (backend expects this) -->
             <input type="hidden" name="weather_data" id="combined-weather-data" value="">
+
+            <!-- Hidden field for photo data (backend expects base64 JSON) -->
+            <input type="hidden" name="photo_data" id="guidedPhotoDataField" value="">
             
             <!-- Location and Weather Component -->
             {% include 'components/location_weather.html' %}

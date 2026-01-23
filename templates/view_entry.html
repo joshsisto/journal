@@ -281,7 +281,26 @@
                 {% endfor %}
             </div>
         {% endif %}
-        
+
+        <!-- Photos Display -->
+        {% if entry.photos and entry.photos.count() > 0 %}
+        <div class="photos-section" style="margin-top: 20px;">
+            <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">📷 Photos</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                {% for photo in entry.photos %}
+                <div style="position: relative;">
+                    <a href="{{ url_for('journal.view_photo', photo_id=photo.id) }}" target="_blank" style="display: block;">
+                        <img src="{{ url_for('journal.view_photo', photo_id=photo.id) }}"
+                             alt="Journal Photo"
+                             style="max-height: 200px; max-width: 300px; border-radius: 8px; border: 1px solid var(--border-color); cursor: pointer;">
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+
         <!-- Context Information -->
         {% if entry.location or entry.weather %}
             <div class="context-info">

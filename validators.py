@@ -8,8 +8,6 @@ import re
 import bleach
 import json
 from wtforms.validators import ValidationError
-from marshmallow import Schema, fields, validate, ValidationError as MarshmallowValidationError
-from pydantic import BaseModel, Field, EmailStr, constr, validator
 import functools
 
 # Configure bleach settings for HTML sanitization
@@ -438,86 +436,6 @@ def validate_json_structure(json_str, expected_schema=None):
     check_size(data)
     
     return data
-
-# Pydantic models for request validation
-
-class RegisterSchema(BaseModel):
-    """Schema for user registration data validation."""
-    username: constr(min_length=3, max_length=30, pattern=r'^[a-zA-Z0-9_-]+$')
-    email: str = None  # Make email optional
-    password: constr(min_length=8, max_length=100)
-    timezone: str = 'UTC'
-    
-    @validator('email')
-    def validate_optional_email(cls, v):
-        """Allow None or empty string for email."""
-        if v is None or v == "":
-            return None
-        return v
-    
-    @validator('username')
-    def validate_username(cls, v):
-        if not USERNAME_REGEX.match(v):
-            raise ValueError('Username must be 3-30 characters and can only contain letters, numbers, underscores, and hyphens')
-        return v
-    
-    @validator('password')
-    def validate_password_strength(cls, v):
-        if not PASSWORD_REGEX.match(v):
-            raise ValueError('Password must contain at least one letter and one number')
-        return v
-
-class LoginSchema(BaseModel):
-    """Schema for login data validation."""
-    username: str
-    password: str
-    remember: bool = False
-
-class QuickJournalSchema(BaseModel):
-    """Schema for quick journal entry validation."""
-    content: constr(max_length=MAX_JOURNAL_CONTENT_LENGTH)
-    tags: list = []
-    new_tags: str = "[]"
-
-class TagSchema(BaseModel):
-    """Schema for tag validation."""
-    name: constr(min_length=1, max_length=50, pattern=r'^[a-zA-Z0-9 _-]+$')
-    color: constr(pattern=r'^#[0-9a-fA-F]{6}$') = "#6c757d"
-
-# Flask route decorators for validation
-
-def validate_form(schema_class):
-    """
-    Decorator to validate form data using a Pydantic schema.
-    
-    Args:
-        schema_class: Pydantic model class to use for validation
-        
-    Returns:
-        decorator: Function decorator
-    """
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
-            from flask import request, flash, redirect, url_for
-            
-            if request.method == 'POST':
-                try:
-                    # Validate form data against schema
-                    data = {key: value for key, value in request.form.items()}
-                    validated_data = schema_class(**data)
-                    
-                    # Add validated data to kwargs
-                    kwargs['validated_data'] = validated_data
-                    
-                except ValueError as e:
-                    # Handle validation errors
-                    flash(str(e), 'danger')
-                    return redirect(request.url)
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
 
 def sanitize_input(f):
     """

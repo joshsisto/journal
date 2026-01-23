@@ -213,8 +213,8 @@ def setup_security(app):
                     continue  # Skip emotion JSON fields
                 
                 # Skip additional emotion fields and other JSON data
-                if key in ('additional_emotions', 'new_tags', 'emotions', 'guided_responses', 'weather_data', 'location_data'):
-                    continue  # Skip JSON emotion, tag, weather, and location data
+                if key in ('additional_emotions', 'new_tags', 'emotions', 'guided_responses', 'weather_data', 'location_data', 'photo_data'):
+                    continue  # Skip JSON emotion, tag, weather, location, and photo data
                 
                 # Skip other fields containing JSON arrays/objects or weather/location fields
                 if 'emotion' in key.lower() or 'response' in key.lower() or 'weather' in key.lower() or 'location' in key.lower():
@@ -284,8 +284,8 @@ def monitor_suspicious_activity():
                 continue  # Skip emotion JSON fields
             
             # Skip additional emotion fields and other JSON data
-            if key in ('additional_emotions', 'new_tags', 'emotions', 'guided_responses', 'weather_data', 'location_data'):
-                continue  # Skip JSON emotion, tag, weather, and location data
+            if key in ('additional_emotions', 'new_tags', 'emotions', 'guided_responses', 'weather_data', 'location_data', 'photo_data'):
+                continue  # Skip JSON emotion, tag, weather, location, and photo data
             
             # Skip other fields containing JSON arrays/objects or weather/location fields
             if 'emotion' in key.lower() or 'response' in key.lower() or 'weather' in key.lower() or 'location' in key.lower():
