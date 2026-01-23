@@ -2,7 +2,7 @@
 from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, send_file, abort
 from flask_login import login_required, current_user
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 import json
 import os
 import uuid
@@ -43,11 +43,120 @@ def dashboard():
     user_templates = JournalTemplate.query.filter_by(user_id=current_user.id).all()
     
     return render_template(
-        'dashboard.html', 
+        'dashboard.html',
         entries=entries,
         paginated_entries=paginated_entries,
         system_templates=system_templates,
         user_templates=user_templates
+    )
+
+
+@journal_bp.route('/search')
+@login_required
+def search():
+    """Search journal entries with various filters."""
+    # Get search parameters
+    query = request.args.get('q', '').strip()
+    tag_id = request.args.get('tag', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    entry_type = request.args.get('type', '')
+    sort_by = request.args.get('sort', 'recent')
+
+    # Build base query for current user's entries
+    entries_query = JournalEntry.query.filter_by(user_id=current_user.id)
+
+    # Apply search query filter
+    if query:
+        # Search in quick journal content OR in guided responses
+        entries_query = entries_query.join(
+            GuidedResponse, JournalEntry.id == GuidedResponse.journal_entry_id, isouter=True
+        ).filter(
+            or_(
+                JournalEntry.content.ilike(f'%{query}%'),
+                GuidedResponse.response.ilike(f'%{query}%')
+            )
+        ).distinct()
+
+    # Apply tag filter
+    selected_tag = None
+    if tag_id:
+        try:
+            tag_id = int(tag_id)
+            selected_tag = Tag.query.get(tag_id)
+            if selected_tag:
+                entries_query = entries_query.filter(JournalEntry.tags.any(id=tag_id))
+        except ValueError:
+            pass
+
+    # Apply date range filter
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            entries_query = entries_query.filter(JournalEntry.created_at >= start_dt)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            # Include the entire end date
+            from datetime import timedelta
+            end_dt = end_dt + timedelta(days=1, seconds=-1)
+            entries_query = entries_query.filter(JournalEntry.created_at <= end_dt)
+        except ValueError:
+            pass
+
+    # Apply entry type filter
+    if entry_type in ['quick', 'guided']:
+        entries_query = entries_query.filter(JournalEntry.entry_type == entry_type)
+
+    # Apply sorting
+    if sort_by == 'oldest':
+        entries_query = entries_query.order_by(JournalEntry.created_at.asc())
+    else:
+        entries_query = entries_query.order_by(JournalEntry.created_at.desc())
+
+    # Get all matching entries (no pagination for search results)
+    entries = entries_query.all()
+
+    # Get all tags for the filter dropdown
+    tags = Tag.query.filter_by(user_id=current_user.id).order_by(Tag.name).all()
+
+    # For guided entries, find the specific responses that matched the query
+    matched_responses = {}
+    feeling_data = {}
+    if query and entries:
+        for entry in entries:
+            if entry.entry_type == 'guided':
+                # Find matching responses for this entry
+                matching_responses = GuidedResponse.query.filter(
+                    GuidedResponse.journal_entry_id == entry.id,
+                    GuidedResponse.response.ilike(f'%{query}%')
+                ).all()
+                if matching_responses:
+                    matched_responses[entry.id] = matching_responses
+
+                # Try to extract feeling data from guided responses
+                for response in entry.guided_responses:
+                    if response.question_id == 'feeling':
+                        try:
+                            feeling_data[entry.id] = int(response.response)
+                        except (ValueError, TypeError):
+                            pass
+
+    return render_template(
+        'search.html',
+        entries=entries,
+        query=query,
+        tags=tags,
+        selected_tag=selected_tag,
+        start_date=start_date,
+        end_date=end_date,
+        entry_type=entry_type,
+        sort_by=sort_by,
+        matched_responses=matched_responses,
+        feeling_data=feeling_data
     )
 
 
