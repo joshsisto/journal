@@ -73,7 +73,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     // Start countdown timer
     document.addEventListener('DOMContentLoaded', function() {
         const timerElement = document.getElementById('countdown');

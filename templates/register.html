@@ -63,7 +63,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 document.addEventListener('DOMContentLoaded', function() {
     // Auto-detect timezone using JavaScript
     const timezoneSelect = document.getElementById('timezone-select');

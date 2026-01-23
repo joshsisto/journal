@@ -62,7 +62,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     // Form validation script
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('login-form');

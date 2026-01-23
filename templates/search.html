@@ -244,7 +244,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
     // Add any JavaScript for the search page here
     document.addEventListener('DOMContentLoaded', function() {
         // Auto-submit form when filters change (except for text search)
