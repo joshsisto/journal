@@ -153,7 +153,13 @@ def dashboard_post():
             except Exception as e:
                 db.session.rollback()
                 current_app.logger.error(f"Error saving quick entry: {str(e)}")
-                flash('Error saving entry. Please try again.', 'error')
+
+                # Show specific error message to user
+                error_msg = str(e)
+                if 'database' in error_msg.lower() or 'encoding' in error_msg.lower() or 'invalid' in error_msg.lower():
+                    flash(f'Error saving entry: {error_msg}. Some characters may not be supported.', 'error')
+                else:
+                    flash(f'Error saving entry: {error_msg}', 'error')
     
     return redirect(url_for('journal.dashboard'))
 
@@ -324,7 +330,13 @@ def dashboard_post_guided():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error saving guided entry: {str(e)}")
-        flash('Error saving guided entry. Please try again.', 'error')
+
+        # Show specific error message to user
+        error_msg = str(e)
+        if 'database' in error_msg.lower() or 'encoding' in error_msg.lower() or 'invalid' in error_msg.lower():
+            flash(f'Error saving entry: {error_msg}. Some characters may not be supported.', 'error')
+        else:
+            flash(f'Error saving entry: {error_msg}', 'error')
     
     return redirect(url_for('journal.dashboard'))
 

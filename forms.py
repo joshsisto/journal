@@ -39,14 +39,14 @@ class ResetPasswordForm(FlaskForm):
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
 
 class QuickJournalForm(FlaskForm):
-    content = TinyMCEField('Content', validators=[DataRequired(), Length(max=10000)])
+    content = TinyMCEField('Content', validators=[DataRequired(), Length(max=100000)])
     tags = StringField('Tags') # This will be handled by JS
     new_tags = StringField('New Tags') # This will be handled by JS
 
 class GuidedJournalForm(FlaskForm):
     # Guided journal questions are dynamic, so we'll handle them in the route
     # The content field will be used for the main guided response
-    content = TinyMCEField('Content', validators=[Length(max=10000)])
+    content = TinyMCEField('Content', validators=[Length(max=100000)])
     tags = StringField('Tags') # This will be handled by JS
     new_tags = StringField('New Tags') # This will be handled by JS
 

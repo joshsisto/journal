@@ -243,7 +243,7 @@ def create_quick_entry(user_id, form_data, tag_ids=None, new_tags_json=None, pho
         if not sanitized_content or len(sanitized_content.strip()) == 0:
             raise ValueError('Journal entry cannot be empty.')
 
-        if len(sanitized_content) > 10000:  # 10KB limit
+        if len(sanitized_content) > 100000:  # 100KB limit
             raise ValueError('Journal entry is too long. Please shorten your entry.')
 
         # Handle location and weather data

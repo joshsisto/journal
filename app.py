@@ -69,11 +69,18 @@ def create_app(config_class=Config):
     mail.init_app(app)
     csrf.init_app(app)
     
-    # Custom CSRF error handler for better debugging
+    # Custom error handler for 400 errors (CSRF, malicious input, etc.)
     @app.errorhandler(400)
-    def handle_csrf_error(e):
-        current_app.logger.warning(f"CSRF validation failed: {e}")
-        flash('Form submission failed. Please try again.', 'danger')
+    def handle_bad_request(e):
+        current_app.logger.warning(f"Bad request (400): {e}")
+        # Show a more helpful error message
+        error_desc = getattr(e, 'description', str(e))
+        if 'Malicious input detected' in error_desc:
+            flash('Your entry contains characters that triggered our security filter. If this is a false positive, please try rewording your entry.', 'error')
+        elif 'CSRF' in str(e).upper() or 'token' in str(e).lower():
+            flash('Form submission failed. Please refresh the page and try again.', 'error')
+        else:
+            flash(f'Form submission failed: {error_desc}', 'error')
         return redirect(request.referrer or '/')
     
     # Configure session security

@@ -221,10 +221,12 @@ def setup_security(app):
                     continue  # Skip JSON response data and weather/location fields
                 
                 if isinstance(value, str):
-                    if sql_injection_pattern.search(value):
-                        app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
-                        suspicious_request = True
-                    elif xss_pattern.search(value) and key not in ('content', 'response'):  # Allow some HTML in content fields
+                    # Skip SQL injection checks for content/response fields - they use parameterized queries
+                    if key not in ('content', 'response', 'about_day', 'question_about_day', 'question_feeling_reason', 'question_anything_else'):
+                        if sql_injection_pattern.search(value):
+                            app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                            suspicious_request = True
+                    if xss_pattern.search(value) and key not in ('content', 'response', 'about_day'):  # Allow some HTML in content fields
                         app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                         suspicious_request = True
         
@@ -292,10 +294,12 @@ def monitor_suspicious_activity():
                 continue  # Skip JSON response data and weather/location fields
             
             if isinstance(value, str):
-                if sql_injection_pattern.search(value):
-                    current_app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
-                    suspicious_request = True
-                elif xss_pattern.search(value) and key not in ('content', 'response'):  # Allow some HTML in content fields
+                # Skip SQL injection checks for content/response fields - they use parameterized queries
+                if key not in ('content', 'response', 'about_day', 'question_about_day', 'question_feeling_reason', 'question_anything_else'):
+                    if sql_injection_pattern.search(value):
+                        current_app.logger.warning(f'SQL injection attempt blocked from {request.remote_addr}: {key}={value[:100]}')
+                        suspicious_request = True
+                if xss_pattern.search(value) and key not in ('content', 'response', 'about_day'):  # Allow some HTML in content fields
                     current_app.logger.warning(f'XSS attempt blocked from {request.remote_addr}: {key}={value[:100]}')
                     suspicious_request = True
     

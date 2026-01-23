@@ -20,12 +20,21 @@ class Config:
         DB_PORT = os.environ.get('DB_PORT', '5432')
         DB_NAME = os.environ.get('DB_NAME', 'journal_db')
         # URL encode password to handle special characters
-        SQLALCHEMY_DATABASE_URI = f'postgresql://{DB_USER}:{quote_plus(DB_PASSWORD)}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+        SQLALCHEMY_DATABASE_URI = f'postgresql://{DB_USER}:{quote_plus(DB_PASSWORD)}@{DB_HOST}:{DB_PORT}/{DB_NAME}?client_encoding=utf8'
     else:
         # SQLite fallback
         SQLALCHEMY_DATABASE_URI = 'sqlite:///journal.db'
-    
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # SQLAlchemy engine configuration for better encoding handling
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,  # Verify connections before using
+        'pool_recycle': 3600,   # Recycle connections after 1 hour
+        'connect_args': {
+            'client_encoding': 'utf8',
+        }
+    }
     
     # Email settings
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.mailgun.org')
