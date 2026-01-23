@@ -323,40 +323,153 @@ class TemplateQuestion(db.Model):
         return question_dict
     
     def _create_condition_function(self):
-        """Create a condition function from the condition expression."""
+        """
+        Create a condition function from the condition expression.
+
+        SECURITY: Uses safe AST parsing instead of eval() to prevent code injection.
+        """
         if not self.condition_expression:
             return lambda response_data: True
-        
-        # Simple expression evaluator for common conditions
-        def condition_func(response_data):
-            try:
-                # Replace variable names with values from response_data
-                expression = self.condition_expression
-                
-                # Common variable replacements
-                replacements = {
-                    'hours_since_last_entry': str(response_data.get('hours_since_last_entry', 0)),
-                    'exercised_today': str(response_data.get('exercised_today', False)).lower(),
-                    'is_before_noon': str(response_data.get('is_before_noon', False)).lower(),
-                    'goals_set_today': str(response_data.get('goals_set_today', False)).lower(),
-                    'exercise_response': f'"{response_data.get("exercise_response", "")}"'
-                }
-                
-                for var, val in replacements.items():
-                    expression = expression.replace(var, val)
-                
-                # Basic safety check - only allow simple comparisons
-                allowed_operators = ['==', '!=', '>=', '<=', '>', '<', 'and', 'or', 'not', 'true', 'false']
-                if any(op in expression.lower() for op in ['import', 'exec', 'eval', '__', 'open', 'file']):
-                    return True  # Fail safe - show question if expression is suspicious
-                
-                # Evaluate the expression safely
-                result = eval(expression)
-                return bool(result)
-            except:
-                # If evaluation fails, show the question (fail safe)
+
+        # Pre-compile the expression AST for better performance
+        import ast
+        import operator
+
+        # Allowed operators for safe evaluation
+        ALLOWED_OPERATORS = {
+            ast.Eq: operator.eq,
+            ast.NotEq: operator.ne,
+            ast.Lt: operator.lt,
+            ast.LtE: operator.le,
+            ast.Gt: operator.gt,
+            ast.GtE: operator.ge,
+            ast.And: lambda a, b: a and b,
+            ast.Or: lambda a, b: a or b,
+            ast.Not: operator.not_,
+        }
+
+        def is_safe_ast(node):
+            """
+            Recursively check if AST node contains only safe operations.
+            Returns False if dangerous operations are detected.
+            """
+            if isinstance(node, ast.Expression):
+                return is_safe_ast(node.body)
+            elif isinstance(node, ast.Compare):
+                if not is_safe_ast(node.left):
+                    return False
+                for op in node.ops:
+                    if type(op) not in ALLOWED_OPERATORS:
+                        return False
+                for comparator in node.comparators:
+                    if not is_safe_ast(comparator):
+                        return False
                 return True
-        
+            elif isinstance(node, ast.BoolOp):
+                for value in node.values:
+                    if not is_safe_ast(value):
+                        return False
+                return isinstance(node.op, (ast.And, ast.Or))
+            elif isinstance(node, ast.UnaryOp):
+                return isinstance(node.op, ast.Not) and is_safe_ast(node.operand)
+            elif isinstance(node, ast.Constant):
+                # Allow literals (strings, numbers, booleans, None)
+                return True
+            elif isinstance(node, ast.Str):  # Python < 3.8 compatibility
+                return True
+            elif isinstance(node, ast.Num):  # Python < 3.8 compatibility
+                return True
+            elif isinstance(node, ast.NameConstant):  # Python < 3.8
+                return True
+            elif isinstance(node, ast.Name):
+                # Only allow specific variable names
+                allowed_vars = {
+                    'hours_since_last_entry', 'exercised_today', 'is_before_noon',
+                    'goals_set_today', 'exercise_response', 'true', 'false'
+                }
+                return node.id in allowed_vars
+            else:
+                # Reject any other node type (function calls, imports, etc.)
+                return False
+
+        def safe_eval_expression(expression, variables):
+            """
+            Safely evaluate a simple comparison expression using AST parsing.
+
+            Args:
+                expression: String expression to evaluate
+                variables: Dict of variable names to values
+
+            Returns:
+                Boolean result of evaluation, or True if evaluation fails (fail-open)
+            """
+            try:
+                # Parse the expression into an AST
+                tree = ast.parse(expression, mode='eval')
+
+                # Security check: verify AST contains only safe operations
+                if not is_safe_ast(tree):
+                    return True  # Fail-open - show question if expression is unsafe
+
+                # Evaluate the safe AST
+                def eval_node(node):
+                    """Recursively evaluate a safe AST node."""
+                    if isinstance(node, ast.Compare):
+                        left = eval_node(node.left)
+                        result = left
+                        for op, comparator in zip(node.ops, node.comparators):
+                            right = eval_node(comparator)
+                            op_type = type(op)
+                            if op_type in ALLOWED_OPERATORS:
+                                result = ALLOWED_OPERATORS[op_type](result, right)
+                            else:
+                                return True  # Fail-open
+                        return result
+                    elif isinstance(node, ast.BoolOp):
+                        values = [eval_node(v) for v in node.values]
+                        if isinstance(node.op, ast.And):
+                            return all(values)
+                        else:
+                            return any(values)
+                    elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+                        return not eval_node(node.operand)
+                    elif isinstance(node, ast.Constant):
+                        return node.value
+                    elif isinstance(node, ast.Str):  # Python < 3.8
+                        return node.s
+                    elif isinstance(node, ast.Num):  # Python < 3.8
+                        return node.n
+                    elif isinstance(node, ast.NameConstant):  # Python < 3.8, Python 3.8+
+                        return node.value
+                    elif isinstance(node, ast.Name):
+                        # Look up variable from context, default to False if missing
+                        return variables.get(node.id, False)
+                    else:
+                        return True  # Fail-open for unsupported nodes
+
+                return bool(eval_node(tree.body))
+            except (SyntaxError, ValueError, TypeError, AttributeError):
+                # If parsing/evaluation fails, show the question (fail-open)
+                return True
+            except Exception:
+                # Catch-all safety net - show question on any error
+                return True
+
+        def condition_func(response_data):
+            """Evaluate the condition expression against response data."""
+            # Build variable dictionary from response_data
+            variables = {
+                'hours_since_last_entry': response_data.get('hours_since_last_entry', 0),
+                'exercised_today': response_data.get('exercised_today', False),
+                'is_before_noon': response_data.get('is_before_noon', False),
+                'goals_set_today': response_data.get('goals_set_today', False),
+                'exercise_response': f'"{response_data.get("exercise_response", "")}"',
+                'true': True,
+                'false': False,
+            }
+
+            return safe_eval_expression(self.condition_expression, variables)
+
         return condition_func
 
 

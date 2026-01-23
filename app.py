@@ -121,7 +121,7 @@ def create_app(config_class=Config):
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     
     # Configure upload limits
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+    app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max upload size (reduced for security)
     
     # Setup security features
     setup_security(app)

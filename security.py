@@ -26,7 +26,8 @@ csp = {
         'code.jquery.com',
         'cdn.tiny.cloud',
         '\'unsafe-inline\'',
-        '\'unsafe-eval\'',
+        # SECURITY: Removed 'unsafe-eval' to prevent code execution via eval()
+        # If TinyMCE requires eval(), consider using CSP nonces instead
     ],
     'style-src': [
         '\'self\'',
@@ -36,7 +37,10 @@ csp = {
     'img-src': [
         '\'self\'',
         'data:',
-        '*',  # Allow images from anywhere
+        'blob:',
+        'https://journal.joshsisto.com',
+        'https://www.gravatar.com',  # If user avatars are ever needed
+        # SECURITY: Removed wildcard '*' to prevent data exfiltration via image tags
     ],
     'font-src': [
         '\'self\'',
@@ -44,6 +48,8 @@ csp = {
     ],
     'connect-src': [
         '\'self\'',
+        'https://journal.joshsisto.com',
+        'cdn.tiny.cloud',  # For TinyMCE cloud editor
     ],
 }
 

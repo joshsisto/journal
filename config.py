@@ -52,7 +52,7 @@ class Config:
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads/photos')
     ALLOWED_PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
     MEGABYTE = 1024 * 1024
-    MAX_CONTENT_LENGTH = 16 * MEGABYTE  # 16MB max upload size
+    MAX_CONTENT_LENGTH = 5 * MEGABYTE  # 5MB max upload size (reduced from 16MB for security)
     
     # Security settings
     COMMON_PASSWORDS = {
